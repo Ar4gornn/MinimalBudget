@@ -26,7 +26,7 @@ import type {
 // the dev server's /api proxy provides.
 const BASE = (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "";
 
-const TOKEN_KEY = "moneymap.token";
+const TOKEN_KEY = "minimalbudget.token";
 
 export class ApiError extends Error {
   constructor(

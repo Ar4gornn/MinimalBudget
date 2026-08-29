@@ -49,7 +49,7 @@ def test_every_table_has_a_policy_for_the_runtime_role(owner_engine):
         policed = conn.execute(
             text(
                 "SELECT DISTINCT tablename FROM pg_policies "
-                "WHERE schemaname = 'public' AND 'moneymap_app' = ANY(roles)"
+                "WHERE schemaname = 'public' AND 'minimalbudget_app' = ANY(roles)"
             )
         ).scalars().all()
 
@@ -60,14 +60,14 @@ def test_every_table_has_a_policy_for_the_runtime_role(owner_engine):
 def test_runtime_role_cannot_bypass_rls_and_owns_nothing(owner_engine):
     with owner_engine.connect() as conn:
         bypass = conn.execute(
-            text("SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname = 'moneymap_app'")
+            text("SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname = 'minimalbudget_app'")
         ).one()
         owned = conn.execute(
             text(
                 "SELECT count(*) FROM pg_class c "
                 "JOIN pg_namespace n ON n.oid = c.relnamespace "
                 "JOIN pg_roles r ON r.oid = c.relowner "
-                "WHERE n.nspname = 'public' AND r.rolname = 'moneymap_app'"
+                "WHERE n.nspname = 'public' AND r.rolname = 'minimalbudget_app'"
             )
         ).scalar_one()
 
@@ -81,7 +81,7 @@ def test_runtime_role_cannot_read_password_hashes(owner_engine):
         privileges = conn.execute(
             text(
                 "SELECT privilege_type FROM information_schema.column_privileges "
-                "WHERE grantee = 'moneymap_app' AND table_name = 'users' "
+                "WHERE grantee = 'minimalbudget_app' AND table_name = 'users' "
                 "AND column_name = 'password_hash'"
             )
         ).scalars().all()
@@ -93,6 +93,6 @@ def test_runtime_role_cannot_read_password_hashes(owner_engine):
 def test_runtime_role_cannot_create_tables(owner_engine):
     with owner_engine.connect() as conn:
         can_create = conn.execute(
-            text("SELECT has_schema_privilege('moneymap_app', 'public', 'CREATE')")
+            text("SELECT has_schema_privilege('minimalbudget_app', 'public', 'CREATE')")
         ).scalar_one()
     assert can_create is False, "the runtime role has DDL rights it should not have (AD-2)"

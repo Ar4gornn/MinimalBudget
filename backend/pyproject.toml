@@ -1,5 +1,5 @@
 [project]
-name = "moneymap"
+name = "minimalbudget"
 version = "0.1.0"
 description = "MinimalBudget — a personal finance tracker with per-user isolation enforced by Postgres RLS"
 requires-python = ">=3.13"

@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from app.core.config import Settings
 
-VALID_DATABASE_URL = "postgresql+psycopg://user:pass@localhost:5432/moneymap"
+VALID_DATABASE_URL = "postgresql+psycopg://user:pass@localhost:5432/minimalbudget"
 # A real token_urlsafe-shaped value. "x" * 32 would clear min_length and is deliberately
 # rejected as too low-entropy to be generated, so it cannot serve as the valid fixture.
 VALID_SECRET_KEY = "Xk3n9QwRt7ZbLmVp2ScFdEgHjKlNoPqR"

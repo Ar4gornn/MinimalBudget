@@ -403,7 +403,7 @@ owner credentials before the API starts; the API image never carries owner crede
 ### Source tree
 
 ```text
-moneymap/
+MinimalBudget/
   docker-compose.yml     # postgres + api, local and test
   backend/
     app/

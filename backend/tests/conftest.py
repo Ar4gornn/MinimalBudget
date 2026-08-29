@@ -17,7 +17,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPO_ROOT / "backend"
-TEST_DB = "moneymap_test"
+TEST_DB = "minimalbudget_test"
 
 
 def _read_dotenv() -> dict[str, str]:
