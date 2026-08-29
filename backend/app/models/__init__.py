@@ -6,7 +6,8 @@ here. The migration is the authority; these declarations keep the ORM honest abo
 """
 
 from app.models.base import Base
+from app.models.ledger import Category, Entry, EntryKind
 from app.models.savings import SavingsType
 from app.models.user import User
 
-__all__ = ["Base", "SavingsType", "User"]
+__all__ = ["Base", "Category", "Entry", "EntryKind", "SavingsType", "User"]
