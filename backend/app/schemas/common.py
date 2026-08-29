@@ -43,6 +43,15 @@ NonNegativeMoney = Annotated[
 ]
 
 
+# Net income can legitimately be negative — that is the month you overspent.
+SignedMoney = Annotated[
+    Decimal,
+    BeforeValidator(lambda v: _quantise(_to_decimal(v))),
+    Field(ge=Decimal("-999999999999.99"), le=Decimal("999999999999.99")),
+    PlainSerializer(lambda v: f"{v:.2f}", return_type=str),
+]
+
+
 class Page[T](BaseModel):
     """AD-20: every collection is enveloped, so a cursor can be added without breaking callers."""
 
