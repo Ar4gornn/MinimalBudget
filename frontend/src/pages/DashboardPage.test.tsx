@@ -1,0 +1,168 @@
+import { render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { DashboardPage } from "./DashboardPage";
+import type { Summary, Trends } from "../api/types";
+
+const summary: Summary = {
+  month: "2026-08",
+  income: "3000.00",
+  expense: "845.50",
+  net: "2154.50",
+  saved: "400.00",
+  budgets: [
+    // Budgeted, unspent — must still appear (AD-22).
+    { category_id: "g", category_name: "Gym", budget: "40.00", actual: "0.00" },
+    { category_id: "r", category_name: "Rent", budget: "900.00", actual: "800.00" },
+    // Spent, unbudgeted — must still appear.
+    { category_id: "t", category_name: "Taxi", budget: null, actual: "45.50" },
+  ],
+  savings: [
+    { savings_type_id: "s", savings_type_name: "startup", target: "1000.00", actual: "400.00" },
+  ],
+};
+
+const trends: Trends = {
+  months: ["2026-07", "2026-08"],
+  income: ["2900.00", "3000.00"],
+  expense: ["790.00", "845.50"],
+  saved: ["150.00", "400.00"],
+  expense_by_category: [{ category_id: "r", category_name: "Rent", values: ["790.00", "800.00"] }],
+};
+
+function mockApi(overrides: { summary?: Summary; trends?: Trends } = {}) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      const body = url.includes("/summary")
+        ? (overrides.summary ?? summary)
+        : (overrides.trends ?? trends);
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }),
+  );
+}
+
+/** Read one headline figure by its label, rather than by hunting for a number on the page. */
+function stat(label: string): string {
+  const card = document.querySelector(`[data-stat="${label}"] .value`);
+  return card?.textContent ?? "";
+}
+
+/** The cells of one row of a named table. */
+function rowOf(tableName: string, first: string): string[] {
+  const table = screen.getByRole("table", { name: tableName });
+  const row = within(table).getByText(first).closest("tr") as HTMLElement;
+  return [...row.querySelectorAll("td")].map((cell) => cell.textContent ?? "");
+}
+
+describe("DashboardPage", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows the month's totals, numbers first", async () => {
+    mockApi();
+    render(<DashboardPage />);
+
+    await screen.findByRole("table", { name: "Budget vs actual" });
+    expect(stat("Income")).toBe("3,000.00");
+    expect(stat("Expense")).toBe("845.50");
+    expect(stat("Net")).toBe("2,154.50");
+    expect(stat("Saved")).toBe("400.00");
+  });
+
+  it("keeps a budgeted category with no spending on screen", async () => {
+    mockApi();
+    render(<DashboardPage />);
+    await screen.findByRole("table", { name: "Budget vs actual" });
+
+    // category, spent, budget, left, progress
+    expect(rowOf("Budget vs actual", "Gym").slice(0, 4)).toEqual([
+      "Gym",
+      "0.00",
+      "40.00",
+      "40.00",
+    ]);
+  });
+
+  it("shows a spent category that has no budget, marked as unset", async () => {
+    mockApi();
+    render(<DashboardPage />);
+    await screen.findByRole("table", { name: "Budget vs actual" });
+
+    expect(rowOf("Budget vs actual", "Taxi").slice(0, 4)).toEqual([
+      "Taxi",
+      "45.50",
+      "not set",
+      "—",
+    ]);
+  });
+
+  it("shows savings progress against the target", async () => {
+    mockApi();
+    render(<DashboardPage />);
+    await screen.findByRole("table", { name: "Savings progress" });
+
+    expect(rowOf("Savings progress", "startup").slice(0, 3)).toEqual([
+      "startup",
+      "400.00",
+      "1,000.00",
+    ]);
+  });
+
+  it("renders a month with no data as zeroes rather than an empty screen", async () => {
+    mockApi({
+      summary: {
+        month: "2020-01",
+        income: "0.00",
+        expense: "0.00",
+        net: "0.00",
+        saved: "0.00",
+        budgets: [],
+        savings: [],
+      },
+      trends: { months: [], income: [], expense: [], saved: [], expense_by_category: [] },
+    });
+    render(<DashboardPage />);
+
+    expect(
+      await screen.findByText("No budgets set and nothing spent this month."),
+    ).toBeInTheDocument();
+    expect([stat("Income"), stat("Expense"), stat("Net"), stat("Saved")]).toEqual([
+      "0.00",
+      "0.00",
+      "0.00",
+      "0.00",
+    ]);
+  });
+
+  it("draws the trend chart as inline SVG, with no chart library involved", async () => {
+    mockApi();
+    const { container } = render(<DashboardPage />);
+    await screen.findByRole("table", { name: "Budget vs actual" });
+
+    const chart = container.querySelector("svg[role='img']");
+    expect(chart).not.toBeNull();
+    // Two months, three series each.
+    expect(chart?.querySelectorAll("rect").length).toBe(6);
+  });
+
+  it("reports a failure instead of showing a blank page", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ detail: "month must be formatted YYYY-MM" }), {
+            status: 422,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+    render(<DashboardPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("month must be formatted YYYY-MM");
+  });
+});

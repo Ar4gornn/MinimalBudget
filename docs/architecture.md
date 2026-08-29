@@ -440,11 +440,11 @@ moneymap/
 
 ## Deferred
 
-- **TypeScript major version.** Settled by a real build in the client slice. `7.0.2` is the first
-  candidate — note it ships no importable programmatic API before 7.1, which affects library
-  consumers but not `tsc` or `vite build`. Fallback is the latest 5.x. Deferred because asserting a
-  major version's toolchain compatibility without running it is exactly the failure this project
-  should not repeat.
+- ~~**TypeScript major version.**~~ **Settled 2026-08-29: `typescript@7.0.2`.** `tsc -b` and
+  `vite build` both pass against Vite 8.2.2 and Vitest 4.1.11 on this codebase, so the 5.x fallback
+  was not needed. The one thing 7.0 does lack — an importable programmatic API before 7.1 — affects
+  library consumers, not the CLI, and nothing here imports `typescript`. Decided by running the
+  build, which is the whole reason it was deferred rather than asserted.
 - **Node 24 / Python 3.14.** Both are current; both are deliberately not adopted so this project
   matches the installed workspace toolchain. Revisit when the workspace upgrades, together.
 - **Pagination.** Not needed at single-user data volumes. AD-20's envelope makes adding a cursor
