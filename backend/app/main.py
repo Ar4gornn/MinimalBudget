@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import auth, categories, entries
+from app.api import auth, budgets, categories, entries, savings
 from app.core.config import get_settings
 from app.core.errors import Conflict, Invalid, NotFound
 from app.core.months import InvalidMonth
@@ -55,6 +55,8 @@ def _invalid_month(_: Request, exc: InvalidMonth) -> JSONResponse:
 app.include_router(auth.router)
 app.include_router(categories.router)
 app.include_router(entries.router)
+app.include_router(savings.router)
+app.include_router(budgets.router)
 
 
 @app.get("/health", tags=["meta"])
