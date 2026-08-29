@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      DB_OWNER: ${DB_OWNER}
+      DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD}
+      DB_APP_USER: ${DB_APP_USER}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      # Postgres 18+ images store data in a major-version subdirectory and refuse to start
+      # if the volume is mounted at .../data instead of the parent.
+      - pgdata:/var/lib/postgresql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Inside the compose network the host is `db`, not localhost.
+      DATABASE_URL: postgresql+psycopg://${DB_APP_USER}:${DB_APP_PASSWORD}@db:5432/${POSTGRES_DB}
+      MIGRATION_DATABASE_URL: postgresql+psycopg://${DB_OWNER}:${DB_OWNER_PASSWORD}@db:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    ports:
+      - "8000:8000"
+
+volumes:
+  pgdata:

@@ -1,0 +1,51 @@
+[project]
+name = "moneymap"
+version = "0.1.0"
+description = "MinimalBudget — a personal finance tracker with per-user isolation enforced by Postgres RLS"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi==0.141.1",
+    "uvicorn[standard]==0.52.4",
+    "sqlalchemy==2.0.52",
+    "alembic==1.19.1",
+    "psycopg[binary]==3.3.4",
+    "pydantic==2.13.5",
+    "email-validator==2.3.0",
+    "pydantic-settings==2.15.0",
+    "argon2-cffi==25.1.0",
+    "pyjwt==2.13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "httpx==0.28.1",
+    "ruff==0.16.5",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "S"]
+ignore = ["S101"]  # assert is how pytest works
+
+[tool.ruff.lint.per-file-ignores]
+# Test fixtures carry obvious dummy passwords, and build SQL from identifiers they
+# themselves chose — not from anything a user supplies.
+"tests/*" = ["S105", "S106", "S107", "S608"]
+# Migrations interpolate role and table names that come from configuration and from the
+# migration itself. Postgres has no bind parameters for identifiers.
+"migrations/*" = ["S608"]
