@@ -1,0 +1,53 @@
+# --- secrets / environment ---
+.env
+.env.*
+!.env.example
+*.local.*
+*.pem
+*.key
+
+# --- python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- node ---
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+
+# --- databases / data volumes ---
+pgdata/
+*.sqlite3
+*.db
+*.dump
+
+# --- agent + planning working files (never pushed) ---
+CLAUDE.md
+LOG.md
+STATE.md
+.claude/
+.bmad/
+.bmad-*/
+bmad/
+
+# --- editors / os ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- BMAD working artifacts ---
+_bmad-output/
+.bmad-core/
+bmad-output/
