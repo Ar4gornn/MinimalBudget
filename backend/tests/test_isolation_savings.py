@@ -162,6 +162,47 @@ def test_the_database_refuses_a_budget_on_an_income_category(client, user_a, run
         conn.close()
 
 
+def test_b_cannot_patch_a_contribution_of_a(client, user_a, user_b):
+    savings_type, contribution = _seed(client, user_a)
+
+    response = client.patch(
+        f"/api/savings/contributions/{contribution['id']}",
+        json={"amount": "999.00"},
+        headers=user_b["headers"],
+    )
+    # AD-8: 404, never 403 — a 403 would confirm the id exists.
+    assert response.status_code == 404
+
+    still_a = client.get("/api/savings/contributions", headers=user_a["headers"]).json()["items"]
+    assert still_a == [contribution]
+
+
+def test_b_cannot_delete_a_contribution_of_a(client, user_a, user_b):
+    savings_type, contribution = _seed(client, user_a)
+
+    response = client.delete(
+        f"/api/savings/contributions/{contribution['id']}", headers=user_b["headers"]
+    )
+    assert response.status_code == 404
+
+    still_a = client.get("/api/savings/contributions", headers=user_a["headers"]).json()["items"]
+    assert still_a == [contribution]
+
+
+def test_b_cannot_delete_a_savings_type_of_a(client, user_a, user_b):
+    savings_type, _ = _seed(client, user_a)
+
+    response = client.delete(
+        f"/api/savings/types/{savings_type['id']}", headers=user_b["headers"]
+    )
+    assert response.status_code == 404
+
+    # New users get default savings types seeded on registration, so assert presence,
+    # not an exhaustive list.
+    still_a = client.get("/api/savings/types", headers=user_a["headers"]).json()["items"]
+    assert savings_type["id"] in [t["id"] for t in still_a]
+
+
 def test_the_positive_case_still_holds(client, user_a):
     _seed(client, user_a)
     contributions = client.get("/api/savings/contributions", headers=user_a["headers"])
