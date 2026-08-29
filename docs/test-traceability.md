@@ -316,3 +316,27 @@ Every P0 and P1 criterion is now covered and passing. Residual, accepted rather 
   not a controlled result. Revisit when CI exists.
 
 Next: pre-publish review over the full diff.
+
+---
+
+## PRE-PUBLISH REVIEW — 2026-08-29
+
+Verdict: safe to publish, after one blocking fix. Findings acted on:
+
+| Severity | Finding | Outcome |
+| --- | --- | --- |
+| HIGH | Every money field returned **500** on a malformed amount. `Decimal("abc")` raises `decimal.InvalidOperation` — an `ArithmeticError`, not a `ValueError` — so pydantic never turned it into a 422. `"NaN"`/`"Infinity"` raised `TypeError` on a non-finite exponent. | Fixed, plus a worse one the review missed: `"1_0"` was **accepted** as 10.00, because Decimal honours PEP 515 underscores. Amount strings are now shape-checked before Decimal sees them. 54 regression tests across all four money endpoints. |
+| LOW | The database init script interpolated passwords into SQL through the shell, as the superuser. | Fixed with psql variables. Verified by creating a role whose password is `'; ALTER ROLE moneymap_app SUPERUSER; --` and confirming it did not. |
+| LOW | The dashboard's six aggregates were the only queries with no redundant `user_id` filter. | Made consistent with AD-1's defence-in-depth rule. |
+| LOW | `isValidMoney` accepted `"0"` while both call sites said "greater than zero". | Split into `isPositiveMoney` and `isNonNegativeMoney`; also removes a regex PlanPage had inlined. |
+| LOW | PlanPage fetched all five collections twice on mount. | Fixed; verified in the browser that it now matches the StrictMode baseline of every other page. |
+| LOW | Vite reads env files from its own directory, so a production build never saw `VITE_API_BASE_URL`. | `envDir` set; default value is now empty, since same-origin is what the dev proxy serves. |
+| LOW | `addMoney` was referenced only by its own test. | Removed. |
+
+Confirmed clean by the review, each traced rather than inferred: no secret in any of the 12
+commits or in history; no route reaches the database without a tenant; `auth_lookup` is
+`SECURITY DEFINER` with a pinned `search_path` and cannot be made to return another user's row;
+the owner-only policy is unreachable by the API because it never holds the owner credentials;
+every dependency resolves to the public registry.
+
+**Final: 199 tests (166 backend, 33 frontend), verified from a destroyed and rebuilt database.**
