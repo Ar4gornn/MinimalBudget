@@ -6,6 +6,10 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
+  // .env lives at the repository root, next to docker-compose.yml, and is shared with the
+  // backend. Vite otherwise looks in this directory and a production build would silently
+  // fall back to a same-origin API base.
+  envDir: "..",
   server: {
     port: 5173,
     // The dev server proxies /api so the browser sees one origin locally, while the

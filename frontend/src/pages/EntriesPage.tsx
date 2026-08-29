@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { api } from "../api/client";
 import type { Category, Entry, EntryKind } from "../api/types";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
-import { formatMoney, isValidMoney } from "../money";
+import { formatMoney, isPositiveMoney } from "../money";
 import { currentMonth, todayIso } from "../months";
 
 export function EntriesPage() {
@@ -55,7 +55,7 @@ export function EntriesPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!isValidMoney(amount)) {
+    if (!isPositiveMoney(amount)) {
       setError("Enter an amount with at most two decimal places, greater than zero.");
       return;
     }

@@ -15,10 +15,7 @@ def summary(
     session: DbSession,
     month: Annotated[str, Query(description="YYYY-MM")],
 ) -> SummaryOut:
-    # user_id is unused on purpose: row-level security scopes every query in the session,
-    # and re-filtering here would imply the database were not already doing it.
-    del user_id
-    return SummaryOut.model_validate(dashboard.summary(session, month))
+    return SummaryOut.model_validate(dashboard.summary(session, user_id, month))
 
 
 @router.get("/trends", response_model=TrendsOut)
@@ -28,5 +25,6 @@ def trends(
     months: Annotated[int, Query(ge=1, le=36)] = 6,
     ending: Annotated[str | None, Query(description="YYYY-MM, defaults to this month")] = None,
 ) -> TrendsOut:
-    del user_id
-    return TrendsOut.model_validate(dashboard.trends(session, months=months, ending=ending))
+    return TrendsOut.model_validate(
+        dashboard.trends(session, user_id, months=months, ending=ending)
+    )

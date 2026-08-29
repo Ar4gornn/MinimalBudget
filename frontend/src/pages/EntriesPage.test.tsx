@@ -30,11 +30,11 @@ function json(body: unknown, status = 200): Response {
 
 function mockApi() {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-    if (url.startsWith("/api/categories")) return json({ items: categories });
-    if (url.startsWith("/api/entries") && init?.method === "POST") {
+    if (url.includes("/api/categories")) return json({ items: categories });
+    if (url.includes("/api/entries") && init?.method === "POST") {
       return json({ ...entries[0], id: "e2" }, 201);
     }
-    if (url.startsWith("/api/entries") && init?.method === "DELETE") return json(null, 204);
+    if (url.includes("/api/entries") && init?.method === "DELETE") return json(null, 204);
     return json({ items: entries });
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -99,7 +99,7 @@ describe("EntriesPage", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
-        if (url.startsWith("/api/categories")) return json({ items: categories });
+        if (url.includes("/api/categories")) return json({ items: categories });
         if (init?.method === "DELETE") return json({ detail: "That category still has entries" }, 409);
         return json({ items: entries });
       }),

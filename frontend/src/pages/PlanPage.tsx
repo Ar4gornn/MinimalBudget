@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { api } from "../api/client";
 import type { Budget, Category, Contribution, SavingsType, Target } from "../api/types";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
-import { formatMoney, isValidMoney } from "../money";
+import { formatMoney, isNonNegativeMoney, isPositiveMoney } from "../money";
 import { todayIso } from "../months";
 
 /** Savings and budgets: what the user intends, and what they have actually put aside. */
@@ -38,13 +38,12 @@ export function PlanPage() {
       setTargets(nextTargets);
       setCategories(nextCategories);
       setBudgets(nextBudgets);
-      if (!contributionType && nextTypes[0]) setContributionType(nextTypes[0].id);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not load your plan.");
     } finally {
       setLoading(false);
     }
-  }, [contributionType]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -86,13 +85,13 @@ export function PlanPage() {
 
   async function addContribution(event: FormEvent) {
     event.preventDefault();
-    if (!isValidMoney(contributionAmount)) {
+    if (!isPositiveMoney(contributionAmount)) {
       setError("Enter an amount with at most two decimal places, greater than zero.");
       return;
     }
     await guard(async () => {
       await api.createContribution({
-        savings_type_id: contributionType,
+        savings_type_id: contributionType || types[0]?.id || "",
         amount: contributionAmount.trim(),
         occurred_on: contributionDate,
       });
@@ -103,7 +102,7 @@ export function PlanPage() {
   /** AD-11: PUT, so saving twice updates the standing amount rather than adding a second. */
   async function saveAmount(kind: "target" | "budget", id: string, raw: string) {
     const value = raw.trim();
-    if (value === "" || !/^\d{1,12}(\.\d{1,2})?$/.test(value)) {
+    if (!isNonNegativeMoney(value)) {
       setError("Enter an amount of zero or more, with at most two decimal places.");
       return;
     }
@@ -173,7 +172,7 @@ export function PlanPage() {
                 Type
                 <select
                   aria-label="Savings type"
-                  value={contributionType}
+                  value={contributionType || types[0]?.id || ""}
                   onChange={(event) => setContributionType(event.target.value)}
                 >
                   {types.map((type) => (

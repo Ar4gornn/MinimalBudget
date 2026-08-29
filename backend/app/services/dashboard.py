@@ -6,6 +6,11 @@ there is one definition of "August's expenses" rather than one per endpoint.
 AD-22: every aggregate is wrapped so no rows yields 0, never NULL; and budget-versus-actual
 is joined **from** the categories side, so a budgeted category with no spending appears at
 zero instead of vanishing.
+
+AD-1: every query below also carries an explicit ``user_id`` filter. Row-level security is
+the authority and already scopes the session, so these are redundant — deliberately. They
+are the same defence in depth the rest of the services keep, and this is the module where a
+policy regression would leak totals rather than rows.
 """
 
 import datetime as dt
@@ -23,7 +28,7 @@ _TOTALS = text(
         COALESCE(SUM(amount) FILTER (WHERE kind = 'expense'), 0) AS expense,
         COALESCE(SUM(amount) FILTER (WHERE kind = 'income'), 0)  AS income
     FROM entries
-    WHERE occurred_on >= :start AND occurred_on < :end
+    WHERE user_id = :uid AND occurred_on >= :start AND occurred_on < :end
     """
 )
 
@@ -31,7 +36,7 @@ _SAVED = text(
     """
     SELECT COALESCE(SUM(amount), 0) AS saved
     FROM savings_contributions
-    WHERE occurred_on >= :start AND occurred_on < :end
+    WHERE user_id = :uid AND occurred_on >= :start AND occurred_on < :end
     """
 )
 
@@ -50,10 +55,11 @@ _BUDGET_VS_ACTUAL = text(
     LEFT JOIN (
         SELECT category_id, SUM(amount) AS total
         FROM entries
-        WHERE kind = 'expense' AND occurred_on >= :start AND occurred_on < :end
+        WHERE user_id = :uid AND kind = 'expense'
+          AND occurred_on >= :start AND occurred_on < :end
         GROUP BY category_id
     ) spent ON spent.category_id = c.id
-    WHERE c.kind = 'expense'
+    WHERE c.user_id = :uid AND c.kind = 'expense'
       AND (b.monthly_amount IS NOT NULL OR spent.total IS NOT NULL)
     ORDER BY lower(c.name), c.id
     """
@@ -71,10 +77,10 @@ _TARGET_VS_ACTUAL = text(
     LEFT JOIN (
         SELECT savings_type_id, SUM(amount) AS total
         FROM savings_contributions
-        WHERE occurred_on >= :start AND occurred_on < :end
+        WHERE user_id = :uid AND occurred_on >= :start AND occurred_on < :end
         GROUP BY savings_type_id
     ) put_aside ON put_aside.savings_type_id = s.id
-    WHERE t.monthly_amount IS NOT NULL OR put_aside.total IS NOT NULL
+    WHERE s.user_id = :uid AND (t.monthly_amount IS NOT NULL OR put_aside.total IS NOT NULL)
     ORDER BY lower(s.name), s.id
     """
 )
@@ -94,14 +100,14 @@ _TRENDS = text(
                COALESCE(SUM(amount) FILTER (WHERE kind = 'income'), 0)  AS income,
                COALESCE(SUM(amount) FILTER (WHERE kind = 'expense'), 0) AS expense
         FROM entries
-        WHERE occurred_on >= :start AND occurred_on < :end
+        WHERE user_id = :uid AND occurred_on >= :start AND occurred_on < :end
         GROUP BY 1
     ),
     savings_totals AS (
         SELECT CAST(date_trunc('month', occurred_on) AS date) AS m,
                COALESCE(SUM(amount), 0) AS saved
         FROM savings_contributions
-        WHERE occurred_on >= :start AND occurred_on < :end
+        WHERE user_id = :uid AND occurred_on >= :start AND occurred_on < :end
         GROUP BY 1
     )
     SELECT to_char(months.m, 'YYYY-MM')     AS month,
@@ -130,7 +136,8 @@ _EXPENSE_SERIES = text(
                CAST(date_trunc('month', occurred_on) AS date) AS m,
                SUM(amount) AS total
         FROM entries
-        WHERE kind = 'expense' AND occurred_on >= :start AND occurred_on < :end
+        WHERE user_id = :uid AND kind = 'expense'
+          AND occurred_on >= :start AND occurred_on < :end
         GROUP BY 1, 2
     ),
     used_categories AS (
@@ -170,9 +177,9 @@ class Summary:
         self.savings = savings
 
 
-def summary(session: Session, month: str) -> Summary:
+def summary(session: Session, user_id: uuid.UUID, month: str) -> Summary:
     start, end = month_range(month)
-    window = {"start": start, "end": end}
+    window = {"uid": str(user_id), "start": start, "end": end}
 
     totals = session.execute(_TOTALS, window).one()
     saved = session.execute(_SAVED, window).scalar_one()
@@ -199,14 +206,21 @@ def summary(session: Session, month: str) -> Summary:
     return Summary(month, totals.income, totals.expense, saved, budgets, savings)
 
 
-def _window_ending_at(last_month: dt.date, months: int) -> dict:
+def _window_ending_at(user_id: uuid.UUID, last_month: dt.date, months: int) -> dict:
     first = add_months(last_month, -(months - 1))
-    return {"start": first, "last": last_month, "end": add_months(last_month, 1)}
+    return {
+        "uid": str(user_id),
+        "start": first,
+        "last": last_month,
+        "end": add_months(last_month, 1),
+    }
 
 
-def trends(session: Session, *, months: int, ending: str | None = None) -> dict:
+def trends(
+    session: Session, user_id: uuid.UUID, *, months: int, ending: str | None = None
+) -> dict:
     last_month = parse_month(ending) if ending else dt.date.today().replace(day=1)
-    window = _window_ending_at(last_month, months)
+    window = _window_ending_at(user_id, last_month, months)
 
     rows = session.execute(_TRENDS, window).all()
     series = {

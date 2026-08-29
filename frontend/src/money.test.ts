@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { addMoney, formatMoney, fromCents, isValidMoney, progress, subtractMoney, toCents } from "./money";
+import {
+  formatMoney,
+  fromCents,
+  isNonNegativeMoney,
+  isPositiveMoney,
+  progress,
+  subtractMoney,
+  toCents,
+} from "./money";
 
 describe("money", () => {
-  it("adds without the float error that started this whole convention", () => {
-    // 0.1 + 0.2 === 0.30000000000000004 as floats. Not here.
-    expect(addMoney("0.10", "0.20")).toBe("0.30");
-    expect(addMoney("1234567.89", "0.11")).toBe("1234568.00");
+  it("subtracts without the float error that started this whole convention", () => {
+    // 0.30 - 0.20 === 0.09999999999999998 as floats. Not here.
+    expect(subtractMoney("0.30", "0.20")).toBe("0.10");
+    expect(subtractMoney("1234568.00", "0.11")).toBe("1234567.89");
   });
 
   it("subtracts into negatives", () => {
@@ -25,13 +33,21 @@ describe("money", () => {
     expect(formatMoney("0.05")).toBe("0.05");
   });
 
-  it("accepts only two-place non-negative amounts", () => {
-    expect(isValidMoney("12.34")).toBe(true);
-    expect(isValidMoney("12")).toBe(true);
-    expect(isValidMoney("12.345")).toBe(false);
-    expect(isValidMoney("-12.34")).toBe(false);
-    expect(isValidMoney("")).toBe(false);
-    expect(isValidMoney("abc")).toBe(false);
+  it("accepts only two-place amounts, and only positive ones where the label says so", () => {
+    for (const check of [isPositiveMoney, isNonNegativeMoney]) {
+      expect(check("12.34")).toBe(true);
+      expect(check("12")).toBe(true);
+      expect(check("12.345")).toBe(false);
+      expect(check("-12.34")).toBe(false);
+      expect(check("")).toBe(false);
+      expect(check("abc")).toBe(false);
+    }
+    // The difference, and the reason there are two: an entry of 0.00 is not a
+    // transaction, but a budget of 0.00 means "I intend to spend nothing here".
+    expect(isPositiveMoney("0")).toBe(false);
+    expect(isPositiveMoney("0.00")).toBe(false);
+    expect(isNonNegativeMoney("0")).toBe(true);
+    expect(isNonNegativeMoney("0.00")).toBe(true);
   });
 
   it("reports progress, and nothing when there is no target", () => {

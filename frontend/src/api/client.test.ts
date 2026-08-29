@@ -102,7 +102,8 @@ describe("api client", () => {
 
     await api.listEntries({ month: "2026-08", category_id: "" });
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/entries?month=2026-08");
+    const requested = new URL(String(fetchMock.mock.calls[0]?.[0]), "http://test.invalid");
+    expect(requested.pathname + requested.search).toBe("/api/entries?month=2026-08");
   });
 
   it("survives localStorage throwing, as it does in a private window", async () => {

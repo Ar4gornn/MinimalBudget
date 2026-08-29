@@ -19,19 +19,19 @@ function mockApi(overrides: { deleteTypeStatus?: number; deleteTypeDetail?: stri
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
 
-    if (url.startsWith("/api/savings/types") && method === "DELETE") {
+    if (url.includes("/api/savings/types") && method === "DELETE") {
       if (overrides.deleteTypeStatus && overrides.deleteTypeStatus !== 204) {
         return json({ detail: overrides.deleteTypeDetail }, overrides.deleteTypeStatus);
       }
       return json(null, 204);
     }
-    if (url.startsWith("/api/savings/types")) return json({ items: savingsTypes });
-    if (url.startsWith("/api/savings/contributions")) return json({ items: [] });
-    if (url.startsWith("/api/savings/targets") && method === "PUT") return json({}, 200);
-    if (url.startsWith("/api/savings/targets")) return json({ items: [] });
-    if (url.startsWith("/api/categories")) return json({ items: categories });
-    if (url.startsWith("/api/budgets") && method === "PUT") return json({}, 200);
-    if (url.startsWith("/api/budgets")) return json({ items: [] });
+    if (url.includes("/api/savings/types")) return json({ items: savingsTypes });
+    if (url.includes("/api/savings/contributions")) return json({ items: [] });
+    if (url.includes("/api/savings/targets") && method === "PUT") return json({}, 200);
+    if (url.includes("/api/savings/targets")) return json({ items: [] });
+    if (url.includes("/api/categories")) return json({ items: categories });
+    if (url.includes("/api/budgets") && method === "PUT") return json({}, 200);
+    if (url.includes("/api/budgets")) return json({ items: [] });
     return json({ items: [] });
   });
   vi.stubGlobal("fetch", fetchMock);

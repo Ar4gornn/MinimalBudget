@@ -8,12 +8,6 @@
 
 import type { Money } from "./api/types";
 
-/** Sum decimal strings exactly, in integer cents. */
-export function addMoney(...values: Money[]): Money {
-  const total = values.reduce((sum, value) => sum + toCents(value), 0);
-  return fromCents(total);
-}
-
 export function subtractMoney(a: Money, b: Money): Money {
   return fromCents(toCents(a) - toCents(b));
 }
@@ -50,8 +44,17 @@ export function formatMoney(value: Money): string {
   return formatter.format(toCents(value) / 100);
 }
 
-export function isValidMoney(value: string): boolean {
-  return /^\d{1,12}(\.\d{1,2})?$/.test(value.trim());
+const MONEY_SHAPE = /^\d{1,12}(\.\d{1,2})?$/;
+
+/** Amounts on entries and contributions must be above zero — the sign lives in `kind`. */
+export function isPositiveMoney(value: string): boolean {
+  const text = value.trim();
+  return MONEY_SHAPE.test(text) && toCents(text) > 0;
+}
+
+/** Budgets and targets may be zero: "I intend to spend nothing here". */
+export function isNonNegativeMoney(value: string): boolean {
+  return MONEY_SHAPE.test(value.trim());
 }
 
 /** Percentage of a target reached, clamped for display. Returns null if there is no target. */
