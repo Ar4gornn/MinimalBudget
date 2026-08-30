@@ -27,6 +27,7 @@ build/
 npm-debug.log*
 
 # --- databases / data volumes ---
+backups/
 pgdata/
 *.sqlite3
 *.db
