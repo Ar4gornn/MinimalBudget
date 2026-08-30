@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { Link, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
+import type { EntryInput } from "../api/client";
 import type { Category, Entry, EntryKind } from "../api/types";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
@@ -29,6 +30,17 @@ export function EntriesPage() {
   const [categoryName, setCategoryName] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Inline editing rather than a modal: the rows already become cards on a phone, so the
+  // same markup turns into a sensible form without needing focus trapping, escape
+  // handling and scroll locking to be got right.
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{
+    amount: string;
+    occurred_on: string;
+    category_id: string;
+    note: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,6 +106,50 @@ export function EntriesPage() {
       setError(caught instanceof Error ? caught.message : "Could not save the entry.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  function beginEdit(entry: Entry) {
+    setEditing(entry.id);
+    setDraft({
+      amount: entry.amount,
+      occurred_on: entry.occurred_on,
+      category_id: entry.category_id,
+      note: entry.note ?? "",
+    });
+  }
+
+  async function saveEdit(entry: Entry) {
+    if (!draft) return;
+    if (!isPositiveMoney(draft.amount)) {
+      setError("Enter an amount with at most two decimal places, greater than zero.");
+      return;
+    }
+
+    // Send only what changed. PATCH means "these fields"; including the untouched ones
+    // would write a stale copy over anything edited elsewhere since this list loaded.
+    const patch: Partial<EntryInput> = {};
+    if (draft.amount.trim() !== entry.amount) patch.amount = draft.amount.trim();
+    if (draft.occurred_on !== entry.occurred_on) patch.occurred_on = draft.occurred_on;
+    if (draft.category_id !== entry.category_id) patch.category_id = draft.category_id;
+    if (draft.note.trim() !== (entry.note ?? "")) {
+      // An emptied note is a deliberate clear, which is null rather than "".
+      patch.note = draft.note.trim() === "" ? null : draft.note.trim();
+    }
+
+    if (Object.keys(patch).length === 0) {
+      setEditing(null);
+      return;
+    }
+
+    setError(null);
+    try {
+      await api.updateEntry(entry.id, patch);
+      setEditing(null);
+      await load();
+      toast.show("Entry updated");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not save that change.");
     }
   }
 
@@ -263,29 +319,122 @@ export function EntriesPage() {
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry) => (
-                  <tr key={entry.id}>
-                    <td data-label="Date">{entry.occurred_on}</td>
-                    <td data-label="Kind" style={{ color: entry.kind === "income" ? "var(--accent)" : "var(--spend)" }}>
-                      {entry.kind}
-                    </td>
-                    <td data-label="Category">
-                      <Link to={`/categories/${entry.category_id}`}>{nameOf(entry.category_id)}</Link>
-                    </td>
-                    <td className="num" data-label="Amount">{money.plain(entry.amount)}</td>
-                    <td className="wrap" data-label="Note">{entry.note ?? ""}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="quiet"
-                        onClick={() => void remove(entry)}
-                        aria-label={`Delete entry of ${entry.amount} on ${entry.occurred_on}`}
+                {entries.map((entry) =>
+                  editing === entry.id && draft ? (
+                    <tr key={entry.id}>
+                      <td data-label="Date">
+                        <input
+                          type="date"
+                          aria-label="Edit date"
+                          value={draft.occurred_on}
+                          onChange={(event) =>
+                            setDraft({ ...draft, occurred_on: event.target.value })
+                          }
+                        />
+                      </td>
+                      {/* Kind is shown, never edited. It is bound to the category by a
+                          single foreign key (AD-7), so changing it would have to move the
+                          entry to a different category at the same time. Delete and re-add
+                          is the honest path, and the API refuses it for the same reason. */}
+                      <td
+                        data-label="Kind"
+                        style={{
+                          color: entry.kind === "income" ? "var(--accent)" : "var(--spend)",
+                        }}
                       >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        {entry.kind}
+                      </td>
+                      <td data-label="Category">
+                        <select
+                          aria-label="Edit category"
+                          value={draft.category_id}
+                          onChange={(event) =>
+                            setDraft({ ...draft, category_id: event.target.value })
+                          }
+                        >
+                          {categories
+                            // Same kind only. The database refuses a mismatch anyway, so
+                            // offering one would just be a 404 waiting to happen.
+                            .filter((category) => category.kind === entry.kind)
+                            .map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.name}
+                              </option>
+                            ))}
+                        </select>
+                      </td>
+                      <td className="num" data-label="Amount">
+                        <input
+                          className="num"
+                          inputMode="decimal"
+                          aria-label="Edit amount"
+                          value={draft.amount}
+                          onChange={(event) => setDraft({ ...draft, amount: event.target.value })}
+                        />
+                      </td>
+                      <td className="wrap" data-label="Note">
+                        <input
+                          aria-label="Edit note"
+                          value={draft.note}
+                          onChange={(event) => setDraft({ ...draft, note: event.target.value })}
+                        />
+                      </td>
+                      <td>
+                        <div className="row" style={{ flexWrap: "nowrap", gap: 6 }}>
+                          <button type="button" onClick={() => void saveEdit(entry)}>
+                            Save
+                          </button>
+                          <button type="button" className="quiet" onClick={() => setEditing(null)}>
+                            Cancel
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={entry.id}>
+                      <td data-label="Date">{entry.occurred_on}</td>
+                      <td
+                        data-label="Kind"
+                        style={{
+                          color: entry.kind === "income" ? "var(--accent)" : "var(--spend)",
+                        }}
+                      >
+                        {entry.kind}
+                      </td>
+                      <td data-label="Category">
+                        <Link to={`/categories/${entry.category_id}`}>
+                          {nameOf(entry.category_id)}
+                        </Link>
+                      </td>
+                      <td className="num" data-label="Amount">
+                        {money.plain(entry.amount)}
+                      </td>
+                      <td className="wrap" data-label="Note">
+                        {entry.note ?? ""}
+                      </td>
+                      <td>
+                        <div className="row" style={{ flexWrap: "nowrap", gap: 6 }}>
+                          <button
+                            type="button"
+                            className="quiet"
+                            onClick={() => beginEdit(entry)}
+                            aria-label={`Edit entry of ${entry.amount} on ${entry.occurred_on}`}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="quiet"
+                            onClick={() => void remove(entry)}
+                            aria-label={`Delete entry of ${entry.amount} on ${entry.occurred_on}`}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ),
+                )}
               </tbody>
             </table>
           </TableWrap>
