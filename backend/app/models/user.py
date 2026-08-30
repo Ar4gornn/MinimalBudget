@@ -15,3 +15,6 @@ class User(TimestampedMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    # Scoped to the account, not the entry: every amount in one ledger is the same unit,
+    # so no conversion and no rate history are needed. See migration 0006.
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default="USD")

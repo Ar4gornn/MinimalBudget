@@ -16,14 +16,21 @@ import {
   setUnauthorizedHandler,
   storeTokens,
 } from "../api/client";
-import type { User } from "../api/types";
+import type { Currency, User } from "../api/types";
 
 interface AuthState {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, inviteCode?: string) => Promise<void>;
+  register: (
+    email: string,
+    password: string,
+    inviteCode?: string,
+    currency?: Currency,
+  ) => Promise<void>;
   signOut: () => void;
+  /** Re-read the profile after something server-side changes it. */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -76,16 +83,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(
-    async (email: string, password: string, inviteCode?: string) => {
-      await api.register(email, password, inviteCode);
+    async (email: string, password: string, inviteCode?: string, currency?: Currency) => {
+      await api.register(email, password, inviteCode, currency);
       await signIn(email, password);
     },
     [signIn],
   );
 
+  const refreshUser = useCallback(async () => {
+    setUser(await api.me());
+  }, []);
+
   const value = useMemo(
-    () => ({ user, loading, signIn, register, signOut }),
-    [user, loading, signIn, register, signOut],
+    () => ({ user, loading, signIn, register, signOut, refreshUser }),
+    [user, loading, signIn, register, signOut, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -95,4 +106,15 @@ export function useAuth(): AuthState {
   const context = useContext(AuthContext);
   if (context === null) throw new Error("useAuth must be used inside an AuthProvider");
   return context;
+}
+
+/**
+ * The context without the throw, for consumers that have a sensible default.
+ *
+ * Money formatting is the case: a currency symbol has an obvious fallback, and a formatter
+ * that crashes an entire subtree because it rendered outside the provider is worse than one
+ * that shows dollars. Anything that genuinely needs a signed-in user still uses `useAuth`.
+ */
+export function useOptionalAuth(): AuthState | null {
+  return useContext(AuthContext);
 }

@@ -13,10 +13,11 @@ columns.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.errors import NotFound
 from app.core.security import hash_password, verify_password
 from app.models.savings import DEFAULT_SAVINGS_TYPES, SavingsType
 from app.models.user import User
@@ -27,28 +28,49 @@ class EmailAlreadyRegistered(Exception):
 
 
 class UserRow:
-    """The three columns of a user the runtime role is allowed to read."""
+    """The columns of a user the runtime role is allowed to read.
 
-    def __init__(self, id: uuid.UUID, email: str, created_at: datetime) -> None:
+    Named explicitly rather than selected with `*`, because the runtime role holds no
+    SELECT on password_hash (AD-19) and a wildcard would be refused outright.
+    """
+
+    def __init__(
+        self, id: uuid.UUID, email: str, currency: str, created_at: datetime
+    ) -> None:
         self.id = id
         self.email = email
+        self.currency = currency
         self.created_at = created_at
 
 
 def _read_user(session: Session, user_id: uuid.UUID) -> UserRow | None:
     row = session.execute(
-        select(User.id, User.email, User.created_at).where(User.id == user_id)
+        select(User.id, User.email, User.currency, User.created_at).where(User.id == user_id)
     ).one_or_none()
     return None if row is None else UserRow(*row)
 
 
-def register(session: Session, *, user_id: uuid.UUID, email: str, password: str) -> UserRow:
+def register(
+    session: Session,
+    *,
+    user_id: uuid.UUID,
+    email: str,
+    password: str,
+    currency: str = "USD",
+) -> UserRow:
     """Create the user and seed their default savings types.
 
     The caller has already pinned the transaction to ``user_id`` (AD-19), so both writes
     happen *inside* row-level security rather than around it.
     """
-    session.add(User(id=user_id, email=email, password_hash=hash_password(password)))
+    session.add(
+        User(
+            id=user_id,
+            email=email,
+            password_hash=hash_password(password),
+            currency=currency,
+        )
+    )
     try:
         # Flushed on its own, and before the seed rows: the unit of work does not reliably
         # order these, and the seed rows have a foreign key to this one. Narrow scope also
@@ -96,3 +118,40 @@ def authenticate(session: Session, *, email: str, password: str) -> uuid.UUID | 
 
 # A real Argon2 hash of a value nobody can supply, used only to equalise timing above.
 _DUMMY_HASH = hash_password(uuid.uuid4().hex)
+
+
+class CurrencyLocked(Exception):
+    """Refused because the account already holds entries."""
+
+
+def set_currency(session: Session, user_id: uuid.UUID, currency: str) -> UserRow:
+    """Change the account's currency, but only while it is still meaningless to do so.
+
+    Changing it relabels; it does not convert, because converting needs historical rates
+    this deployment has no source for. Relabelling a year of entries would quietly turn
+    dollars into euros — a data-integrity bug wearing a settings toggle — so once the
+    account has any entries or contributions, the setting is locked.
+    """
+    current = _read_user(session, user_id)
+    if current is None:
+        raise NotFound("No such account")
+    if current.currency == currency:
+        return current
+
+    used = session.execute(
+        text(
+            "SELECT (SELECT count(*) FROM entries) + "
+            "(SELECT count(*) FROM savings_contributions)"
+        )
+    ).scalar_one()
+    if used:
+        raise CurrencyLocked
+
+    session.execute(
+        update(User).where(User.id == user_id).values(currency=currency)
+    )
+    session.flush()
+    updated = _read_user(session, user_id)
+    if updated is None:  # pragma: no cover
+        raise NotFound("No such account")
+    return updated

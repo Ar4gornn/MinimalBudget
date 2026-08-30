@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  currencySymbol,
+  formatAmount,
   formatMoney,
   fromCents,
   isNonNegativeMoney,
@@ -57,5 +59,32 @@ describe("money", () => {
     expect(progress("0.00", "0.00")).toBe(0);
     // Clamped for display; the "over budget" colour carries the overspend, not the width.
     expect(progress("2000.00", "1000.00")).toBe(100);
+  });
+});
+
+
+describe("currency", () => {
+  it("uses the account's symbol", () => {
+    expect(formatAmount("1200.00", "USD")).toBe("$1,200.00");
+    expect(formatAmount("1200.00", "EUR")).toBe("€1,200.00");
+    expect(currencySymbol("USD")).toBe("$");
+    expect(currencySymbol("EUR")).toBe("€");
+  });
+
+  it("puts the minus before the symbol, not after it", () => {
+    // "$-45.50" is what naive concatenation produces and it reads as a typo.
+    expect(formatAmount("-45.50", "USD")).toBe("-$45.50");
+    expect(formatAmount("-45.50", "EUR")).toBe("-€45.50");
+  });
+
+  it("keeps grouping pinned regardless of currency", () => {
+    // The locale is deliberately fixed so the display matches what the inputs accept;
+    // switching to euros must not smuggle European grouping back in.
+    expect(formatAmount("1234567.89", "EUR")).toBe("€1,234,567.89");
+  });
+
+  it("still formats zero and small amounts", () => {
+    expect(formatAmount("0.00", "USD")).toBe("$0.00");
+    expect(formatAmount("0.05", "EUR")).toBe("€0.05");
   });
 });

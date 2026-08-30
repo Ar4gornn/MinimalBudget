@@ -1,13 +1,24 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { api } from "../api/client";
-import type { Budget, Category, Contribution, SavingsType, Target } from "../api/types";
+import type {
+  Budget,
+  Category,
+  Contribution,
+  Currency,
+  SavingsType,
+  Target,
+} from "../api/types";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
-import { formatMoney, isNonNegativeMoney, isPositiveMoney } from "../money";
+import {isNonNegativeMoney, isPositiveMoney } from "../money";
+import { useAuth } from "../auth/AuthContext";
+import { useMoney } from "../useMoney";
 import { todayIso } from "../months";
 
 /** Savings and budgets: what the user intends, and what they have actually put aside. */
 export function PlanPage() {
+  const money = useMoney();
+  const { refreshUser } = useAuth();
   const [types, setTypes] = useState<SavingsType[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [targets, setTargets] = useState<Target[]>([]);
@@ -74,6 +85,14 @@ export function PlanPage() {
     }
   }
 
+  async function changeCurrency(next: Currency) {
+    if (next === money.currency) return;
+    await guard(async () => {
+      await api.setCurrency(next);
+      await refreshUser();
+    }, "Could not change the currency.");
+  }
+
   async function addType(event: FormEvent) {
     event.preventDefault();
     if (!newType.trim()) return;
@@ -118,6 +137,26 @@ export function PlanPage() {
     <>
       <ErrorBanner message={error} />
 
+      <Card title="Currency">
+        <div className="row">
+          <label style={{ flex: "0 0 200px" }}>
+            Account currency
+            <select
+              aria-label="Account currency"
+              value={money.currency}
+              onChange={(event) => void changeCurrency(event.target.value as Currency)}
+            >
+              <option value="USD">US dollars ($)</option>
+              <option value="EUR">Euros (€)</option>
+            </select>
+          </label>
+        </div>
+        <p className="hint" style={{ marginTop: 8 }}>
+          Amounts are stored, not converted — changing this relabels them. It locks as soon as
+          the account has its first entry.
+        </p>
+      </Card>
+
       <div className="columns">
         <div>
           <Card title="Monthly savings targets">
@@ -129,7 +168,7 @@ export function PlanPage() {
                   <thead>
                     <tr>
                       <th>Type</th>
-                      <th className="num">Monthly target</th>
+                      <th className="num">Monthly target ({money.symbol})</th>
                       <th />
                     </tr>
                   </thead>
@@ -218,7 +257,7 @@ export function PlanPage() {
                     <tr>
                       <th>Date</th>
                       <th>Type</th>
-                      <th className="num">Amount</th>
+                      <th className="num">Amount ({money.symbol})</th>
                       <th />
                     </tr>
                   </thead>
@@ -227,7 +266,7 @@ export function PlanPage() {
                       <tr key={contribution.id}>
                         <td>{contribution.occurred_on}</td>
                         <td>{typeName(contribution.savings_type_id)}</td>
-                        <td className="num">{formatMoney(contribution.amount)}</td>
+                        <td className="num">{money.plain(contribution.amount)}</td>
                         <td>
                           <button
                             type="button"
@@ -263,7 +302,7 @@ export function PlanPage() {
                 <thead>
                   <tr>
                     <th>Category</th>
-                    <th className="num">Monthly budget</th>
+                    <th className="num">Monthly budget ({money.symbol})</th>
                     <th />
                   </tr>
                 </thead>

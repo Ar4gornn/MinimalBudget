@@ -1,8 +1,15 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PlanPage } from "./PlanPage";
+import { AuthProvider } from "../auth/AuthContext";
+
+// PlanPage changes the account currency, so it reads the auth context. Rendering it inside
+// a real provider rather than stubbing the hook keeps the test honest about that wiring.
+function render(ui: React.ReactElement) {
+  return rtlRender(<AuthProvider>{ui}</AuthProvider>);
+}
 
 const savingsTypes = [{ id: "st1", name: "Emergency Fund", created_at: "" }];
 const categories = [{ id: "c1", kind: "expense" as const, name: "Rent", created_at: "" }];

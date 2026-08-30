@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { formatMoney } from "../money";
+import { useMoney } from "../useMoney";
 import type { Money } from "../api/types";
 
 export function Card({
@@ -41,13 +41,14 @@ export function Stat({
   value: Money;
   tone?: "in" | "out" | "plain";
 }) {
+  const money = useMoney();
   const negative = value.trimStart().startsWith("-");
   const classes = ["value", tone === "in" ? "in" : "", tone === "out" ? "out" : ""];
   if (negative) classes.push("negative");
   return (
     <div className="card stat" data-stat={label}>
       <div className="label">{label}</div>
-      <div className={classes.filter(Boolean).join(" ")}>{formatMoney(value)}</div>
+      <div className={classes.filter(Boolean).join(" ")}>{money.amount(value)}</div>
     </div>
   );
 }

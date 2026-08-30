@@ -68,10 +68,12 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await screen.findByRole("table", { name: "Budget vs actual" });
-    expect(stat("Income")).toBe("3,000.00");
-    expect(stat("Expense")).toBe("845.50");
-    expect(stat("Net")).toBe("2,154.50");
-    expect(stat("Saved")).toBe("400.00");
+    // Headline figures carry the account's currency symbol; table cells do not, because
+    // the symbol sits in those column headers instead.
+    expect(stat("Income")).toBe("$3,000.00");
+    expect(stat("Expense")).toBe("$845.50");
+    expect(stat("Net")).toBe("$2,154.50");
+    expect(stat("Saved")).toBe("$400.00");
   });
 
   it("keeps a budgeted category with no spending on screen", async () => {
@@ -132,10 +134,10 @@ describe("DashboardPage", () => {
       await screen.findByText("No budgets set and nothing spent this month."),
     ).toBeInTheDocument();
     expect([stat("Income"), stat("Expense"), stat("Net"), stat("Saved")]).toEqual([
-      "0.00",
-      "0.00",
-      "0.00",
-      "0.00",
+      "$0.00",
+      "$0.00",
+      "$0.00",
+      "$0.00",
     ]);
   });
 

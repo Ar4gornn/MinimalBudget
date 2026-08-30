@@ -9,6 +9,7 @@ from app.core.ratelimit import LoginLimiter, email_key, source_key
 from app.core.security import create_access_token
 from app.schemas.auth import (
     Credentials,
+    CurrencyUpdate,
     RefreshRequest,
     RegistrationRequest,
     TokenOut,
@@ -54,7 +55,11 @@ def register(payload: RegistrationRequest) -> auth_service.UserRow:
 
         try:
             created = auth_service.register(
-                session, user_id=user_id, email=payload.email, password=payload.password
+                session,
+                user_id=user_id,
+                email=payload.email,
+                password=payload.password,
+                currency=payload.currency,
             )
         except auth_service.EmailAlreadyRegistered:
             raise HTTPException(
@@ -163,6 +168,22 @@ def logout(payload: RefreshRequest, session: AnonSession) -> Response:
     with tenant_session(lookup.user_id) as tenant:
         session_service.revoke(tenant, payload.refresh_token)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/me/currency", response_model=UserOut)
+def set_currency(
+    payload: CurrencyUpdate, user_id: CurrentUserId, session: DbSession
+) -> auth_service.UserRow:
+    try:
+        return auth_service.set_currency(session, user_id, payload.currency)
+    except auth_service.CurrencyLocked:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This account already has entries. Changing the currency would relabel them "
+                "rather than convert them, so it is locked."
+            ),
+        ) from None
 
 
 @router.get("/me", response_model=UserOut)

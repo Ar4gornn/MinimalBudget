@@ -16,9 +16,13 @@ export interface Page<T> {
   items: T[];
 }
 
+export type Currency = "USD" | "EUR";
+
 export interface User {
   id: string;
   email: string;
+  /** Scoped to the account: one ledger, one currency, so totals need no conversion. */
+  currency: Currency;
   created_at: string;
 }
 

@@ -6,7 +6,8 @@
  * category keeps the numbers next to the shape.
  */
 
-import { formatMoney, toChartNumber } from "../money";
+import { toChartNumber } from "../money";
+import { useMoney } from "../useMoney";
 import type { Money } from "../api/types";
 
 const WIDTH = 120;
@@ -24,6 +25,7 @@ export function Sparkline({
   /** Shared across every row, so the rows are comparable to each other. */
   peak: number;
 }) {
+  const money = useMoney();
   if (values.length === 0) return null;
 
   const scale = Math.max(1, peak);
@@ -51,7 +53,7 @@ export function Sparkline({
             opacity={0.85}
             rx={1}
           >
-            <title>{`${months[index] ?? ""}: ${formatMoney(value)}`}</title>
+            <title>{`${months[index] ?? ""}: ${money.amount(value)}`}</title>
           </rect>
         );
       })}

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 
 import { ErrorBanner } from "../components/ui";
 import { useAuth } from "../auth/AuthContext";
+import type { Currency } from "../api/types";
 
 export function SignInPage() {
   const { signIn, register } = useAuth();
@@ -9,6 +10,7 @@ export function SignInPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const [currency, setCurrency] = useState<Currency>("USD");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -19,7 +21,7 @@ export function SignInPage() {
     setError(null);
     setBusy(true);
     try {
-      if (registering) await register(email, password, inviteCode);
+      if (registering) await register(email, password, inviteCode, currency);
       else await signIn(email, password);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Something went wrong.");
@@ -76,9 +78,21 @@ export function SignInPage() {
                 onChange={(event) => setInviteCode(event.target.value)}
               />
             </label>
+            <label>
+              Currency
+              <select
+                aria-label="Currency"
+                value={currency}
+                onChange={(event) => setCurrency(event.target.value as Currency)}
+              >
+                <option value="USD">US dollars ($)</option>
+                <option value="EUR">Euros (€)</option>
+              </select>
+            </label>
             <p className="hint">
               Passwords need at least 10 characters. An invite code is required unless this
-              instance is running in open mode.
+              instance is running in open mode. Your currency can only be changed while the
+              account is still empty — amounts are stored, not converted.
             </p>
           </>
         )}

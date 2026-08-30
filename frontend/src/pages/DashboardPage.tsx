@@ -6,12 +6,14 @@ import { Sparkline } from "../charts/Sparkline";
 import { ProgressBar } from "../charts/ProgressBar";
 import { TrendChart } from "../charts/TrendChart";
 import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
-import { formatMoney, progress, subtractMoney, toChartNumber, toCents } from "../money";
+import {progress, subtractMoney, toChartNumber, toCents } from "../money";
+import { useMoney } from "../useMoney";
 import { currentMonth, monthLabel, shiftMonth } from "../months";
 
 const TREND_MONTHS = 6;
 
 export function DashboardPage() {
+  const money = useMoney();
   const [month, setMonth] = useState(currentMonth());
   const [summary, setSummary] = useState<Summary | null>(null);
   const [trends, setTrends] = useState<Trends | null>(null);
@@ -96,9 +98,15 @@ export function DashboardPage() {
                     <thead>
                       <tr>
                         <th>Category</th>
-                        <th className="num">Spent</th>
-                        <th className="num">Budget</th>
-                        <th className="num">Left</th>
+                        <th className="num">
+                          Spent ({money.symbol})
+                        </th>
+                        <th className="num">
+                          Budget ({money.symbol})
+                        </th>
+                        <th className="num">
+                          Left ({money.symbol})
+                        </th>
                         <th style={{ width: 110 }}>Progress</th>
                       </tr>
                     </thead>
@@ -110,18 +118,18 @@ export function DashboardPage() {
                         return (
                           <tr key={row.category_id}>
                             <td>{row.category_name}</td>
-                            <td className="num">{formatMoney(row.actual)}</td>
+                            <td className="num">{money.plain(row.actual)}</td>
                             <td className="num">
                               {row.budget === null ? (
                                 <span className="hint">not set</span>
                               ) : (
-                                formatMoney(row.budget)
+                                money.plain(row.budget)
                               )}
                             </td>
                             <td className="num" style={over ? { color: "var(--spend)" } : undefined}>
                               {row.budget === null
                                 ? "—"
-                                : formatMoney(subtractMoney(row.budget, row.actual))}
+                                : money.plain(subtractMoney(row.budget, row.actual))}
                             </td>
                             <td>
                               <ProgressBar
@@ -148,8 +156,12 @@ export function DashboardPage() {
                     <thead>
                       <tr>
                         <th>Type</th>
-                        <th className="num">Saved</th>
-                        <th className="num">Target</th>
+                        <th className="num">
+                          Saved ({money.symbol})
+                        </th>
+                        <th className="num">
+                          Target ({money.symbol})
+                        </th>
                         <th style={{ width: 110 }}>Progress</th>
                       </tr>
                     </thead>
@@ -157,12 +169,12 @@ export function DashboardPage() {
                       {summary.savings.map((row) => (
                         <tr key={row.savings_type_id}>
                           <td>{row.savings_type_name}</td>
-                          <td className="num">{formatMoney(row.actual)}</td>
+                          <td className="num">{money.plain(row.actual)}</td>
                           <td className="num">
                             {row.target === null ? (
                               <span className="hint">not set</span>
                             ) : (
-                              formatMoney(row.target)
+                              money.plain(row.target)
                             )}
                           </td>
                           <td>
@@ -202,7 +214,7 @@ export function DashboardPage() {
                         <tr>
                           <th>Category</th>
                           <th>Trend</th>
-                          <th className="num">This month</th>
+                          <th className="num">This month ({money.symbol})</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -218,7 +230,7 @@ export function DashboardPage() {
                               />
                             </td>
                             <td className="num">
-                              {formatMoney(series.values[series.values.length - 1] ?? "0.00")}
+                              {money.plain(series.values[series.values.length - 1] ?? "0.00")}
                             </td>
                           </tr>
                         ))}

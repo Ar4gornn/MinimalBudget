@@ -6,7 +6,7 @@
  * losing the last cent to a float is harmless and unavoidable.
  */
 
-import type { Money } from "./api/types";
+import type { Currency, Money } from "./api/types";
 
 export function subtractMoney(a: Money, b: Money): Money {
   return fromCents(toCents(a) - toCents(b));
@@ -39,9 +39,28 @@ const formatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
-/** Group digits for display, keeping both decimal places. */
+const SYMBOLS: Record<Currency, string> = { USD: "$", EUR: "€" };
+
+export function currencySymbol(currency: Currency): string {
+  return SYMBOLS[currency];
+}
+
+/** Group digits for display, keeping both decimal places. Unsigned, no symbol. */
 export function formatMoney(value: Money): string {
   return formatter.format(toCents(value) / 100);
+}
+
+/**
+ * The same number with the account's symbol.
+ *
+ * Symbol rather than Intl currency formatting, because Intl would also re-introduce
+ * locale-specific grouping and placement, and the grouping is deliberately pinned above.
+ * A negative renders as -$45.50, never $-45.50.
+ */
+export function formatAmount(value: Money, currency: Currency): string {
+  const negative = toCents(value) < 0;
+  const magnitude = formatMoney(negative ? value.replace("-", "") : value);
+  return `${negative ? "-" : ""}${SYMBOLS[currency]}${magnitude}`;
 }
 
 const MONEY_SHAPE = /^\d{1,12}(\.\d{1,2})?$/;

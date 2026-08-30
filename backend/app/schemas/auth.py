@@ -1,7 +1,10 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+Currency = Literal["USD", "EUR"]
 
 
 class Credentials(BaseModel):
@@ -24,6 +27,9 @@ class RegistrationRequest(Credentials):
     """
 
     invite_code: str | None = Field(default=None, max_length=200)
+    # Chosen at sign-up because it is far cheaper than changing it later, once the account
+    # holds entries the setting can no longer safely relabel.
+    currency: Currency = "USD"
 
 
 class UserOut(BaseModel):
@@ -31,6 +37,7 @@ class UserOut(BaseModel):
 
     id: UUID
     email: str
+    currency: Currency
     created_at: datetime
 
 
@@ -45,3 +52,7 @@ class TokenOut(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class CurrencyUpdate(BaseModel):
+    currency: Currency

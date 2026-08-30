@@ -5,7 +5,8 @@
  * dependency and a theming surface larger than the code it saves.
  */
 
-import { formatMoney, toChartNumber } from "../money";
+import { toChartNumber } from "../money";
+import { useMoney } from "../useMoney";
 import { monthTick } from "../months";
 import type { Money } from "../api/types";
 
@@ -32,6 +33,7 @@ export function TrendChart({
   expense: Money[];
   saved: Money[];
 }) {
+  const money = useMoney();
   const series: Series[] = [
     { label: "Income", values: income, color: "var(--accent)" },
     { label: "Expense", values: expense, color: "var(--spend)" },
@@ -84,7 +86,7 @@ export function TrendChart({
                     fill={s.color}
                     rx={1}
                   >
-                    <title>{`${s.label} — ${month}: ${formatMoney(s.values[index] ?? "0.00")}`}</title>
+                    <title>{`${s.label} — ${month}: ${money.amount(s.values[index] ?? "0.00")}`}</title>
                   </rect>
                 );
               })}

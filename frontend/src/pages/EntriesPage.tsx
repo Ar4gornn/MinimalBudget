@@ -3,10 +3,12 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { api } from "../api/client";
 import type { Category, Entry, EntryKind } from "../api/types";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
-import { formatMoney, isPositiveMoney } from "../money";
+import {isPositiveMoney } from "../money";
+import { useMoney } from "../useMoney";
 import { currentMonth, todayIso } from "../months";
 
 export function EntriesPage() {
+  const money = useMoney();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +117,7 @@ export function EntriesPage() {
               className="num"
               inputMode="decimal"
               placeholder="0.00"
-              aria-label="Amount"
+              aria-label={`Amount in ${money.currency}`}
               required
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
@@ -225,7 +227,7 @@ export function EntriesPage() {
                   <th>Date</th>
                   <th>Kind</th>
                   <th>Category</th>
-                  <th className="num">Amount</th>
+                  <th className="num">Amount ({money.symbol})</th>
                   <th>Note</th>
                   <th />
                 </tr>
@@ -238,7 +240,7 @@ export function EntriesPage() {
                       {entry.kind}
                     </td>
                     <td>{nameOf(entry.category_id)}</td>
-                    <td className="num">{formatMoney(entry.amount)}</td>
+                    <td className="num">{money.plain(entry.amount)}</td>
                     <td className="wrap">{entry.note ?? ""}</td>
                     <td>
                       <button
