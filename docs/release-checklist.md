@@ -7,8 +7,9 @@ distinct from features, which can arrive whenever.
 
 - [ ] **Backups running on a schedule, with the artifact copied off the machine.**
       `ops/backup.sh` exists and has been proven to restore, but nothing runs it and nothing
-      moves it. Until both are true, a dead SD card or disk loses every entry the family has
-      made, with no recovery. This is the only item here whose failure is unrecoverable.
+      moves it. Until both are true, a dead disk — or a provider closing the account — loses
+      every entry the family has made, with no recovery. This is the only item here whose
+      failure is unrecoverable.
       - [ ] cron entry on the host
       - [ ] copy off-device (another machine, or object storage)
       - [ ] one restore actually performed from the off-device copy, not just from the local one
