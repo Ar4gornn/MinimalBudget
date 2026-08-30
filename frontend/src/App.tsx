@@ -1,13 +1,23 @@
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
+import { CategoryPage } from "./pages/CategoryPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { EntriesPage } from "./pages/EntriesPage";
 import { PlanPage } from "./pages/PlanPage";
+import { ProjectionsPage } from "./pages/ProjectionsPage";
 import { SignInPage } from "./pages/SignInPage";
+
+const SECTIONS = [
+  { to: "/", label: "Dashboard", glyph: "◪", end: true },
+  { to: "/entries", label: "Entries", glyph: "≡", end: false },
+  { to: "/plan", label: "Plan", glyph: "◎", end: false },
+  { to: "/projections", label: "Grow", glyph: "↗", end: false },
+];
 
 export function App() {
   const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
 
   // Without this the sign-in page flashes on every reload before /me answers.
   if (loading) return <main className="shell" />;
@@ -18,9 +28,11 @@ export function App() {
       <header className="topbar">
         <h1 className="brand">MinimalBudget</h1>
         <nav className="nav">
-          <NavLink to="/">Dashboard</NavLink>
-          <NavLink to="/entries">Entries</NavLink>
-          <NavLink to="/plan">Savings &amp; budgets</NavLink>
+          {SECTIONS.map((section) => (
+            <NavLink key={section.to} to={section.to} end={section.end}>
+              {section.label}
+            </NavLink>
+          ))}
         </nav>
         <div className="identity">
           <span>{user.email}</span>
@@ -34,10 +46,37 @@ export function App() {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/entries" element={<EntriesPage />} />
+          <Route path="/categories/:categoryId" element={<CategoryPage />} />
           <Route path="/plan" element={<PlanPage />} />
+          <Route path="/projections" element={<ProjectionsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+
+      {/* Quick add: recording a transaction is the loop people repeat, so on a phone it
+          should never cost a navigation to reach. Hidden on desktop, where the entry form
+          is already one click away and a floating button would just be clutter. */}
+      <button
+        type="button"
+        className="fab"
+        aria-label="Add an entry"
+        onClick={() => navigate("/entries?add=1")}
+      >
+        +
+      </button>
+
+      {/* Thumb-reachable navigation. This is the single thing that stops an installed PWA
+          feeling like a website in a frameless window. */}
+      <nav className="bottom-nav" aria-label="Sections">
+        {SECTIONS.map((section) => (
+          <NavLink key={section.to} to={section.to} end={section.end}>
+            <span className="glyph" aria-hidden="true">
+              {section.glyph}
+            </span>
+            {section.label}
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 }

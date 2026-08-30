@@ -3,12 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PlanPage } from "./PlanPage";
+import { MemoryRouter } from "react-router-dom";
+
 import { AuthProvider } from "../auth/AuthContext";
+import { ToastProvider } from "../components/Toast";
 
 // PlanPage changes the account currency, so it reads the auth context. Rendering it inside
 // a real provider rather than stubbing the hook keeps the test honest about that wiring.
 function render(ui: React.ReactElement) {
-  return rtlRender(<AuthProvider>{ui}</AuthProvider>);
+  return rtlRender(
+    <MemoryRouter>
+      <AuthProvider>
+        <ToastProvider>{ui}</ToastProvider>
+      </AuthProvider>
+    </MemoryRouter>,
+  );
 }
 
 const savingsTypes = [{ id: "st1", name: "Emergency Fund", created_at: "" }];

@@ -1,14 +1,19 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
 import type { Category, Entry, EntryKind } from "../api/types";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
+import { useToast } from "../components/Toast";
 import {isPositiveMoney } from "../money";
 import { useMoney } from "../useMoney";
 import { currentMonth, todayIso } from "../months";
 
 export function EntriesPage() {
   const money = useMoney();
+  const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const amountRef = useRef<HTMLInputElement>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +55,14 @@ export function EntriesPage() {
     void load();
   }, [load]);
 
+  // Arriving from the quick-add button: focus the amount so the keyboard opens straight
+  // onto the first thing you would type, then drop the parameter so a refresh is normal.
+  useEffect(() => {
+    if (searchParams.get("add") !== "1") return;
+    amountRef.current?.focus();
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   const nameOf = useMemo(() => {
     const lookup = new Map(categories.map((category) => [category.id, category.name]));
     return (id: string) => lookup.get(id) ?? "—";
@@ -76,6 +89,7 @@ export function EntriesPage() {
       setAmount("");
       setNote("");
       await load();
+      toast.show("Entry added");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save the entry.");
     } finally {
@@ -83,11 +97,26 @@ export function EntriesPage() {
     }
   }
 
-  async function remove(id: string) {
+  async function remove(entry: Entry) {
     setError(null);
     try {
-      await api.deleteEntry(id);
+      await api.deleteEntry(entry.id);
       await load();
+      // Undo rather than a confirmation dialog: the common case stays one tap, and the
+      // rare mis-tap is recoverable. A confirm would tax every deliberate delete to
+      // protect against the occasional accident.
+      toast.show(`Deleted ${money.amount(entry.amount)}`, {
+        onUndo: async () => {
+          await api.createEntry({
+            kind: entry.kind,
+            amount: entry.amount,
+            occurred_on: entry.occurred_on,
+            category_id: entry.category_id,
+            ...(entry.note ? { note: entry.note } : {}),
+          });
+          await load();
+        },
+      });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not delete the entry.");
     }
@@ -114,6 +143,7 @@ export function EntriesPage() {
           <label style={{ flex: "0 0 130px" }}>
             Amount
             <input
+              ref={amountRef}
               className="num"
               inputMode="decimal"
               placeholder="0.00"
@@ -221,7 +251,7 @@ export function EntriesPage() {
           <Empty>Nothing recorded for this filter.</Empty>
         ) : (
           <TableWrap>
-            <table aria-label="Entries">
+            <table className="stacked" aria-label="Entries">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -235,18 +265,20 @@ export function EntriesPage() {
               <tbody>
                 {entries.map((entry) => (
                   <tr key={entry.id}>
-                    <td>{entry.occurred_on}</td>
-                    <td style={{ color: entry.kind === "income" ? "var(--accent)" : "var(--spend)" }}>
+                    <td data-label="Date">{entry.occurred_on}</td>
+                    <td data-label="Kind" style={{ color: entry.kind === "income" ? "var(--accent)" : "var(--spend)" }}>
                       {entry.kind}
                     </td>
-                    <td>{nameOf(entry.category_id)}</td>
-                    <td className="num">{money.plain(entry.amount)}</td>
-                    <td className="wrap">{entry.note ?? ""}</td>
+                    <td data-label="Category">
+                      <Link to={`/categories/${entry.category_id}`}>{nameOf(entry.category_id)}</Link>
+                    </td>
+                    <td className="num" data-label="Amount">{money.plain(entry.amount)}</td>
+                    <td className="wrap" data-label="Note">{entry.note ?? ""}</td>
                     <td>
                       <button
                         type="button"
                         className="quiet"
-                        onClick={() => void remove(entry.id)}
+                        onClick={() => void remove(entry)}
                         aria-label={`Delete entry of ${entry.amount} on ${entry.occurred_on}`}
                       >
                         Delete

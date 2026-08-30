@@ -12,6 +12,7 @@ import type {
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import {isNonNegativeMoney, isPositiveMoney } from "../money";
 import { useAuth } from "../auth/AuthContext";
+import { useToast } from "../components/Toast";
 import { useMoney } from "../useMoney";
 import { todayIso } from "../months";
 
@@ -19,6 +20,7 @@ import { todayIso } from "../months";
 export function PlanPage() {
   const money = useMoney();
   const { refreshUser } = useAuth();
+  const toast = useToast();
   const [types, setTypes] = useState<SavingsType[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [targets, setTargets] = useState<Target[]>([]);
@@ -164,7 +166,7 @@ export function PlanPage() {
               <Empty>No savings types yet.</Empty>
             ) : (
               <TableWrap>
-                <table>
+                <table className="stacked">
                   <thead>
                     <tr>
                       <th>Type</th>
@@ -252,7 +254,7 @@ export function PlanPage() {
               <Empty>Nothing put aside yet.</Empty>
             ) : (
               <TableWrap>
-                <table style={{ marginTop: 12 }}>
+                <table className="stacked" style={{ marginTop: 12 }}>
                   <thead>
                     <tr>
                       <th>Date</th>
@@ -264,18 +266,27 @@ export function PlanPage() {
                   <tbody>
                     {contributions.map((contribution) => (
                       <tr key={contribution.id}>
-                        <td>{contribution.occurred_on}</td>
-                        <td>{typeName(contribution.savings_type_id)}</td>
-                        <td className="num">{money.plain(contribution.amount)}</td>
+                        <td data-label="Date">{contribution.occurred_on}</td>
+                        <td data-label="Type">{typeName(contribution.savings_type_id)}</td>
+                        <td className="num" data-label="Amount">{money.plain(contribution.amount)}</td>
                         <td>
                           <button
                             type="button"
                             className="quiet"
                             onClick={() =>
-                              void guard(
-                                () => api.deleteContribution(contribution.id),
-                                "Could not delete that contribution.",
-                              )
+                              void guard(async () => {
+                                await api.deleteContribution(contribution.id);
+                                toast.show(`Deleted ${money.amount(contribution.amount)}`, {
+                                  onUndo: async () => {
+                                    await api.createContribution({
+                                      savings_type_id: contribution.savings_type_id,
+                                      amount: contribution.amount,
+                                      occurred_on: contribution.occurred_on,
+                                    });
+                                    await load();
+                                  },
+                                });
+                              }, "Could not delete that contribution.")
                             }
                           >
                             Delete
@@ -298,7 +309,7 @@ export function PlanPage() {
             <Empty>No expense categories yet. Record an entry to create one.</Empty>
           ) : (
             <TableWrap>
-              <table>
+              <table className="stacked">
                 <thead>
                   <tr>
                     <th>Category</th>
@@ -352,8 +363,8 @@ function AmountRow({
 
   return (
     <tr>
-      <td>{name}</td>
-      <td className="num">
+      <td data-label="Name">{name}</td>
+      <td className="num" data-label="Monthly">
         <input
           className="num"
           inputMode="decimal"

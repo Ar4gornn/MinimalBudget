@@ -10,6 +10,9 @@ export function todayIso(today: Date = new Date()): string {
   return `${today.getFullYear()}-${month}-${day}`;
 }
 
+/** Alias: `addMonths(m, -1)` reads better than `shiftMonth(m, -1)` at call sites. */
+export const addMonths = (month: string, by: number): string => shiftMonth(month, by);
+
 export function shiftMonth(month: string, by: number): string {
   const [year = "1970", index = "01"] = month.split("-");
   const total = Number(year) * 12 + (Number(index) - 1) + by;

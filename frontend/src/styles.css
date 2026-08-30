@@ -406,3 +406,314 @@ button.link {
 .signin p.hint {
   margin: 0 0 20px;
 }
+
+
+/* ======================================================================== *
+ * Mobile
+ *
+ * The app is installed to a home screen, so the phone is the primary target,
+ * not an afterthought. Two things drove every rule below, both found by
+ * looking at it at 375px rather than by guessing:
+ *
+ *   - the four summary cards stacked one per row, each ~170px tall, so the
+ *     whole point of the dashboard took four screens of scrolling;
+ *   - the header wrapped onto four lines before any content appeared.
+ * ======================================================================== */
+
+/* Bottom navigation: hidden on desktop, where the top bar already works. */
+.bottom-nav {
+  display: none;
+}
+
+.fab {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .shell {
+    /* Room for the fixed bottom bar, plus the iOS home indicator. */
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 10px;
+    margin-bottom: 16px;
+  }
+
+  .brand {
+    font-size: 15px;
+  }
+
+  /* Replaced by the bottom bar, which is reachable by thumb. */
+  .nav {
+    display: none;
+  }
+
+  .identity {
+    font-size: 12px;
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  .identity span {
+    max-width: 44vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Two across rather than one: the entire summary fits one screen. */
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .stat .value {
+    font-size: 19px;
+    margin-top: 2px;
+  }
+
+  .stat .label {
+    font-size: 10px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .card + .card {
+    margin-top: 10px;
+  }
+
+  .columns {
+    gap: 10px;
+  }
+
+  /* Filter and entry forms: one control per row beats four cramped ones. */
+  .row > label {
+    flex: 1 1 100% !important;
+  }
+
+  h1 {
+    font-size: 16px !important;
+  }
+}
+
+/* ------------------------------------------------------------------------ *
+ * Tables become cards on a narrow screen.
+ *
+ * A horizontally scrolling table hides columns behind a gesture nobody makes.
+ * Each row becomes a labelled block instead — the label comes from the cell's
+ * data-label, so the markup stays a real table for desktop and for assistive
+ * technology.
+ * ------------------------------------------------------------------------ */
+
+@media (max-width: 720px) {
+  table.stacked thead {
+    /* Visually gone, still announced: the cells carry their own labels below. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  table.stacked,
+  table.stacked tbody,
+  table.stacked tr,
+  table.stacked td {
+    display: block;
+    width: 100%;
+  }
+
+  table.stacked tr {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    margin-bottom: 8px;
+  }
+
+  table.stacked tr:last-child {
+    margin-bottom: 0;
+  }
+
+  table.stacked td {
+    border: none;
+    padding: 4px 0;
+    white-space: normal;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  table.stacked td::before {
+    content: attr(data-label);
+    color: var(--faint);
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    flex: 0 0 auto;
+  }
+
+  /* A cell with no label is an actions cell; let it fill the row. */
+  table.stacked td:not([data-label])::before {
+    content: none;
+  }
+
+  table.stacked td:not([data-label]) {
+    justify-content: flex-end;
+    padding-top: 8px;
+  }
+
+  table.stacked td.num {
+    font-size: 15px;
+  }
+
+  /* The wrapper's scrollbar is meaningless once rows are blocks. */
+  .table-wrap {
+    overflow-x: visible;
+  }
+}
+
+/* ------------------------------------------------------------------------ *
+ * Bottom navigation and quick add
+ * ------------------------------------------------------------------------ */
+
+@media (max-width: 720px) {
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .bottom-nav a {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 9px 4px 7px;
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  .bottom-nav a[aria-current="page"] {
+    color: var(--accent);
+  }
+
+  .bottom-nav .glyph {
+    font-size: 17px;
+    line-height: 1;
+  }
+
+  .fab {
+    display: flex;
+    position: fixed;
+    right: 16px;
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    z-index: 21;
+    width: 52px;
+    height: 52px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: #ffffff;
+    font-size: 26px;
+    line-height: 1;
+    padding: 0;
+    box-shadow: 0 3px 12px rgb(0 0 0 / 28%);
+  }
+}
+
+
+/* ------------------------------------------------------------------ toasts */
+
+.toasts {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(420px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  /* Clear of the bottom navigation, or it covers the Undo button. */
+  .toasts {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--text);
+  color: var(--bg);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 14px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 30%);
+}
+
+.toast-error {
+  background: var(--spend);
+  color: #ffffff;
+}
+
+.toast-action {
+  background: none;
+  border: none;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  padding: 2px 4px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+
+/* ------------------------------------------------------------- month nav */
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.month-nav label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  /* Overrides the "one control per row" rule above: these three belong together, and
+     stacking them cost most of a screen before any figure appeared. */
+  .month-nav label {
+    flex: 1 1 auto !important;
+  }
+
+  .month-nav button {
+    padding: 7px 10px;
+    flex: 0 0 auto;
+  }
+}

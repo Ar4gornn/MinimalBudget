@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { api } from "../api/client";
 import type { Summary, Trends } from "../api/types";
@@ -54,9 +55,14 @@ export function DashboardPage() {
     <>
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 16 }}>
         <h1 style={{ fontSize: 18, margin: 0 }}>{monthLabel(month)}</h1>
-        <div className="row">
-          <button type="button" className="quiet" onClick={() => setMonth(shiftMonth(month, -1))}>
-            ← Previous
+        <div className="month-nav">
+          <button
+            type="button"
+            className="quiet"
+            aria-label="Previous month"
+            onClick={() => setMonth(shiftMonth(month, -1))}
+          >
+            ←
           </button>
           <label style={{ textTransform: "none" }}>
             <span className="visually-hidden" style={{ display: "none" }}>
@@ -69,8 +75,13 @@ export function DashboardPage() {
               onChange={(event) => setMonth(event.target.value || currentMonth())}
             />
           </label>
-          <button type="button" className="quiet" onClick={() => setMonth(shiftMonth(month, 1))}>
-            Next →
+          <button
+            type="button"
+            className="quiet"
+            aria-label="Next month"
+            onClick={() => setMonth(shiftMonth(month, 1))}
+          >
+            →
           </button>
         </div>
       </div>
@@ -94,7 +105,7 @@ export function DashboardPage() {
                 <Empty>No budgets set and nothing spent this month.</Empty>
               ) : (
                 <TableWrap>
-                  <table aria-label="Budget vs actual">
+                  <table className="stacked" aria-label="Budget vs actual">
                     <thead>
                       <tr>
                         <th>Category</th>
@@ -117,16 +128,18 @@ export function DashboardPage() {
                           row.budget !== null && toCents(row.actual) > toCents(row.budget);
                         return (
                           <tr key={row.category_id}>
-                            <td>{row.category_name}</td>
-                            <td className="num">{money.plain(row.actual)}</td>
-                            <td className="num">
+                            <td data-label="Category">
+                              <Link to={`/categories/${row.category_id}`}>{row.category_name}</Link>
+                            </td>
+                            <td className="num" data-label="Spent">{money.plain(row.actual)}</td>
+                            <td className="num" data-label="Budget">
                               {row.budget === null ? (
                                 <span className="hint">not set</span>
                               ) : (
                                 money.plain(row.budget)
                               )}
                             </td>
-                            <td className="num" style={over ? { color: "var(--spend)" } : undefined}>
+                            <td className="num" data-label="Left" style={over ? { color: "var(--spend)" } : undefined}>
                               {row.budget === null
                                 ? "—"
                                 : money.plain(subtractMoney(row.budget, row.actual))}
@@ -152,7 +165,7 @@ export function DashboardPage() {
                 <Empty>No targets set and nothing put aside this month.</Empty>
               ) : (
                 <TableWrap>
-                  <table aria-label="Savings progress">
+                  <table className="stacked" aria-label="Savings progress">
                     <thead>
                       <tr>
                         <th>Type</th>
@@ -168,9 +181,9 @@ export function DashboardPage() {
                     <tbody>
                       {summary.savings.map((row) => (
                         <tr key={row.savings_type_id}>
-                          <td>{row.savings_type_name}</td>
-                          <td className="num">{money.plain(row.actual)}</td>
-                          <td className="num">
+                          <td data-label="Type">{row.savings_type_name}</td>
+                          <td className="num" data-label="Spent">{money.plain(row.actual)}</td>
+                          <td className="num" data-label="Target">
                             {row.target === null ? (
                               <span className="hint">not set</span>
                             ) : (
@@ -209,7 +222,7 @@ export function DashboardPage() {
                   <Empty>Nothing spent in this window.</Empty>
                 ) : (
                   <TableWrap>
-                    <table aria-label="Expense by category">
+                    <table className="stacked" aria-label="Expense by category">
                       <thead>
                         <tr>
                           <th>Category</th>
@@ -220,7 +233,9 @@ export function DashboardPage() {
                       <tbody>
                         {trends.expense_by_category.map((series) => (
                           <tr key={series.category_id}>
-                            <td>{series.category_name}</td>
+                            <td data-label="Category">
+                              <Link to={`/categories/${series.category_id}`}>{series.category_name}</Link>
+                            </td>
                             <td>
                               <Sparkline
                                 values={series.values}

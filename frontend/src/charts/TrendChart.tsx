@@ -54,7 +54,9 @@ export function TrendChart({
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         width="100%"
-        height={HEIGHT}
+        // Height follows the viewBox aspect ratio; a fixed height letterboxes on narrow
+        // screens, leaving a band of dead space above and below the plot.
+        style={{ display: "block", height: "auto" }}
         role="img"
         aria-label={`Income, expense and savings for ${months[0]} to ${months[months.length - 1]}`}
         preserveAspectRatio="none"
