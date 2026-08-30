@@ -1,4 +1,4 @@
-import { NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
 import { CategoryPage } from "./pages/CategoryPage";
@@ -18,6 +18,12 @@ const SECTIONS = [
 export function App() {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  // Quick add belongs where entries do. On the projections page there is nothing to add,
+  // and the button sat on top of a form field.
+  const showQuickAdd = pathname === "/" || pathname.startsWith("/entries") ||
+    pathname.startsWith("/categories");
 
   // Without this the sign-in page flashes on every reload before /me answers.
   if (loading) return <main className="shell" />;
@@ -56,14 +62,16 @@ export function App() {
       {/* Quick add: recording a transaction is the loop people repeat, so on a phone it
           should never cost a navigation to reach. Hidden on desktop, where the entry form
           is already one click away and a floating button would just be clutter. */}
-      <button
-        type="button"
-        className="fab"
-        aria-label="Add an entry"
-        onClick={() => navigate("/entries?add=1")}
-      >
-        +
-      </button>
+      {showQuickAdd && (
+        <button
+          type="button"
+          className="fab"
+          aria-label="Add an entry"
+          onClick={() => navigate("/entries?add=1")}
+        >
+          +
+        </button>
+      )}
 
       {/* Thumb-reachable navigation. This is the single thing that stops an installed PWA
           feeling like a website in a frameless window. */}

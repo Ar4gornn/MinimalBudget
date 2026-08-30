@@ -1,14 +1,25 @@
 /**
- * Contributions against total balance over time, as a filled area.
+ * Balance over time, for one or two scenarios.
  *
- * The gap between the two bands *is* the interest, which is the thing the page exists to
- * show. A single balance line would grow impressively without making clear how much of the
- * growth was money the person put in themselves.
+ * With a single scenario the contributions are drawn underneath, because the gap between
+ * the two bands *is* the interest — a lone balance line grows impressively without showing
+ * how much of that was money the person put in themselves.
+ *
+ * With two, the contribution bands are dropped. Four overlapping filled areas is mud, and
+ * the question being asked has changed: it is no longer "how much of this is interest" but
+ * "how far apart do these two end up".
  */
 
 import { toChartNumber } from "../money";
 import { useMoney } from "../useMoney";
 import type { ProjectionPoint } from "../interest";
+
+export interface GrowthSeries {
+  label: string;
+  points: ProjectionPoint[];
+  /** A CSS colour, so the palette stays in one place. */
+  colour: string;
+}
 
 const WIDTH = 720;
 const HEIGHT = 240;
@@ -16,14 +27,32 @@ const PAD_LEFT = 56;
 const PAD_BOTTOM = 26;
 const PAD_TOP = 12;
 
-/** A round number at or above `value`, so the axis reads 1,000 rather than 987. */
-function niceCeiling(value: number): number {
-  if (value <= 0) return 1;
-  const magnitude = 10 ** Math.floor(Math.log10(value));
-  for (const step of [1, 2, 2.5, 5, 10]) {
-    if (magnitude * step >= value) return magnitude * step;
+/**
+ * A round gridline interval, and the axis top that follows from it.
+ *
+ * Two earlier attempts were wrong in different ways. Quartering the maximum produced axes
+ * reading "6.3k, 13k, 19k" — arithmetically fine, and nobody reads a value off it. Rounding
+ * the top separately from the step then emitted a label above the plot area, drawn off the
+ * canvas entirely.
+ *
+ * So the step is chosen first and the top is derived from it: the highest gridline *is* the
+ * top of the chart, which means every label is on screen and the axis ends on a round
+ * number.
+ */
+function niceScale(floor: number, highest: number): { peak: number; ticks: number[] } {
+  const span = Math.max(highest - floor, 1);
+  const rough = span / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const step =
+    [1, 2, 2.5, 5, 10].map((m) => m * magnitude).find((candidate) => candidate >= rough) ??
+    magnitude * 10;
+
+  const peak = Math.ceil(highest / step) * step;
+  const ticks: number[] = [];
+  for (let value = Math.ceil(floor / step) * step; value <= peak + step / 1000; value += step) {
+    ticks.push(Number(value.toFixed(6)));
   }
-  return magnitude * 10;
+  return { peak, ticks };
 }
 
 function compact(value: number): string {
@@ -33,18 +62,28 @@ function compact(value: number): string {
   return value.toFixed(0);
 }
 
-export function GrowthChart({ points }: { points: ProjectionPoint[] }) {
+export function GrowthChart({ series }: { series: GrowthSeries[] }) {
   const money = useMoney();
-  if (points.length < 2) return <p className="empty">Add an amount and a rate to see this.</p>;
+  const usable = series.filter((one) => one.points.length >= 2);
+  if (usable.length === 0) {
+    return <p className="empty">Add an amount and a rate to see this.</p>;
+  }
 
-  const balances = points.map((p) => toChartNumber(p.balance));
-  const contributions = points.map((p) => toChartNumber(p.contributed));
-  const peak = niceCeiling(Math.max(...balances, ...contributions, 1));
-  const floor = Math.min(0, ...balances);
+  const comparing = usable.length > 1;
+  // The longest scenario sets the x-axis, so two runs of different lengths still line up
+  // at year zero rather than being stretched to the same width.
+  const longest = Math.max(...usable.map((one) => one.points.length));
+
+  const everyValue = usable.flatMap((one) => [
+    ...one.points.map((p) => toChartNumber(p.balance)),
+    ...(comparing ? [] : one.points.map((p) => toChartNumber(p.contributed))),
+  ]);
+  const floor = Math.min(0, ...everyValue);
+  const { peak, ticks } = niceScale(floor, Math.max(...everyValue, 1));
 
   const plotHeight = HEIGHT - PAD_TOP - PAD_BOTTOM;
   const plotWidth = WIDTH - PAD_LEFT - 8;
-  const x = (index: number) => PAD_LEFT + (index / (points.length - 1)) * plotWidth;
+  const x = (index: number) => PAD_LEFT + (index / (longest - 1)) * plotWidth;
   const y = (value: number) =>
     HEIGHT - PAD_BOTTOM - ((value - floor) / (peak - floor)) * plotHeight;
 
@@ -56,12 +95,8 @@ export function GrowthChart({ points }: { points: ProjectionPoint[] }) {
   const line = (values: number[]) =>
     values.map((value, index) => `${index === 0 ? "M" : "L"} ${x(index)} ${y(value)}`).join(" ");
 
-  // Four gridlines is enough to read a value off without becoming graph paper.
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((fraction) => floor + (peak - floor) * fraction);
-  const years = Math.round((points.length - 1) / 12);
-  const yearTicks = points
-    .map((point, index) => ({ point, index }))
-    .filter(({ point }) => point.month % 12 === 0 && point.month > 0)
+  const yearTicks = Array.from({ length: longest }, (_, index) => index)
+    .filter((index) => index % 12 === 0 && index > 0)
     .filter((_, i, all) => all.length <= 10 || i % Math.ceil(all.length / 10) === 0);
 
   return (
@@ -73,7 +108,11 @@ export function GrowthChart({ points }: { points: ProjectionPoint[] }) {
         // screens, leaving a band of dead space above and below the plot.
         style={{ display: "block", height: "auto" }}
         role="img"
-        aria-label={`Balance and contributions over ${years} years`}
+        aria-label={
+          comparing
+            ? `Comparing ${usable.map((one) => one.label).join(" and ")}`
+            : `Balance and contributions over ${Math.round((longest - 1) / 12)} years`
+        }
       >
         {ticks.map((value) => (
           <g key={value}>
@@ -97,45 +136,60 @@ export function GrowthChart({ points }: { points: ProjectionPoint[] }) {
           </g>
         ))}
 
-        {/* Balance behind, contributions in front: the visible gap is the interest. */}
-        <path d={area(balances)} fill="var(--accent)" opacity={0.22} />
-        <path d={area(contributions)} fill="var(--border-strong)" opacity={0.45} />
-        <path d={line(balances)} fill="none" stroke="var(--accent)" strokeWidth={2} />
-        <path
-          d={line(contributions)}
-          fill="none"
-          stroke="var(--muted)"
-          strokeWidth={1.5}
-          strokeDasharray="4 3"
-        />
+        {usable.map((one) => {
+          const balances = one.points.map((p) => toChartNumber(p.balance));
+          const contributions = one.points.map((p) => toChartNumber(p.contributed));
+          return (
+            <g key={one.label}>
+              <path d={area(balances)} fill={one.colour} opacity={comparing ? 0.14 : 0.22} />
+              {!comparing && (
+                <path d={area(contributions)} fill="var(--border-strong)" opacity={0.45} />
+              )}
+              <path d={line(balances)} fill="none" stroke={one.colour} strokeWidth={2} />
+              {!comparing && (
+                <path
+                  d={line(contributions)}
+                  fill="none"
+                  stroke="var(--muted)"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                />
+              )}
+            </g>
+          );
+        })}
 
-        {yearTicks.map(({ point, index }) => (
+        {yearTicks.map((index) => (
           <text
-            key={point.month}
+            key={index}
             x={x(index)}
             y={HEIGHT - 8}
             textAnchor="middle"
             fontSize={11}
             fill="var(--faint)"
           >
-            {point.month / 12}y
+            {index / 12}y
           </text>
         ))}
       </svg>
 
       <div className="legend">
-        <span>
-          <i className="swatch" style={{ background: "var(--accent)" }} aria-hidden="true" />
-          Balance — {money.amount(points[points.length - 1]?.balance ?? "0.00")}
-        </span>
-        <span>
-          <i
-            className="swatch"
-            style={{ background: "var(--border-strong)" }}
-            aria-hidden="true"
-          />
-          Paid in — {money.amount(points[points.length - 1]?.contributed ?? "0.00")}
-        </span>
+        {usable.map((one) => (
+          <span key={one.label}>
+            <i className="swatch" style={{ background: one.colour }} aria-hidden="true" />
+            {one.label} — {money.amount(one.points[one.points.length - 1]?.balance ?? "0.00")}
+          </span>
+        ))}
+        {!comparing && (
+          <span>
+            <i
+              className="swatch"
+              style={{ background: "var(--border-strong)" }}
+              aria-hidden="true"
+            />
+            Paid in — {money.amount(usable[0]?.points.at(-1)?.contributed ?? "0.00")}
+          </span>
+        )}
       </div>
     </>
   );

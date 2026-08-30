@@ -15,6 +15,8 @@
   --spend-soft: #f4e6e3;
   --warn-bg: #fdf1ed;
   --focus: #2f6f5e;
+  --accent-2: #3f6ea8;
+  --accent-2-soft: #e4ebf3;
 
   --radius: 8px;
   --gap: 16px;
@@ -38,6 +40,8 @@
     --spend-soft: #33221f;
     --warn-bg: #33221f;
     --focus: #6fbfa5;
+    --accent-2: #7fb3e8;
+    --accent-2-soft: #1d2735;
   }
 }
 
