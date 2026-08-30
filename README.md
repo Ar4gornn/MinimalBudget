@@ -154,6 +154,22 @@ Compose reads `.env` for variable substitution, so a `REGISTRATION_MODE=open` le
 development would otherwise become the production setting and leave the instance open to anyone
 who finds the URL. Opening it is a deliberate edit to `docker-compose.prod.yml`.
 
+### Installing it on a phone
+
+It is a progressive web app, so there is no app store and no APK. Send the address, and:
+
+- **iPhone/iPad** — open it in **Safari** (not Chrome; only Safari can install on iOS), tap
+  Share, then *Add to Home Screen*.
+- **Android** — open it in Chrome and accept the *Install app* prompt, or use *Add to Home
+  screen* from the menu.
+
+It then launches full-screen with its own icon, like any other app. Updates arrive on next
+launch — nobody has to reinstall anything.
+
+Offline, the app shell loads and tells you it cannot reach the server. It deliberately does not
+cache your financial data: a stale balance shown as current is worse than an honest error, and a
+cache would outlive the sign-out meant to clear it.
+
 ### Inviting your family
 
 ```bash

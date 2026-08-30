@@ -64,7 +64,12 @@ a {
 .shell {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 24px 20px 64px;
+  /* env(safe-area-inset-*) is why index.html sets viewport-fit=cover: installed on iOS the
+     app draws under the notch and the home indicator, and without these the header hides
+     behind the status bar. The max() keeps the normal padding in a browser tab, where the
+     insets are zero. */
+  padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(64px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
 }
 
 .topbar {

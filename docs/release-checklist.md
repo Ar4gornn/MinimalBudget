@@ -26,6 +26,13 @@ distinct from features, which can arrive whenever.
 - [ ] **Never run `seed.py` on the instance.** It refuses without `ALLOW_SEED=1` precisely
       because it creates an account whose password is published in the README.
 
+- [ ] **Confirm the service worker registers on the real domain.** Everything else about the
+      PWA is verified — manifest, icons, cache headers, CSP, content types — but registration
+      itself could not be tested locally: the embedded browser used for verification refuses to
+      register any service worker, proven with an empty control script. It needs one check in a
+      real browser on the deployed HTTPS address. In DevTools → Application → Service Workers it
+      should show as activated, and Manifest should show no errors.
+
 ## Worth doing first, not blocking
 
 - [ ] CI running the test suite on push, so a break is caught before it reaches the instance.

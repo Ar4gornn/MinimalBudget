@@ -29,7 +29,10 @@
 		# The app loads one bundle and one stylesheet from its own origin, talks only to
 		# its own /api, and embeds nothing. Everything below is what it actually needs;
 		# there is no 'unsafe-inline' because the build produces no inline script.
-		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data:; connect-src 'self'; form-action 'self'"
+		# worker-src and manifest-src are named explicitly rather than left to default-src:
+		# both fall back to it today, but a future relaxation of default-src should not
+		# silently widen where a service worker may come from.
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data:; connect-src 'self'; form-action 'self'; worker-src 'self'; manifest-src 'self'"
 		# Do not advertise the server version.
 		-Server
 	}
@@ -45,8 +48,24 @@
 		reverse_proxy api:8000
 	}
 
-	# SPA fallback: deep links like /projects/x are routed by the client, so anything that
-	# is not a real file returns index.html rather than a 404.
+	# The service worker must not be cached, or a browser holding an old copy keeps serving
+	# an old app and no deploy ever reaches it. Browsers already bypass the HTTP cache for
+	# worker scripts, but proxies in between do not.
+	@sw path /sw.js
+	header @sw Cache-Control "no-cache, no-store, must-revalidate"
+
+	# index.html likewise: it names the hashed bundles, so a cached copy pins the app to an
+	# old build.
+	@shell path / /index.html /manifest.webmanifest
+	header @shell Cache-Control "no-cache"
+
+	# The bundles themselves are content-hashed, so a changed file is a new URL and these
+	# can be cached indefinitely.
+	@hashed path /assets/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+	# SPA fallback: deep links like /entries are routed by the client, so anything that is
+	# not a real file returns index.html rather than a 404.
 	handle {
 		root * /srv
 		try_files {path} /index.html
