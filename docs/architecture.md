@@ -286,6 +286,58 @@ security-definer function
   Postgres; there is no SQLite path, because SQLite has no row-level security and would make these
   assertions meaningless.
 
+### AD-25 — Registration is closed unless deliberately opened
+
+- **Binds:** auth
+- **Prevents:** an internet-facing instance accepting accounts from anyone who finds the URL,
+  through an unset variable, a typo, or a developer's local `.env` leaking into production.
+- **Rule:** `REGISTRATION_MODE` defaults to `invite`; any value that is not exactly `open` is
+  treated as closed. The production compose file **hardcodes** it rather than substituting from
+  the environment, because `docker compose` reads the repository `.env` and a local `open` would
+  otherwise become the production setting. Invites are single-use, expiring, stored hashed, and
+  minted only with the owner credentials — the runtime role holds no `INSERT` on `invites`, so a
+  compromised API cannot create its own way in. Unknown, used and expired codes are refused
+  identically, so the endpoint is not an oracle.
+
+### AD-26 — Failed logins are rate limited per email and per source
+
+- **Binds:** auth
+- **Prevents:** a password being found by guessing from the open internet; and a limiter keyed on
+  only one dimension, which either lets one attacker grind a single account or spread a spray
+  across many.
+- **Rule:** failures are counted against both the email and the source address, and either
+  crossing the threshold locks that key for the window. The check runs *before* the password is
+  verified, so a locked account costs an attacker a rejection rather than an Argon2 hash, and the
+  lock applies even to correct credentials — otherwise it is decorative. The limiter is
+  in-process: counters reset on restart and each replica keeps its own. That is a stated
+  limitation of a single-container deployment, not an oversight.
+
+### AD-27 — Sessions use rotating refresh tokens with reuse detection
+
+- **Binds:** auth, slice-5-client
+- **Prevents:** the choice between re-entering a password every hour — which pushes people toward
+  short passwords — and a long-lived bearer token that cannot be revoked.
+- **Rule:** login returns a short access token and a long refresh token. Every refresh mints a new
+  pair and revokes the one presented. A token presented after it was already rotated means a copy
+  exists, and there is no way to tell whether the caller is the thief or the victim, so the entire
+  family descended from that login is revoked. Each login starts its own family, so signing out
+  one device leaves the others alone. Tokens are stored as SHA-256 hashes — 256 bits of random has
+  no dictionary to defend against, and Argon2 would only slow every refresh. The client refreshes
+  transparently and **single-flights** it: concurrent requests must not each rotate, or the app
+  would trip its own reuse detection and sign the user out for loading a page.
+
+### AD-28 — Backups run as a superuser, and never with row security enabled
+
+- **Binds:** operations
+- **Prevents:** a backup that is silently incomplete. Under AD-1 every table has `FORCE ROW LEVEL
+  SECURITY`, so `pg_dump` as the owner fails — `row_security=off` does not bypass RLS, it errors
+  if a policy would filter the output, which is Postgres deliberately refusing to write a partial
+  dump. The obvious fix, `--enable-row-security`, dumps only currently visible rows and would
+  start losing data the day a policy changed, with nothing to signal it.
+- **Rule:** `ops/backup.sh` and `ops/restore.sh` connect as the Postgres superuser, which bypasses
+  RLS by definition, so a dump is complete by construction. `--enable-row-security` is never used.
+  A dump is kept only after it is non-empty and carries the custom-format magic header.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -449,10 +501,12 @@ MinimalBudget/
   matches the installed workspace toolchain. Revisit when the workspace upgrades, together.
 - **Pagination.** Not needed at single-user data volumes. AD-20's envelope makes adding a cursor
   additive, so this deferral cannot cause divergence.
-- **Rate limiting and lockout on login.** Not needed for a tracker with no public signup pressure
-  in v1; revisit before the instance is exposed to the public internet.
-- **Refresh tokens, password reset, email verification.** Named out of scope by the brief. Revisit
-  when the v2 mobile client makes short expiry painful.
+- ~~**Rate limiting and lockout on login.**~~ **Came due 2026-08-30**, when the instance was
+  pointed at the public internet — exactly the condition this deferral named. See AD-26.
+- **Refresh tokens** came due with public exposure; see AD-27. **Password reset** remains out of
+  scope as a self-service flow — it needs email delivery this deployment does not have — and is
+  served instead by an operator command that also revokes the account's sessions. **Email
+  verification** is still deferred: on an invite-only instance the invite is the vouching step.
 - **Per-month budget overrides.** AD-11 fixes the v1 meaning; the schema takes a nullable `month`
   column later without a rewrite.
 - **Connection pool sizing and read replicas.** No load justifies tuning them; defaults stand until
