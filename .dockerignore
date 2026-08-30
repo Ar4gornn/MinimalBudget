@@ -1,0 +1,44 @@
+# Build context for ops/Dockerfile.web, which is the repository root.
+#
+# Two reasons this matters. The obvious one is speed — without it every build ships .git,
+# node_modules and the backups directory to the daemon. The one that actually matters is
+# that .env sits at this root: nothing copies it into an image today, but leaving secrets
+# in the build context means a future `COPY . .` bakes them into a layer of a public image.
+# Excluded here so that mistake cannot be made silently.
+
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+.git
+.gitignore
+.github
+
+# Working artifacts and local state
+backups/
+.claude/
+_bmad/
+_bmad-output/
+CLAUDE.md
+LOG.md
+STATE.md
+invite-code.txt
+
+# Python
+backend/.venv/
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Node — the image runs its own `npm ci`, so a host install would only conflict
+frontend/node_modules/
+frontend/dist/
+
+# Nothing in the image needs these
+docs/
+ops/compose.verify.yml
+docker-compose.yml
+docker-compose.prod.yml

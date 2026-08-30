@@ -13,13 +13,17 @@ distinct from features, which can arrive whenever.
       - [ ] copy off-device (another machine, or object storage)
       - [ ] one restore actually performed from the off-device copy, not just from the local one
 
-- [ ] **Confirm the host is reachable from the public internet.** Family members are on other
-      continents, so a home connection has to accept inbound traffic. Check for CGNAT before
-      anything else — if the ISP hands out a shared address, port forwarding cannot work and a
-      tunnel is required instead. See the hosting notes in the README.
+      The scripts now target the production stack by default. Override with
+      `MB_COMPOSE_FILE=docker-compose.yml` for local use.
 
-- [ ] **Postgres not on an SD card.** Database write patterns wear flash out, and the failure is
-      corruption rather than a clean stop. Use an external SSD.
+- [ ] **Confirm the VPS gives a real IPv4 with inbound 80 and 443 open.** Caddy's certificate
+      challenge needs port 80 reachable; some budget plans are IPv6-only or share an address.
+      Decided 2026-08-30: a 4GB VPS rather than a home Raspberry Pi, so CGNAT, dynamic DNS and SD
+      card wear no longer apply. The Pi is now the intended off-device backup destination, which
+      is a better use for it — "off-site" from a datacenter means your house.
+
+- [ ] **Never run `seed.py` on the instance.** It refuses without `ALLOW_SEED=1` precisely
+      because it creates an account whose password is published in the README.
 
 ## Worth doing first, not blocking
 

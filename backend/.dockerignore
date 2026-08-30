@@ -1,0 +1,19 @@
+# Build context for backend/Dockerfile.
+#
+# The virtualenv is the important exclusion: it is several hundred megabytes of
+# platform-specific binaries built for the host, and shipping it to the daemon on every
+# build is pure waste. The image installs its own dependencies.
+
+.venv/
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Tests are not copied into the image; they run in CI and locally, against real Postgres.
+tests/
+
+.env
+.env.*

@@ -39,7 +39,20 @@ RETENTION_DAYS="${RETENTION_DAYS:-30}"
 : "${POSTGRES_DB:?POSTGRES_DB is not set}"
 : "${POSTGRES_SUPERUSER:?POSTGRES_SUPERUSER is not set}"
 
-COMPOSE="docker compose -f $ROOT/docker-compose.yml"
+# Which stack to talk to. Defaults to production, because that is where losing data
+# actually costs something — a script that silently backed up an empty development
+# database on the server would be worse than one that failed. For local use:
+#   MB_COMPOSE_FILE=docker-compose.yml ./ops/backup.sh
+COMPOSE_FILE="${MB_COMPOSE_FILE:-docker-compose.prod.yml}"
+[ -f "$ROOT/$COMPOSE_FILE" ] || { echo "No $COMPOSE_FILE at $ROOT" >&2; exit 1; }
+COMPOSE="docker compose -f $ROOT/$COMPOSE_FILE"
+
+# A stack that is not running produces confusing errors several commands later.
+if ! $COMPOSE ps --status running --services 2>/dev/null | grep -q '^db$'; then
+    echo "The db service of $COMPOSE_FILE is not running." >&2
+    echo "Start it, or point at another stack with MB_COMPOSE_FILE=..." >&2
+    exit 1
+fi
 
 mkdir -p "$DEST"
 STAMP="$(date -u +%Y%m%d-%H%M%SZ)"

@@ -1,6 +1,9 @@
 """Populate a demo account with a few months of plausible data.
 
-    python seed.py --email demo@example.com --password demo-password-1234
+    ALLOW_SEED=1 python seed.py --email demo@example.com --password demo-password-1234
+
+Refuses to run without ALLOW_SEED=1: it creates an account whose password is printed in a
+public README, which is harmless locally and a handed-out login on a server.
 
 Runs entirely through the service layer with a tenant-pinned session, so it obeys exactly
 the same row-level security as a request does — a seed script that bypassed RLS would be a
@@ -11,6 +14,7 @@ Idempotent per account: re-running wipes that user's rows and rebuilds them.
 
 import argparse
 import datetime as dt
+import os
 import sys
 import uuid
 from decimal import Decimal
@@ -54,11 +58,33 @@ def month_starts(count: int, today: dt.date) -> list[dt.date]:
     return months
 
 
+def refuse_unless_allowed() -> None:
+    """This script creates an account whose password is printed in a public README.
+
+    That is fine on a laptop and dangerous on an internet-facing instance, and the script
+    ships inside the production image because invite.py and reset_password.py have to. So
+    it refuses by default rather than relying on nobody typing it on the wrong machine.
+    """
+    if os.environ.get("ALLOW_SEED") == "1":
+        return
+    print(
+        "Refusing to seed.\n\n"
+        "This creates an account whose credentials are published in the README, so running\n"
+        "it on an internet-facing instance hands anyone who reads the repository a login.\n\n"
+        "If this really is a local or throwaway database, set ALLOW_SEED=1:\n"
+        "    ALLOW_SEED=1 python seed.py\n",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--email", default="demo@example.com")
     parser.add_argument("--password", default="demo-password-1234")
     args = parser.parse_args()
+
+    refuse_unless_allowed()
 
     email = args.email.strip().lower()
 

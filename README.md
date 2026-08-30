@@ -74,10 +74,12 @@ cd backend && python -m venv .venv && ./.venv/Scripts/python.exe -m pip install 
 cd backend && ./.venv/Scripts/python.exe -m alembic upgrade head
 ```
 
-Optionally load a demo account with six months of plausible data:
+Optionally load a demo account with six months of plausible data. It refuses to run without
+`ALLOW_SEED=1`, because it creates an account whose password is printed below — harmless on a
+laptop, a handed-out login on a server:
 
 ```bash
-cd backend && ./.venv/Scripts/python.exe seed.py
+cd backend && ALLOW_SEED=1 ./.venv/Scripts/python.exe seed.py
 ```
 
 Run the API:
