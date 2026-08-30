@@ -9,6 +9,9 @@ COPY pyproject.toml ./
 COPY app ./app
 COPY migrations ./migrations
 COPY alembic.ini ./
+# Operator scripts. Without these you cannot issue an invite or seed a demo account on the
+# server, which makes an invite-only production instance impossible to register against.
+COPY invite.py seed.py ./
 
 RUN pip install --no-cache-dir .
 

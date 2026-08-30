@@ -1,0 +1,55 @@
+# Production reverse proxy (Story 7.5).
+#
+# Caddy obtains and renews certificates from Let's Encrypt automatically, so there is no
+# provider SDK, no certbot cron, and no manual renewal step. AD-15 still holds: the only
+# thing this needs is DOMAIN and an email, both from the environment.
+#
+# The client and the API are served from the SAME origin here. That is deliberate and it
+# removes CORS from production entirely — the browser never makes a cross-origin request,
+# so there is no preflight and no origin allowlist to get wrong. CORS_ORIGINS matters only
+# for local development, where the Vite dev server is on a different port.
+
+{
+	email {$ACME_EMAIL}
+	# Uncomment to rehearse against Let's Encrypt's staging CA, which has far softer rate
+	# limits. Get a certificate here before pointing the real one at a broken config.
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		# HSTS. Once a browser has seen this it will refuse plain HTTP for the domain, so
+		# do not enable preload until you are certain the domain stays on HTTPS forever.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		# The app loads one bundle and one stylesheet from its own origin, talks only to
+		# its own /api, and embeds nothing. Everything below is what it actually needs;
+		# there is no 'unsafe-inline' because the build produces no inline script.
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data:; connect-src 'self'; form-action 'self'"
+		# Do not advertise the server version.
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	# Proxied explicitly. Without this the SPA fallback below answers /health with
+	# index.html and a 200, so an uptime monitor would report the service healthy while
+	# the API and the database were both dead.
+	handle /health {
+		reverse_proxy api:8000
+	}
+
+	# SPA fallback: deep links like /projects/x are routed by the client, so anything that
+	# is not a real file returns index.html rather than a 404.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

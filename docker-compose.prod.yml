@@ -1,0 +1,101 @@
+# Production stack (Story 7.5). Host-agnostic: any machine with Docker and a domain
+# pointed at it. No provider SDK, nothing cloud-specific.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Only the reverse proxy publishes ports. The database and the API are reachable on the
+# internal network and from nowhere else, so an exposed Postgres or an unencrypted API
+# port is not something you can leave switched on by accident.
+
+name: minimalbudget
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      DB_OWNER: ${DB_OWNER}
+      DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD}
+      DB_APP_USER: ${DB_APP_USER}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD}
+    volumes:
+      # Postgres 18 stores data in a major-version subdirectory and refuses to start if
+      # the volume is mounted at .../data instead of the parent.
+      - pgdata:/var/lib/postgresql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Migrations run as their own step with the owner credentials, then exit. The API image
+  # never carries owner credentials, so a compromised API cannot alter the schema (AD-2).
+  migrate:
+    build: ./backend
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MIGRATION_DATABASE_URL: postgresql+psycopg://${DB_OWNER}:${DB_OWNER_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Present only because settings are constructed at import; the runtime role is what
+      # it points at, and this container performs no request work.
+      DATABASE_URL: postgresql+psycopg://${DB_APP_USER}:${DB_APP_PASSWORD}@db:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg://${DB_APP_USER}:${DB_APP_PASSWORD}@db:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-60}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
+      # Hardcoded, NOT ${REGISTRATION_MODE:-invite}. Compose reads the repository .env for
+      # substitution, so a developer's local REGISTRATION_MODE=open silently became the
+      # production setting — an internet-facing instance strangers could sign up to. This
+      # was caught by testing the production stack rather than reading it. Opening
+      # registration in production is now a deliberate edit to this file.
+      REGISTRATION_MODE: "invite"
+      LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-8}
+      LOGIN_LOCKOUT_MINUTES: ${LOGIN_LOCKOUT_MINUTES:-15}
+      # Same origin in production, so the browser never makes a cross-origin request and
+      # there is no allowlist to get wrong.
+      CORS_ORIGINS: ""
+    # Deliberately no `ports:`. Reachable only from the proxy, on the internal network.
+    expose:
+      - "8000"
+
+  web:
+    build:
+      context: .
+      dockerfile: ops/Dockerfile.web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Certificates and ACME account keys. Losing this volume means re-issuing on every
+      # restart, which will hit Let's Encrypt rate limits.
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

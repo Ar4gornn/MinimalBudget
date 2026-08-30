@@ -1,0 +1,23 @@
+# Builds the client and bakes it into the Caddy image that serves it (Story 7.5).
+#
+# The client and API share an origin in production, so the API base URL is empty: the
+# browser calls /api on the same host and Caddy proxies it. That is what makes CORS a
+# development-only concern.
+
+FROM node:22-alpine AS build
+WORKDIR /app
+
+# Copied first so a dependency install is cached across source changes.
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend/ ./
+# vite.config.ts sets envDir: ".." to share the repository .env in development. That file
+# is not in the build context and must not be — it holds secrets. Setting the variable
+# here keeps the build hermetic.
+ENV VITE_API_BASE_URL=""
+RUN npm run build
+
+FROM caddy:2-alpine
+COPY --from=build /app/dist /srv
+COPY ops/Caddyfile /etc/caddy/Caddyfile

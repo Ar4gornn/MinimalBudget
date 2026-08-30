@@ -1,0 +1,21 @@
+# Smoke-test the PRODUCTION stack locally, without a domain (Story 7.5).
+#
+#   docker compose -p minimalbudget-verify -f docker-compose.prod.yml -f ops/compose.verify.yml up -d --build
+#
+# A Caddy site address of ":8080" is a bare port, which turns automatic HTTPS off — so
+# everything except certificate issuance can be exercised on a laptop: the real built
+# client, the real proxy rules, the SPA fallback, and the real security headers including
+# the Content-Security-Policy the app has to run under.
+#
+# What this deliberately cannot verify is TLS itself. Certificate issuance needs a public
+# domain resolving to the machine, so that step is only ever proven on the real host.
+
+services:
+  web:
+    environment:
+      DOMAIN: ":8080"
+      # Never used — a bare-port site address turns ACME off entirely. It is set because
+      # Caddy's `email` directive fails to parse with an empty argument.
+      ACME_EMAIL: "verify@localhost"
+    ports: !override
+      - "8080:8080"
