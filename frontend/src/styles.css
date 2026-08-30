@@ -721,3 +721,63 @@ button.link {
     flex: 0 0 auto;
   }
 }
+
+
+/* --------------------------------------------------------- compare grid */
+
+/* Two scenarios as aligned parameter rows rather than two stacked forms.
+   Stacked, the pair cost ten full-width fields before the chart came into view; aligned,
+   the whole comparison fits above the fold and the one value that differs between A and B
+   is immediately obvious, because they sit next to each other. */
+.compare-grid {
+  display: grid;
+  grid-template-columns: minmax(54px, auto) 1fr 1fr;
+  gap: 8px 10px;
+  align-items: center;
+}
+
+.compare-grid .head {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+  padding-bottom: 2px;
+}
+
+.compare-grid .swatch-line {
+  height: 3px;
+  border-radius: 2px;
+  margin-top: 4px;
+}
+
+.compare-grid .param {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.2;
+}
+
+.compare-grid input,
+.compare-grid select {
+  width: 100%;
+  padding: 6px 8px;
+}
+
+@media (max-width: 720px) {
+  .compare-grid {
+    grid-template-columns: minmax(46px, auto) 1fr 1fr;
+    gap: 6px 8px;
+  }
+
+  .compare-grid .param {
+    font-size: 10px;
+  }
+
+  .compare-grid input,
+  .compare-grid select {
+    padding: 6px;
+    font-size: 14px;
+  }
+}

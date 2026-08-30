@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 import { GrowthChart } from "../charts/GrowthChart";
 import type { GrowthSeries } from "../charts/GrowthChart";
@@ -96,24 +96,25 @@ export function ProjectionsPage() {
         <ErrorBanner message="Enter amounts of zero or more, with at most two decimal places, and a rate." />
       )}
 
-      <div className="columns">
+      {comparing ? (
+        <Card title="Compare">
+          <CompareFields
+            first={first}
+            second={second}
+            onFirst={setFirst}
+            onSecond={setSecond}
+            symbol={money.symbol}
+          />
+        </Card>
+      ) : (
         <ScenarioCard
-          title={comparing ? "Scenario A" : "What it grows to"}
+          title="What it grows to"
           accent="var(--accent)"
           scenario={first}
           onChange={setFirst}
           symbol={money.symbol}
         />
-        {comparing && (
-          <ScenarioCard
-            title="Scenario B"
-            accent="var(--accent-2)"
-            scenario={second}
-            onChange={setSecond}
-            symbol={money.symbol}
-          />
-        )}
-      </div>
+      )}
 
       <Card>
         <div className="row" style={{ alignItems: "center" }}>
@@ -346,5 +347,106 @@ function ScenarioCard({
         )}
       </form>
     </Card>
+  );
+}
+
+
+/**
+ * The two scenarios as aligned rows: one row per parameter, A and B beside each other.
+ *
+ * Two stacked forms is the obvious layout and the wrong one. On a phone it put ten
+ * full-width fields between the reader and the chart, and — worse for a comparison — it
+ * separated the two values being compared by a screen of scrolling. Side by side, the one
+ * field that differs is the one that looks different.
+ */
+function CompareFields({
+  first,
+  second,
+  onFirst,
+  onSecond,
+  symbol,
+}: {
+  first: Scenario;
+  second: Scenario;
+  onFirst: (next: Scenario) => void;
+  onSecond: (next: Scenario) => void;
+  symbol: string;
+}) {
+  const rows: { key: keyof Scenario; label: string; kind: "money" | "rate" | "mode" | "freq" }[] = [
+    { key: "initial", label: `Start (${symbol})`, kind: "money" },
+    { key: "monthly", label: `Monthly (${symbol})`, kind: "money" },
+    { key: "rate", label: "Rate %", kind: "rate" },
+    { key: "mode", label: "Interest", kind: "mode" },
+    { key: "compounding", label: "Every", kind: "freq" },
+  ];
+
+  const cell = (
+    scenario: Scenario,
+    set: (next: Scenario) => void,
+    row: (typeof rows)[number],
+    which: "A" | "B",
+  ) => {
+    const label = `Scenario ${which} ${row.label}`;
+    if (row.kind === "mode") {
+      return (
+        <select
+          aria-label={label}
+          value={scenario.mode}
+          onChange={(event) => set({ ...scenario, mode: event.target.value as InterestMode })}
+        >
+          <option value="compound">Compound</option>
+          <option value="simple">Simple</option>
+        </select>
+      );
+    }
+    if (row.kind === "freq") {
+      return (
+        <select
+          aria-label={label}
+          // Disabled rather than hidden: removing the row for one scenario would break the
+          // grid alignment that makes this readable at a glance.
+          disabled={scenario.mode !== "compound"}
+          value={scenario.compounding}
+          onChange={(event) =>
+            set({ ...scenario, compounding: event.target.value as Compounding })
+          }
+        >
+          <option value="monthly">Month</option>
+          <option value="quarterly">Quarter</option>
+          <option value="annually">Year</option>
+        </select>
+      );
+    }
+    return (
+      <input
+        className="num"
+        inputMode="decimal"
+        aria-label={label}
+        value={scenario[row.key] as string}
+        onChange={(event) => set({ ...scenario, [row.key]: event.target.value })}
+      />
+    );
+  };
+
+  return (
+    <div className="compare-grid">
+      <span />
+      <div className="head">
+        A
+        <div className="swatch-line" style={{ background: "var(--accent)" }} />
+      </div>
+      <div className="head">
+        B
+        <div className="swatch-line" style={{ background: "var(--accent-2)" }} />
+      </div>
+
+      {rows.map((row) => (
+        <Fragment key={row.key}>
+          <span className="param">{row.label}</span>
+          {cell(first, onFirst, row, "A")}
+          {cell(second, onSecond, row, "B")}
+        </Fragment>
+      ))}
+    </div>
   );
 }
