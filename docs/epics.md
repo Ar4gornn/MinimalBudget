@@ -597,3 +597,29 @@ So that I can rebuild it without re-deriving what past-me did.
 **Then** it documents the production stack, every environment variable it needs, how to issue an
   invite, how to take and restore a backup, and what to do when a family member forgets a password
 **And** every command in it has been run
+
+
+---
+
+## Decided, not yet specced
+
+Direction settled on 2026-08-30. Recorded here so it is not re-litigated; none of it is built,
+and each needs its own epic before any code.
+
+- **Host: a Raspberry Pi 4.** All four images are multi-arch and include `arm64/v8`, verified
+  against the registry, so the stack runs unchanged on 64-bit Pi OS. The open questions are
+  network and storage, not architecture — see `release-checklist.md`.
+- **Recurring entries** (income, expense and savings alike). A template with a cadence, plus a
+  materialisation step. Default is to *propose* the entry for confirmation rather than create it
+  silently, with per-template opt-in to automatic creation for genuinely fixed amounts like rent.
+  A wrong amount created silently is worse than one not created at all.
+- **A native app, not a PWA**, because the intent is to grow past budgeting — gym plans, todos,
+  other trackers. That makes this a personal-tracking platform with a budget module, and the name
+  and the API shape both need to follow. The v2 Expo plan stands; the API's module boundaries are
+  the thing to get right first.
+- **Users stay fully independent.** No household or shared pot. Family members live in different
+  countries, so there is nothing to share and the row-level security already delivers exactly
+  this. No work required — recorded so the option is not revisited by accident.
+- **Currency: USD primary, EUR as an option.** Each amount carries its own currency; a user has a
+  display currency; conversion happens at read time against a rate table. Amounts are never
+  converted on write, because that destroys the figure the user actually entered.

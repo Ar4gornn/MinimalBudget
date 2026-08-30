@@ -53,3 +53,6 @@ _bmad-output/
 .bmad-core/
 bmad-output/
 _bmad/
+
+# Issued invite codes — credentials, never committed
+invite-code.txt
