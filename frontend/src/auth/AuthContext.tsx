@@ -8,7 +8,14 @@ import {
   type ReactNode,
 } from "react";
 
-import { api, readToken, setUnauthorizedHandler, writeToken } from "../api/client";
+import {
+  api,
+  clearTokens,
+  readRefreshToken,
+  readToken,
+  setUnauthorizedHandler,
+  storeTokens,
+} from "../api/client";
 import type { User } from "../api/types";
 
 interface AuthState {
@@ -26,7 +33,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const signOut = useCallback(() => {
-    writeToken(null);
+    // Tell the server first so the refresh token is revoked rather than merely forgotten,
+    // then clear locally regardless of whether that call succeeded.
+    const refreshToken = readRefreshToken();
+    if (refreshToken) void api.logout(refreshToken).catch(() => undefined);
+    clearTokens();
     setUser(null);
   }, []);
 
@@ -49,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!cancelled) setUser(found);
       })
       .catch(() => {
-        if (!cancelled) writeToken(null);
+        if (!cancelled) clearTokens();
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -60,8 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const token = await api.login(email, password);
-    writeToken(token.access_token);
+    storeTokens(await api.login(email, password));
     setUser(await api.me());
   }, []);
 

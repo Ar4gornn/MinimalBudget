@@ -27,6 +27,7 @@ import type {
 const BASE = (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "";
 
 const TOKEN_KEY = "minimalbudget.token";
+const REFRESH_KEY = "minimalbudget.refresh";
 
 export class ApiError extends Error {
   constructor(
@@ -64,16 +65,84 @@ export function writeToken(token: string | null): void {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export function readRefreshToken(): string | null {
+  try {
+    return window.localStorage.getItem(REFRESH_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function writeRefreshToken(token: string | null): void {
+  try {
+    if (token === null) window.localStorage.removeItem(REFRESH_KEY);
+    else window.localStorage.setItem(REFRESH_KEY, token);
+  } catch {
+    /* see readToken */
+  }
+}
+
+export function storeTokens(token: Token): void {
+  writeToken(token.access_token);
+  writeRefreshToken(token.refresh_token);
+}
+
+export function clearTokens(): void {
+  writeToken(null);
+  writeRefreshToken(null);
+}
+
+// One refresh in flight at a time. Without this, a page that fires five requests on mount
+// would race five refreshes — and since every refresh rotates, four of them would present
+// an already-rotated token and trip reuse detection, signing the user out for loading a page.
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+  const refreshToken = readRefreshToken();
+  if (!refreshToken) return false;
+
+  const response = await fetch(`${BASE}/api/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+
+  if (!response.ok) {
+    clearTokens();
+    return false;
+  }
+  storeTokens((await response.json()) as Token);
+  return true;
+}
+
+function refreshOnce(): Promise<boolean> {
+  refreshInFlight ??= refreshAccessToken().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function send(path: string, init: RequestInit): Promise<Response> {
   const token = readToken();
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  return fetch(`${BASE}${path}`, { ...init, headers });
+}
 
-  const response = await fetch(`${BASE}${path}`, { ...init, headers });
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let response = await send(path, init);
+
+  // A 401 means the short-lived access token aged out. Refresh once and retry, so a
+  // family member is not sent back to a sign-in screen every hour.
+  if (response.status === 401 && !path.startsWith("/api/auth/")) {
+    if (await refreshOnce()) {
+      response = await send(path, init);
+    }
+  }
 
   if (response.status === 401) {
-    writeToken(null);
+    clearTokens();
     onUnauthorized?.();
     throw new ApiError(401, "Your session has expired. Please sign in again.");
   }
@@ -142,6 +211,12 @@ export const api = {
     }),
 
   me: () => request<User>("/api/auth/me"),
+
+  logout: (refreshToken: string) =>
+    request<void>("/api/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    }),
 
   listCategories: (kind?: EntryKind) =>
     items(request<Page<Category>>(`/api/categories${query({ kind })}`)),

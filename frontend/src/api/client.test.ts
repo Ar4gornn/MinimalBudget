@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, api, readToken, setUnauthorizedHandler, writeToken } from "./client";
+import {
+  ApiError,
+  api,
+  readRefreshToken,
+  readToken,
+  setUnauthorizedHandler,
+  storeTokens,
+  writeToken,
+} from "./client";
 
 function respond(body: unknown, status = 200): Response {
   return new Response(status === 204 ? null : JSON.stringify(body), {
@@ -112,5 +120,101 @@ describe("api client", () => {
     });
     expect(readToken()).toBeNull();
     getItem.mockRestore();
+  });
+});
+
+
+describe("transparent refresh", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => setUnauthorizedHandler(null));
+
+  function tokens(suffix: string) {
+    return {
+      access_token: `access-${suffix}`,
+      token_type: "bearer",
+      expires_in: 3600,
+      refresh_token: `refresh-${suffix}`,
+    };
+  }
+
+  it("refreshes once on a 401 and retries the original request", async () => {
+    storeTokens(tokens("one"));
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/api/auth/refresh")) return respond(tokens("two"));
+      // Fail while the stale access token is presented, succeed once it is refreshed.
+      return readToken() === "access-two"
+        ? respond({ items: [] })
+        : respond({ detail: "expired" }, 401);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.listCategories()).resolves.toEqual([]);
+    expect(readToken()).toBe("access-two");
+    expect(readRefreshToken()).toBe("refresh-two");
+  });
+
+  it("refreshes only once for concurrent requests", async () => {
+    // The load-bearing case. Every refresh rotates, so five parallel refreshes would send
+    // four already-rotated tokens, trip the server's reuse detection, and sign the user
+    // out for the crime of loading a page with five requests on it.
+    storeTokens(tokens("one"));
+    let refreshes = 0;
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/api/auth/refresh")) {
+        refreshes += 1;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return respond(tokens("two"));
+      }
+      return readToken() === "access-two"
+        ? respond({ items: [] })
+        : respond({ detail: "expired" }, 401);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await Promise.all([
+      api.listCategories(),
+      api.listEntries(),
+      api.listBudgets(),
+      api.listSavingsTypes(),
+      api.listTargets(),
+    ]);
+
+    expect(refreshes).toBe(1);
+  });
+
+  it("signs the user out when the refresh itself fails", async () => {
+    storeTokens(tokens("one"));
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url.includes("/api/auth/refresh")
+          ? respond({ detail: "please sign in" }, 401)
+          : respond({ detail: "expired" }, 401),
+      ),
+    );
+
+    await expect(api.listCategories()).rejects.toBeInstanceOf(ApiError);
+    expect(readToken()).toBeNull();
+    expect(readRefreshToken()).toBeNull();
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not try to refresh the auth endpoints themselves", async () => {
+    // Otherwise a wrong password would trigger a refresh attempt on the way to reporting
+    // itself, and a failed login would look like an expired session.
+    storeTokens(tokens("one"));
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      respond({ detail: "Incorrect email or password" }, 401),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.login("a@example.com", "wrong-password")).rejects.toBeInstanceOf(ApiError);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/refresh"))).toBe(false);
   });
 });

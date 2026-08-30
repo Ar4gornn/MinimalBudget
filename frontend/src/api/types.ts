@@ -26,6 +26,8 @@ export interface Token {
   access_token: string;
   token_type: string;
   expires_in: number;
+  /** Long-lived and rotated on every use. See docs/architecture.md AD-27. */
+  refresh_token: string;
 }
 
 export interface Category {

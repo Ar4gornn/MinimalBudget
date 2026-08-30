@@ -38,3 +38,10 @@ class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"  # noqa: S105 — the OAuth scheme name, not a credential
     expires_in: int
+    # Long-lived, rotated on every use, revocable. The access token stays short so a
+    # stolen one expires quickly; the refresh token is what keeps a phone signed in.
+    refresh_token: str
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
