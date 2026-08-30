@@ -42,6 +42,16 @@ export function DashboardPage() {
     void load();
   }, [load]);
 
+  // How many categories are over budget: the one number worth keeping visible when the
+  // section is folded away, because it is the only one that asks you to do something.
+  const overspent = useMemo(
+    () =>
+      (summary?.budgets ?? []).filter(
+        (row) => row.budget !== null && toCents(row.actual) > toCents(row.budget),
+      ).length,
+    [summary],
+  );
+
   // One scale across every sparkline, so the rows can be compared to each other.
   const seriesPeak = useMemo(() => {
     if (!trends) return 1;
@@ -100,7 +110,17 @@ export function DashboardPage() {
           </div>
 
           <div className="columns" style={{ marginTop: 16 }}>
-            <Card title="Budget vs actual">
+            <Card
+              title="Budget vs actual"
+              collapseKey="dashboard.budgets"
+              summary={
+                summary.budgets.length === 0
+                  ? "none"
+                  : `${summary.budgets.length} categories${
+                      overspent > 0 ? ` · ${overspent} over` : ""
+                    }`
+              }
+            >
               {summary.budgets.length === 0 ? (
                 <Empty>No budgets set and nothing spent this month.</Empty>
               ) : (
@@ -160,7 +180,15 @@ export function DashboardPage() {
               )}
             </Card>
 
-            <Card title="Savings progress">
+            <Card
+              title="Savings progress"
+              collapseKey="dashboard.savings"
+              summary={
+                summary.savings.length === 0
+                  ? "none"
+                  : `${summary.savings.length} ${summary.savings.length === 1 ? "type" : "types"}`
+              }
+            >
               {summary.savings.length === 0 ? (
                 <Empty>No targets set and nothing put aside this month.</Empty>
               ) : (
@@ -182,7 +210,7 @@ export function DashboardPage() {
                       {summary.savings.map((row) => (
                         <tr key={row.savings_type_id}>
                           <td data-label="Type">{row.savings_type_name}</td>
-                          <td className="num" data-label="Spent">{money.plain(row.actual)}</td>
+                          <td className="num" data-label="Saved">{money.plain(row.actual)}</td>
                           <td className="num" data-label="Target">
                             {row.target === null ? (
                               <span className="hint">not set</span>
@@ -217,7 +245,11 @@ export function DashboardPage() {
                 />
               </Card>
 
-              <Card title="Expense by category">
+              <Card
+                title="Expense by category"
+                collapseKey="dashboard.categories"
+                summary={`${trends.expense_by_category.length} categories`}
+              >
                 {trends.expense_by_category.length === 0 ? (
                   <Empty>Nothing spent in this window.</Empty>
                 ) : (

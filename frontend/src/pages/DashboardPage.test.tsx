@@ -1,4 +1,5 @@
 import { render as rtlRender, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -67,6 +68,7 @@ function rowOf(tableName: string, first: string): string[] {
 describe("DashboardPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    window.localStorage.clear();
   });
 
   it("shows the month's totals, numbers first", async () => {
@@ -107,6 +109,19 @@ describe("DashboardPage", () => {
       "not set",
       "—",
     ]);
+  });
+
+  it("labels the savings column Saved, not Spent", async () => {
+    // On a phone these tables become labelled cards, and the two share almost identical
+    // markup — which is how a bulk edit once put "Spent" on the savings figure.
+    mockApi();
+    render(<DashboardPage />);
+    const table = await screen.findByRole("table", { name: "Savings progress" });
+    const cells = [...table.querySelectorAll("td[data-label]")].map((td) =>
+      td.getAttribute("data-label"),
+    );
+    expect(cells).toContain("Saved");
+    expect(cells).not.toContain("Spent");
   });
 
   it("shows savings progress against the target", async () => {
@@ -172,5 +187,80 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("month must be formatted YYYY-MM");
+  });
+});
+
+
+describe("collapsible sections", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+  });
+
+  it("folds a section away and keeps its headline in the header", async () => {
+    mockApi();
+    const user = userEvent.setup();
+    render(<DashboardPage />);
+    await screen.findByRole("table", { name: "Budget vs actual" });
+
+    const toggle = screen.getByRole("button", { name: /Budget vs actual/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(toggle);
+
+    // The rows go; the count that tells you something stays.
+    expect(screen.queryByRole("table", { name: "Budget vs actual" })).toBeNull();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveTextContent("3 categories");
+    // Nothing in this fixture is over budget — Rent is 800 of 900, Gym 0 of 40 — so the
+    // warning must not appear. Asserting its absence is the half that catches a summary
+    // that always says "over".
+    expect(toggle).not.toHaveTextContent("over");
+  });
+
+  it("counts overspent categories in the collapsed summary", async () => {
+    mockApi({
+      summary: {
+        ...summary,
+        budgets: [
+          { category_id: "r", category_name: "Rent", budget: "900.00", actual: "950.00" },
+          { category_id: "g", category_name: "Gym", budget: "40.00", actual: "0.00" },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<DashboardPage />);
+    await screen.findByRole("table", { name: "Budget vs actual" });
+
+    const toggle = screen.getByRole("button", { name: /Budget vs actual/ });
+    await user.click(toggle);
+
+    expect(toggle).toHaveTextContent("2 categories");
+    expect(toggle).toHaveTextContent("1 over");
+  });
+
+  it("remembers the choice, so it is not re-collapsed on every visit", async () => {
+    mockApi();
+    const user = userEvent.setup();
+    const first = render(<DashboardPage />);
+    await screen.findByRole("table", { name: "Budget vs actual" });
+    await user.click(screen.getByRole("button", { name: /Budget vs actual/ }));
+    first.unmount();
+
+    render(<DashboardPage />);
+    await screen.findByRole("table", { name: "Savings progress" });
+    expect(screen.queryByRole("table", { name: "Budget vs actual" })).toBeNull();
+  });
+
+  it("survives localStorage being unavailable", async () => {
+    // Private windows throw on access. A section that cannot remember its state is fine;
+    // a dashboard that will not render is not.
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    mockApi();
+    render(<DashboardPage />);
+    expect(await screen.findByRole("table", { name: "Budget vs actual" })).toBeInTheDocument();
+    getItem.mockRestore();
   });
 });

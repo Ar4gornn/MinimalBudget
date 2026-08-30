@@ -1,33 +1,83 @@
-import type { ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 
 import { useMoney } from "../useMoney";
 import type { Money } from "../api/types";
+
+/** Collapsed sections are remembered per person, per device. */
+function readCollapsed(key: string): boolean {
+  try {
+    return window.localStorage.getItem(`minimalbudget.collapsed.${key}`) === "1";
+  } catch {
+    // Private windows and blocked site data throw. A section that will not remember being
+    // collapsed is a smaller problem than a page that will not render.
+    return false;
+  }
+}
+
+function writeCollapsed(key: string, collapsed: boolean): void {
+  try {
+    if (collapsed) window.localStorage.setItem(`minimalbudget.collapsed.${key}`, "1");
+    else window.localStorage.removeItem(`minimalbudget.collapsed.${key}`);
+  } catch {
+    /* see readCollapsed */
+  }
+}
 
 export function Card({
   title,
   children,
   actions,
+  /** Pass a stable key to make the section collapsible and remember its state. */
+  collapseKey,
+  /** Shown in the header while collapsed, so folding it away does not hide everything. */
+  summary,
 }: {
   title?: string;
   children: ReactNode;
   actions?: ReactNode;
+  collapseKey?: string;
+  summary?: ReactNode;
 }) {
+  const [collapsed, setCollapsed] = useState(() =>
+    collapseKey ? readCollapsed(collapseKey) : false,
+  );
+
+  const toggle = useCallback(() => {
+    if (!collapseKey) return;
+    setCollapsed((was) => {
+      writeCollapsed(collapseKey, !was);
+      return !was;
+    });
+  }, [collapseKey]);
+
+  const heading = title ? <h2 style={{ margin: 0 }}>{title}</h2> : <span />;
+
   return (
     <section className="card">
       {(title || actions) && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "baseline",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          {title ? <h2>{title}</h2> : <span />}
+        <div className="card-head">
+          {collapseKey ? (
+            // A real button, so it is reachable by keyboard and announces its state rather
+            // than being a div that happens to respond to clicks.
+            <button
+              type="button"
+              className="card-toggle"
+              onClick={toggle}
+              aria-expanded={!collapsed}
+            >
+              <span className={`chevron ${collapsed ? "closed" : ""}`} aria-hidden="true">
+                ▾
+              </span>
+              {heading}
+              {collapsed && summary ? <span className="card-summary">{summary}</span> : null}
+            </button>
+          ) : (
+            heading
+          )}
           {actions}
         </div>
       )}
-      {children}
+      {!collapsed && children}
     </section>
   );
 }
