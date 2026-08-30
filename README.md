@@ -22,9 +22,10 @@ queries as a second user rather than by reading a policy and believing it.
 
 ### Not in v1
 
-Bank sync, recurring transactions, multi-currency, CSV export, native mobile, password reset. A
-React Native client reusing this same API is the v2 plan, which is why the API is plain JSON with
-bearer tokens and no cookie or template coupling.
+Bank sync, recurring transactions, multi-currency, CSV export, native mobile, and self-service
+password reset (there is an operator command instead — see below). A React Native client reusing
+this same API is the v2 plan, which is why the API is plain JSON with bearer tokens and no cookie
+or template coupling.
 
 ---
 
@@ -35,8 +36,9 @@ bearer tokens and no cookie or template coupling.
 | Frontend | React 19, TypeScript 7, Vite 8, hand-rolled SVG charts (no chart library) |
 | Backend | FastAPI, SQLAlchemy 2, Alembic, Python 3.13 |
 | Database | Postgres 18, row-level security enabled **and forced** on every table |
-| Auth | Argon2id password hashing, short-lived HS256 JWT |
+| Auth | Argon2id password hashing, short-lived HS256 JWT, rotating refresh tokens |
 | Config | Environment variables only. No provider SDKs — the build is host-agnostic. |
+| Production | Caddy, with automatic Let's Encrypt certificates |
 
 ---
 
@@ -113,6 +115,106 @@ assertion would pass against it while proving nothing.
 
 ---
 
+## Running it for real, on the internet
+
+The stack above is for development. `docker-compose.prod.yml` is the one to deploy: Caddy
+terminates TLS and serves the built client, the API and Postgres are reachable only on the
+internal network, and migrations run as a separate step so the API image never holds the owner
+credentials.
+
+Certificates are obtained and renewed automatically. There is no certbot, no cron, and no
+provider SDK — any machine with Docker and a domain pointed at it will do.
+
+### Deploying
+
+Point an A record at the machine, then on it:
+
+```bash
+cp .env.example .env
+```
+
+Fill in every value. `DOMAIN` and `ACME_EMAIL` are only used in production; the certificate
+directive will not parse without the email. Generate the secret and the three passwords with:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+That brings up Postgres, runs the migrations, starts the API, and gets a certificate. Watch it
+with `docker compose -f docker-compose.prod.yml logs -f web`.
+
+**Registration is invite-only in production**, and that is hardcoded rather than read from `.env`.
+Compose reads `.env` for variable substitution, so a `REGISTRATION_MODE=open` left over from local
+development would otherwise become the production setting and leave the instance open to anyone
+who finds the URL. Opening it is a deliberate edit to `docker-compose.prod.yml`.
+
+### Inviting your family
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm migrate python invite.py new --note "sam" --days 14
+```
+
+The code is printed once and stored only as a hash; there is no way to recover it, so issue
+another if it is lost. Send it over something private — anyone holding it can create one account.
+`invite.py list` shows what has been issued and whether it was used.
+
+### When someone forgets their password
+
+There is no self-service reset, because that needs email delivery this deployment does not have.
+Confirm who is asking through some channel that is not the app, then:
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm migrate python reset_password.py sam@example.com
+```
+
+It prompts for the new password and revokes every active session for that account at the same
+time. If the reason for the reset is that somebody else got in, leaving their session alive would
+defeat the point.
+
+### Backups
+
+```bash
+./ops/backup.sh
+```
+
+Writes a timestamped, compressed dump and prunes past `RETENTION_DAYS` (30 by default). Put it on
+a schedule — `0 3 * * * cd /srv/minimalbudget && ./ops/backup.sh` — and then **copy the output off
+the machine**. A backup on the same disk as the database survives a mistake and does not survive
+the disk dying. That is the step people skip.
+
+Restoring, into a scratch database, which is how you check that the backups are real:
+
+```bash
+./ops/restore.sh backups/minimalbudget-20260830-030000Z.dump minimalbudget_verify
+```
+
+Without a target database it restores over the live one and asks you to type its name first.
+
+Both scripts run as the Postgres superuser, and there is a reason worth knowing before you
+"fix" it. Every table has `FORCE ROW LEVEL SECURITY`, so policies apply even to the schema owner,
+and `pg_dump` sets `row_security=off` — which does not bypass RLS but raises an error if a policy
+would filter the output, precisely so a backup cannot come out quietly incomplete. Dumping as the
+owner therefore fails. The tempting fix is `--enable-row-security`, which dumps only currently
+visible rows and would silently start losing data the day a policy changed.
+
+### What this does not have
+
+Stated plainly, because an internet-facing service deserves an honest list:
+
+- **No email.** No verification, no self-service password reset, no alerts.
+- **The login rate limiter is in-process.** It resets when the API restarts and each replica keeps
+  its own counters. Fine for one container; not a distributed limiter.
+- **No audit log.** You cannot see who signed in when.
+- **Backups are not automatic.** The script exists; scheduling and copying it off the machine are
+  yours to arrange.
+- **One machine.** No replication and no failover. If it dies, you restore from a backup.
+
+---
+
 ## How the isolation actually works
 
 This is the part of the project worth reading the code for. Four decisions carry it, and each one
@@ -170,8 +272,14 @@ frontend/
   src/api/         the single typed client — nothing else calls fetch
   src/pages/
   src/charts/      inline SVG
+ops/               Caddyfile, the web image, backup and restore
 docs/              brief, PRD, architecture, epics
 ```
+
+Operator commands live in `backend/`: `invite.py` issues registration codes, `reset_password.py`
+sets a password and revokes that account's sessions, and `seed.py` populates a demo account. All
+three need the owner credentials — the API's runtime role cannot mint an invite or read a
+password hash.
 
 ---
 
