@@ -8,6 +8,7 @@ export function SignInPage() {
   const [mode, setMode] = useState<"signin" | "register">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -18,7 +19,7 @@ export function SignInPage() {
     setError(null);
     setBusy(true);
     try {
-      if (registering) await register(email, password);
+      if (registering) await register(email, password, inviteCode);
       else await signIn(email, password);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Something went wrong.");
@@ -64,7 +65,23 @@ export function SignInPage() {
           />
         </label>
 
-        {registering && <p className="hint">At least 10 characters.</p>}
+        {registering && (
+          <>
+            <label>
+              Invite code
+              <input
+                name="invite-code"
+                autoComplete="off"
+                value={inviteCode}
+                onChange={(event) => setInviteCode(event.target.value)}
+              />
+            </label>
+            <p className="hint">
+              Passwords need at least 10 characters. An invite code is required unless this
+              instance is running in open mode.
+            </p>
+          </>
+        )}
 
         <button type="submit" disabled={busy}>
           {busy ? "Working…" : registering ? "Create account" : "Sign in"}

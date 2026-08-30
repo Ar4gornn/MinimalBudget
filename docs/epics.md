@@ -480,3 +480,120 @@ So that nothing ships with a leaked secret, a broken claim, or an unreviewed sec
 **And** a LICENSE file is present
 **And** no secret, `.env` file, database dump or build artifact appears anywhere in the git history
 **And** nothing is pushed, published or deployed without explicit approval
+
+
+---
+
+## Epic 7: Internet-facing hardening
+
+Added 2026-08-30, after the decision to run this on the public internet for a family's real
+money. Everything below was a *documented deferral* in `docs/architecture.md`, each carrying the
+condition "revisit before the instance is exposed to the public internet". That condition is now
+met, so this epic is the deferrals coming due — not new scope discovered late.
+
+The isolation model needs no change: separate private accounts is exactly what the row-level
+security already enforces and proves.
+
+### Story 7.1: Registration is invite-only
+
+As the person running this instance,
+I want registration to require a token I issue,
+So that a stranger who finds the URL cannot create an account on my family's instance.
+
+**Acceptance Criteria:**
+
+**Given** an instance with `REGISTRATION_MODE=invite`
+**When** someone posts to `/api/auth/register` without a valid invite code
+**Then** the response is `403` and no user is created
+**And** a code that is unknown, already used, or expired is refused identically, so the endpoint
+  cannot be used to probe which codes exist
+**And** an invite is single-use: a second registration with the same code is refused
+**And** `REGISTRATION_MODE=open` restores the current behaviour, so local and test use is unaffected
+**And** the mode has no permissive default — an unset value means invite-only, because the failure
+  mode of guessing wrong is an open instance
+
+### Story 7.2: Login resists brute force
+
+As the person running this instance,
+I want repeated failed logins against an account to be slowed and then blocked,
+So that a password cannot be found by guessing from the open internet.
+
+**Acceptance Criteria:**
+
+**Given** a series of failed logins for one email
+**When** the failures pass a threshold within a window
+**Then** further attempts for that email are refused with `429` until the window passes, whether or
+  not the credentials are correct
+**And** the same limit applies per source address, so one attacker cannot spread across many emails
+**And** a successful login clears the counter for that email
+**And** the lockout response is indistinguishable between a real and an unknown email, preserving
+  the property Story 1.5 established
+**And** the limiter's state survives nothing — it is in-process and resets on restart, which is
+  documented rather than pretended otherwise
+
+### Story 7.3: Sessions last, and can be revoked
+
+As a family member using this on a phone,
+I want to stay signed in across days,
+So that I am not re-entering a password every hour and tempted to make it a short one.
+
+**Acceptance Criteria:**
+
+**Given** a successful login
+**Then** the response carries a short-lived access token and a long-lived refresh token
+**And** `POST /api/auth/refresh` exchanges a valid refresh token for a new pair, invalidating the
+  one presented (rotation)
+**And** presenting an already-rotated refresh token revokes the whole family of tokens descended
+  from it, because reuse means the token was copied
+**And** `POST /api/auth/logout` revokes the presented refresh token
+**And** refresh tokens are stored hashed, never in plaintext, and are user-scoped under the same
+  row-level security as everything else
+**And** the client refreshes transparently and only sends the user to sign-in when refresh fails
+
+### Story 7.4: The data survives
+
+As the owner of this data,
+I want a backup I have restored from at least once,
+So that a mistake or a dead disk does not cost my family their financial history.
+
+**Acceptance Criteria:**
+
+**Given** a running instance
+**When** the backup script runs
+**Then** it produces a compressed `pg_dump` artifact with a timestamped name
+**And** restoring that artifact into an empty database reproduces every row — verified by executing
+  a restore, not by asserting the file exists
+**And** the script is safe to run on a schedule and prunes artifacts older than a retention window
+**And** the documentation states plainly where the artifact must be copied to, because a backup on
+  the same disk as the database is not a backup
+
+### Story 7.5: It serves over HTTPS, host-agnostically
+
+As a family member,
+I want to reach it from my phone over a real HTTPS address,
+So that my password and token are not sent in the clear.
+
+**Acceptance Criteria:**
+
+**Given** a machine with a domain pointed at it
+**When** the production compose stack is brought up
+**Then** TLS certificates are obtained and renewed automatically, with no provider SDK and no
+  manual certificate step (AD-15 still holds)
+**And** the built client is served as static files, and `/api` is proxied to the backend
+**And** HTTP redirects to HTTPS, and HSTS is set
+**And** the API container is not published to the host — only the reverse proxy is
+**And** security headers are set: `X-Content-Type-Options`, `Referrer-Policy`, and a
+  `Content-Security-Policy` the app actually runs under, verified in a browser rather than assumed
+
+### Story 7.6: Someone else could deploy it
+
+As the person running this in six months,
+I want the deployment written down accurately,
+So that I can rebuild it without re-deriving what past-me did.
+
+**Acceptance Criteria:**
+
+**Given** the README
+**Then** it documents the production stack, every environment variable it needs, how to issue an
+  invite, how to take and restore a backup, and what to do when a family member forgets a password
+**And** every command in it has been run

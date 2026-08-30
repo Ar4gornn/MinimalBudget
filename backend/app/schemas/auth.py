@@ -16,6 +16,16 @@ class Credentials(BaseModel):
         return v.strip().lower()
 
 
+class RegistrationRequest(Credentials):
+    """Registration additionally carries an invite code when the instance is closed.
+
+    Optional on the model rather than required, because `REGISTRATION_MODE=open` is a
+    supported configuration for local use; the route decides whether it is needed.
+    """
+
+    invite_code: str | None = Field(default=None, max_length=200)
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,6 +29,17 @@ class Settings(BaseSettings):
     secret_key: str = Field(min_length=32)
     access_token_ttl_minutes: int = Field(default=60, gt=0)
     cors_origins: str = ""
+
+    # AD-25: the default is the closed one. An unset or misspelt value must not leave an
+    # internet-facing instance accepting registrations from strangers.
+    registration_mode: Literal["invite", "open"] = "invite"
+
+    # AD-26. Sized for a family instance: enough that nobody trips it by fumbling a
+    # password, few enough that guessing is hopeless.
+    login_max_attempts: int = Field(default=8, gt=0)
+    login_lockout_minutes: int = Field(default=15, gt=0)
+
+    refresh_token_ttl_days: int = Field(default=30, gt=0)
 
     # mode="before" matters. A field_validator defaults to running *after* the field's
     # constraints, and every literal below is shorter than 32 characters — so min_length

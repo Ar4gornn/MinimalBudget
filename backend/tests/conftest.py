@@ -50,6 +50,9 @@ APP_TEST_URL = _swap_database(_env["DATABASE_URL"], TEST_DB)
 # application will read when it is imported below.
 os.environ["DATABASE_URL"] = APP_TEST_URL
 os.environ["MIGRATION_DATABASE_URL"] = OWNER_TEST_URL
+# The suite registers users freely, the way a local instance does. Invite-only behaviour
+# has its own tests, which set the mode explicitly rather than relying on this.
+os.environ["REGISTRATION_MODE"] = "open"
 
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402

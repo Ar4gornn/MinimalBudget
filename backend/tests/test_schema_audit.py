@@ -8,7 +8,11 @@ A new table is a failing test until it is protected.
 
 from sqlalchemy import text
 
-EXEMPT = {"alembic_version"}  # alembic's own bookkeeping, holds no user data
+# alembic's own bookkeeping holds no user data. `invites` cannot be user-scoped: an invite
+# exists before the user it creates, so there is no tenant to attach it to. Both exemptions
+# are justified by tests below rather than merely asserted here — a new table added to this
+# set without that justification should stand out in review.
+EXEMPT = {"alembic_version", "invites"}
 
 
 def _tables(conn) -> list[str]:
@@ -96,3 +100,45 @@ def test_runtime_role_cannot_create_tables(owner_engine):
             text("SELECT has_schema_privilege('minimalbudget_app', 'public', 'CREATE')")
         ).scalar_one()
     assert can_create is False, "the runtime role has DDL rights it should not have (AD-2)"
+
+
+def test_the_invites_exemption_is_justified(owner_engine):
+    """`invites` is exempt from AD-1, so its protection has to come from somewhere else.
+
+    It cannot carry a user_id — the invite is what brings the user into existence. What
+    guards it instead is the grant: the runtime role may spend an invite and may never mint
+    one, so a compromised API cannot create its own way in.
+    """
+    with owner_engine.connect() as conn:
+        has_user_id = conn.execute(
+            text(
+                "SELECT count(*) FROM information_schema.columns "
+                "WHERE table_name = 'invites' AND column_name = 'user_id'"
+            )
+        ).scalar_one()
+        privileges = set(
+            conn.execute(
+                text(
+                    "SELECT privilege_type FROM information_schema.table_privileges "
+                    "WHERE grantee = 'minimalbudget_app' AND table_name = 'invites'"
+                )
+            ).scalars()
+        )
+
+    assert has_user_id == 0, "invites gained a user_id — it should follow AD-1 like everything else"
+    assert "INSERT" not in privileges, "the runtime role must never be able to mint an invite"
+    assert {"SELECT", "UPDATE"} <= privileges, "the API still has to be able to spend one"
+
+
+def test_no_other_table_is_exempt(owner_engine):
+    """Guards the exemption list itself: a new table must not quietly join it."""
+    with owner_engine.connect() as conn:
+        tables = set(
+            conn.execute(
+                text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+            ).scalars()
+        )
+    assert EXEMPT <= tables, "the exemption list names a table that no longer exists"
+    assert EXEMPT == {"alembic_version", "invites"}, (
+        "the exemption list changed; every entry needs a test justifying why it cannot follow AD-1"
+    )

@@ -1,24 +1,52 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
+from app.core.config import get_settings
 from app.core.db import tenant_session
 from app.core.deps import AnonSession, CurrentUserId, DbSession
+from app.core.ratelimit import LoginLimiter, email_key, source_key
 from app.core.security import create_access_token
-from app.schemas.auth import Credentials, TokenOut, UserOut
+from app.schemas.auth import Credentials, RegistrationRequest, TokenOut, UserOut
 from app.services import auth as auth_service
+from app.services import invites as invite_service
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+_settings = get_settings()
+
+# Module-level, so the counters are shared across requests. See the note in ratelimit.py
+# about what in-process means for restarts and replicas.
+login_limiter = LoginLimiter(
+    max_attempts=_settings.login_max_attempts,
+    lockout_seconds=_settings.login_lockout_minutes * 60,
+)
+
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def register(payload: Credentials) -> auth_service.UserRow:
+def register(payload: RegistrationRequest) -> auth_service.UserRow:
+    settings = get_settings()
+
     # AD-19: the id is minted here, the transaction is pinned to it, and only then is
     # anything written. No write path runs outside row-level security.
     user_id = uuid.uuid4()
     with tenant_session(user_id) as session:
+        # AD-25. Checked first so a bad code costs a SELECT rather than an Argon2 hash,
+        # then consumed after the user exists, because used_by is a foreign key to users.
+        # Both happen in the transaction that creates the account, so any failure below
+        # rolls the invite back to unused rather than burning it.
+        closed = settings.registration_mode == "invite"
+        if closed:
+            try:
+                invite_service.verify(session, code=payload.invite_code or "")
+            except invite_service.InviteRejected:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="That invite code is not valid.",
+                ) from None
+
         try:
-            return auth_service.register(
+            created = auth_service.register(
                 session, user_id=user_id, email=payload.email, password=payload.password
             )
         except auth_service.EmailAlreadyRegistered:
@@ -27,16 +55,49 @@ def register(payload: Credentials) -> auth_service.UserRow:
                 detail="That email is already registered",
             ) from None
 
+        if closed:
+            try:
+                invite_service.consume(
+                    session, code=payload.invite_code or "", user_id=user_id
+                )
+            except invite_service.InviteRejected:
+                # Claimed by a concurrent registration between verify and here.
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="That invite code is not valid.",
+                ) from None
+
+        return created
+
 
 @router.post("/login", response_model=TokenOut)
-def login(payload: Credentials, session: AnonSession) -> TokenOut:
+def login(payload: Credentials, session: AnonSession, request: Request) -> TokenOut:
+    keys = (email_key(payload.email), source_key(request.client.host if request.client else None))
+
+    # AD-26: checked before the password is verified, so a locked account costs an attacker
+    # a rejection rather than an Argon2 hash.
+    for key in keys:
+        retry_after = login_limiter.retry_after(key)
+        if retry_after is not None:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many failed sign-in attempts. Try again shortly.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
     user_id = auth_service.authenticate(session, email=payload.email, password=payload.password)
     if user_id is None:
+        for key in keys:
+            login_limiter.record_failure(key)
         # Deliberately identical for an unknown email and a wrong password.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
         )
+
+    for key in keys:
+        login_limiter.clear(key)
+
     token, expires_in = create_access_token(user_id)
     return TokenOut(access_token=token, expires_in=expires_in)
 

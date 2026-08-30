@@ -123,10 +123,16 @@ export interface EntryInput {
 }
 
 export const api = {
-  register: (email: string, password: string) =>
+  register: (email: string, password: string, inviteCode?: string) =>
     request<User>("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        email,
+        password,
+        // Omitted entirely when blank: an instance running REGISTRATION_MODE=open
+        // should not have to receive a field it ignores.
+        ...(inviteCode?.trim() ? { invite_code: inviteCode.trim() } : {}),
+      }),
     }),
 
   login: (email: string, password: string) =>
