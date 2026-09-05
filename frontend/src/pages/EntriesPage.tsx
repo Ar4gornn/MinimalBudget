@@ -3,7 +3,14 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
 import type { EntryInput } from "../api/client";
-import { UNITS, type Category, type Entry, type EntryKind, type Unit } from "../api/types";
+import {
+  UNITS,
+  type Category,
+  type Entry,
+  type EntryKind,
+  type Unit,
+  type Vendor,
+} from "../api/types";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { isPositiveMoney } from "../money";
@@ -30,6 +37,7 @@ export function EntriesPage() {
   const amountRef = useRef<HTMLInputElement>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,6 +53,7 @@ export function EntriesPage() {
   const [occurredOn, setOccurredOn] = useState(todayIso());
   const [categoryName, setCategoryName] = useState("");
   const [note, setNote] = useState("");
+  const [vendorName, setVendorName] = useState("");
   const [saving, setSaving] = useState(false);
 
   // AD-29: the optional "how much of what" section. Any two of amount, quantity and unit
@@ -75,7 +84,7 @@ export function EntriesPage() {
     setLoading(true);
     setError(null);
     try {
-      const [nextEntries, nextCategories] = await Promise.all([
+      const [nextEntries, nextCategories, nextVendors] = await Promise.all([
         api.listEntries({
           ...(kindFilter ? { kind: kindFilter } : {}),
           ...(monthFilter ? { month: monthFilter } : {}),
@@ -83,9 +92,11 @@ export function EntriesPage() {
           ...(search.trim() ? { q: search.trim() } : {}),
         }),
         api.listCategories(),
+        api.listVendors(),
       ]);
       setEntries(nextEntries);
       setCategories(nextCategories);
+      setVendors(nextVendors);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not load entries.");
     } finally {
@@ -179,6 +190,7 @@ export function EntriesPage() {
         amount: amount.trim(),
         occurred_on: occurredOn,
         category_name: categoryName.trim(),
+        ...(vendorName.trim() ? { vendor_name: vendorName.trim() } : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
         ...(quantified && unit ? { quantity: quantity.trim(), unit } : {}),
       });
@@ -369,6 +381,22 @@ export function EntriesPage() {
               onChange={(event) => setOccurredOn(event.target.value)}
             />
           </label>
+
+          <label style={{ flex: "1 1 140px" }}>
+            Vendor
+            <input
+              list="vendor-names"
+              aria-label="Vendor"
+              placeholder="Shell, Lidl…"
+              value={vendorName}
+              onChange={(event) => setVendorName(event.target.value)}
+            />
+          </label>
+          <datalist id="vendor-names">
+            {vendors.map((vendor) => (
+              <option key={vendor.id} value={vendor.name} />
+            ))}
+          </datalist>
 
           <label style={{ flex: "1 1 160px" }}>
             Note

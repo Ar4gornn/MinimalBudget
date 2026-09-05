@@ -630,8 +630,9 @@ MinimalBudget/
 - **Observability beyond stdlib logging.** No metrics or tracing stack in v1; the deployment has
   one API container.
 
-- **Vendor on entries.** Arrives as a reference table per AD-12 when a by-vendor price comparison
-  is wanted. Until then `note` holds it.
+- ~~**Vendor on entries.**~~ **Built as Epic 17** (2026-09-05), when the condition this
+  deferral named was met: there is now a comparison to make, so the reference table earns
+  its keep.
 - **Payment method.** A ledger-wide attribute with its own dashboard implications; its own epic.
 - **A price series on the dashboard.** Needs a "watched category" notion first. The category
   page has it (Epic 10); lifting it is additive.

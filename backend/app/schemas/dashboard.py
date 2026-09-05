@@ -72,3 +72,23 @@ class UnitPriceSeries(BaseModel):
 class UnitPricesOut(BaseModel):
     months: list[str]
     series: list[UnitPriceSeries]
+
+
+class VendorPrice(BaseModel):
+    """What one shop charged for one category, in one unit, over the window."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    vendor_id: uuid.UUID
+    vendor_name: str
+    # None for rows recorded without a quantity — they still count towards `spent`.
+    unit: Unit | None
+    spent: NonNegativeMoney
+    entries: int
+    # None when nothing in this group carried a quantity: 0.0000 would be a price (AD-29).
+    unit_price: Rate | None
+
+
+class VendorPricesOut(BaseModel):
+    months: list[str]
+    vendors: list[VendorPrice]

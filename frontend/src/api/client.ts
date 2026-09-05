@@ -34,6 +34,8 @@ import type {
   Unit,
   UnitPrices,
   User,
+  Vendor,
+  VendorPrices,
 } from "./types";
 
 // AD-15: configuration, never a hardcoded host. Empty means "same origin", which is what
@@ -211,6 +213,9 @@ export interface EntryInput {
   note?: string | null;
   category_id?: string;
   category_name?: string;
+  /** At most one of the two; a name creates the vendor. Explicit null clears it. */
+  vendor_id?: string | null;
+  vendor_name?: string;
   /** AD-29: both or neither. Sent as an explicit null pair to clear. */
   quantity?: Quantity | null;
   unit?: Unit | null;
@@ -343,6 +348,19 @@ export const api = {
 
   deleteCategory: (id: string) =>
     request<void>(`/api/categories/${id}`, { method: "DELETE" }),
+
+  listVendors: () => items(request<Page<Vendor>>("/api/vendors")),
+
+  createVendor: (name: string) =>
+    request<Vendor>("/api/vendors", { method: "POST", body: JSON.stringify({ name }) }),
+
+  deleteVendor: (id: string) => request<void>(`/api/vendors/${id}`, { method: "DELETE" }),
+
+  /** The comparison vendors exist for: is one shop dearer than another, for this category? */
+  vendorPrices: (categoryId: string, months: number, ending?: string) =>
+    request<VendorPrices>(
+      `/api/dashboard/vendor-prices${query({ category_id: categoryId, months: String(months), ending })}`,
+    ),
 
   listEntries: (
     filters: { kind?: EntryKind; month?: string; category_id?: string; q?: string } = {},

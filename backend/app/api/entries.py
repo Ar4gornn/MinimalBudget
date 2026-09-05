@@ -40,6 +40,8 @@ def create_entry(payload: EntryCreate, user_id: CurrentUserId, session: DbSessio
         category_name=payload.category_name,
         quantity=payload.quantity,
         unit=payload.unit.value if payload.unit is not None else None,
+        vendor_id=payload.vendor_id,
+        vendor_name=payload.vendor_name,
     )
     return EntryOut.model_validate(entry)
 
@@ -66,6 +68,10 @@ def update_entry(
         unit=payload.unit.value if payload.unit is not None else None,
         # The validator has already refused a lone half; either key present means the pair.
         quantity_given="quantity" in payload.model_fields_set,
+        vendor_id=payload.vendor_id,
+        vendor_name=payload.vendor_name,
+        # Either key sent means "set the vendor to this", including an explicit null.
+        vendor_given=bool({"vendor_id", "vendor_name"} & payload.model_fields_set),
     )
     return EntryOut.model_validate(entry)
 

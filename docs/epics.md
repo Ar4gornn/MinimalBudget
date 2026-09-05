@@ -58,6 +58,8 @@ up front.
 | FR-35 | A user can search their entries by note or category name, and their items by name or note. |
 | FR-36 | A user can widen the dashboard's trend window from six months to a year. |
 | FR-37 | A user can export their entries, savings and stock as CSV files. |
+| FR-38 | A user can record which vendor an entry was bought from, creating the vendor by name. |
+| FR-39 | A user can compare what each vendor charged for a category, per unit and in total. |
 
 ### NonFunctional Requirements
 
@@ -140,6 +142,7 @@ AD-17).
 | FR-33, FR-34, AR-13 | Stories 14.1, 14.2 |
 | FR-35, FR-36 | Story 15.1 |
 | FR-37 | Story 16.1 |
+| FR-38, FR-39 | Story 17.1 |
 
 ## Epic List
 
@@ -161,6 +164,7 @@ AD-17).
 | 14 | Shopping list | What is running out becomes a list, and buying it is one action that both restocks the shelf and records the spend. |
 | 15 | Finding things | A year of records stays usable: search what was written, and look at a year rather than half of one. |
 | 16 | Export | The data can leave, as files a spreadsheet opens and cannot be tricked by. |
+| 17 | Vendors | "Is Shell dearer than Total?" becomes a number rather than an impression. |
 
 Epics 8 and 9 were built on 2026-08-30 and 2026-09-01 and written up here afterwards, from the
 commits and the tests, on 2026-09-05. Each is one story because each was one commit with one
@@ -929,6 +933,35 @@ So that using this app is not a decision I cannot reverse.
 **And** an export with no data is a header row and nothing else
 **And** the endpoints require a token, and one user's export contains none of another's rows
 **And** the client fetches the file with its bearer token and hands it to the browser as a blob, because a plain link carries no headers, and releases the blob URL afterwards
+
+---
+
+## Epic 17: Vendors
+
+The Epic 10 proposal deferred this with a condition attached: a vendor earns its keep only
+once there is a comparison to make. That comparison is this epic, and it is why the vendor is
+reference data per AD-12 rather than free text — `Shell`, `shell ` and `SHELL` would be three
+shops, and three shops are not a comparison.
+
+### Story 17.1: Where it was bought, and what each shop charged
+
+As someone who fills up at two different stations,
+I want to see what each one actually charged me per litre,
+So that the choice is a number rather than an impression.
+
+**Acceptance Criteria:**
+
+**Given** an entry form
+**When** a vendor name is typed
+**Then** the vendor is created for that user if absent and reused case-insensitively, keeping the first spelling (FR-38, AD-12)
+**And** the `vendors` table, created by this story through `protect()`, carries `UNIQUE (user_id, id)` so entries reference it compositely, and `entries.vendor_id` is nullable — every existing row is untouched (AD-18)
+**And** an entry may carry `vendor_id` or `vendor_name`, never both, and a `PATCH` distinguishes absent (leave it) from explicit null (clear it)
+**And** deleting a vendor that still has entries answers `409`, because it would erase which shop a year of purchases came from (AD-21)
+**And** an entry pointing at another user's vendor is refused by the composite foreign key and answers `404`, below the API as well as through it
+**And** `GET /api/dashboard/vendor-prices?category_id=&months=` reports, per vendor and unit, the total spent, the number of entries, and the volume-weighted unit price (FR-39, AD-29)
+**And** an entry recorded without a quantity counts towards `spent` and towards no rate — its unit price is `null`, never `0.0000`, and a vendor with both kinds is reported as two rows
+**And** the window is the same half-open range as everywhere else, and excludes other categories (AD-10)
+**And** the category page shows the comparison when there is more than one row to compare, and its failure degrades that card alone
 
 ---
 

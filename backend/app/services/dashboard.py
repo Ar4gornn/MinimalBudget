@@ -21,6 +21,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.months import add_months, format_month, month_range, parse_month
+from app.schemas.common import quantise_rate
 
 _TOTALS = text(
     """
@@ -206,6 +207,31 @@ _UNIT_PRICES = text(
 )
 
 
+# The comparison vendors exist for: what each shop charged per unit for one category over
+# the window, volume-weighted exactly as the unit-price series is (AD-29), plus what was
+# spent there. Unquantified rows still count towards `spent` — you did pay them — but
+# contribute to no rate, which is why the two are separate aggregates.
+_VENDOR_PRICES = text(
+    """
+    SELECT v.id                            AS vendor_id,
+           v.name                          AS vendor_name,
+           e.unit                          AS unit,
+           COALESCE(SUM(e.amount), 0)      AS spent,
+           count(*)                        AS entries,
+           SUM(e.amount) FILTER (WHERE e.quantity IS NOT NULL)   AS priced_amount,
+           SUM(e.quantity) FILTER (WHERE e.quantity IS NOT NULL) AS priced_quantity
+    FROM entries e
+    JOIN vendors v ON v.user_id = e.user_id AND v.id = e.vendor_id
+    WHERE e.user_id = :uid
+      AND e.kind = 'expense'
+      AND e.category_id = :category_id
+      AND e.occurred_on >= :start AND e.occurred_on < :end
+    GROUP BY v.id, v.name, e.unit
+    ORDER BY lower(v.name), v.id, e.unit
+    """
+)
+
+
 class Summary:
     def __init__(
         self,
@@ -252,6 +278,48 @@ def summary(session: Session, user_id: uuid.UUID, month: str) -> Summary:
     ]
 
     return Summary(month, totals.income, totals.expense, saved, budgets, savings)
+
+
+def vendor_prices(
+    session: Session,
+    user_id: uuid.UUID,
+    *,
+    category_id: uuid.UUID,
+    months: int,
+    ending: str | None = None,
+) -> dict:
+    """Per-vendor spend and unit price for one category over the window."""
+    last_month = parse_month(ending) if ending else dt.date.today().replace(day=1)
+    first = add_months(last_month, -(months - 1))
+    window = {
+        "uid": str(user_id),
+        "category_id": str(category_id),
+        "start": first,
+        "end": add_months(last_month, 1),
+    }
+
+    rows = []
+    for row in session.execute(_VENDOR_PRICES, window):
+        # AD-29: null, never 0.0000, when nothing in this group carried a quantity.
+        unit_price = (
+            None
+            if row.priced_quantity is None or row.priced_quantity == 0
+            else quantise_rate(row.priced_amount / row.priced_quantity)
+        )
+        rows.append(
+            {
+                "vendor_id": row.vendor_id,
+                "vendor_name": row.vendor_name,
+                "unit": row.unit,
+                "spent": row.spent,
+                "entries": row.entries,
+                "unit_price": unit_price,
+            }
+        )
+    return {
+        "months": [format_month(add_months(first, i)) for i in range(months)],
+        "vendors": rows,
+    }
 
 
 def _window_ending_at(user_id: uuid.UUID, last_month: dt.date, months: int) -> dict:

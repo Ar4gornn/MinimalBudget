@@ -32,6 +32,25 @@ _QUANTITY_TOGETHER = "quantity and unit go together: send both, or neither"
 _QUANTITY_EXPENSE_ONLY = "only an expense can carry a quantity"
 
 
+class VendorCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def _trim(self) -> "VendorCreate":
+        object.__setattr__(self, "name", self.name.strip())
+        if not self.name:
+            raise ValueError("name cannot be blank")
+        return self
+
+
+class VendorOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    created_at: dt.datetime
+
+
 class EntryCreate(BaseModel):
     kind: EntryKind
     amount: Money
@@ -44,6 +63,20 @@ class EntryCreate(BaseModel):
     # closed list is a 422 before the database's CHECK ever sees it.
     quantity: Quantity | None = None
     unit: Unit | None = None
+    # Optional, and at most one of the two: a name creates the vendor (AD-12).
+    vendor_id: uuid.UUID | None = None
+    vendor_name: str | None = Field(default=None, min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def _at_most_one_vendor(self) -> "EntryCreate":
+        if self.vendor_id is not None and self.vendor_name is not None:
+            raise ValueError("provide at most one of vendor_id or vendor_name")
+        if self.vendor_name is not None:
+            trimmed = self.vendor_name.strip()
+            if not trimmed:
+                raise ValueError("vendor_name cannot be blank")
+            object.__setattr__(self, "vendor_name", trimmed)
+        return self
 
     @model_validator(mode="after")
     def _exactly_one_category(self) -> "EntryCreate":
@@ -82,6 +115,20 @@ class EntryUpdate(BaseModel):
     category_id: uuid.UUID | None = None
     quantity: Quantity | None = None
     unit: Unit | None = None
+    # Sent as an explicit null to clear the vendor; absent means "leave it alone".
+    vendor_id: uuid.UUID | None = None
+    vendor_name: str | None = Field(default=None, min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def _at_most_one_vendor(self) -> "EntryUpdate":
+        if self.vendor_id is not None and self.vendor_name is not None:
+            raise ValueError("provide at most one of vendor_id or vendor_name")
+        if self.vendor_name is not None:
+            trimmed = self.vendor_name.strip()
+            if not trimmed:
+                raise ValueError("vendor_name cannot be blank")
+            object.__setattr__(self, "vendor_name", trimmed)
+        return self
 
     @model_validator(mode="after")
     def _quantity_pair(self) -> "EntryUpdate":
@@ -104,6 +151,7 @@ class EntryOut(BaseModel):
     note: str | None
     quantity: Quantity | None
     unit: Unit | None
+    vendor_id: uuid.UUID | None
     # AD-29: read from the model's property — computed, four places, never stored.
     unit_price: Rate | None
     created_at: dt.datetime

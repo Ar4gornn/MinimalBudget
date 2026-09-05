@@ -12,6 +12,7 @@ from app.api import (
     inventory,
     recurring,
     savings,
+    vendors,
 )
 from app.core.config import get_settings
 from app.core.errors import Conflict, Invalid, NotFound
@@ -71,6 +72,7 @@ app.include_router(dashboard.router)
 app.include_router(inventory.router)
 app.include_router(recurring.router)
 app.include_router(export.router)
+app.include_router(vendors.router)
 
 
 @app.get("/health", tags=["meta"])

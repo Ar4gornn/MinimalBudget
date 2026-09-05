@@ -79,6 +79,8 @@ export interface Entry {
   id: string;
   kind: EntryKind;
   category_id: string;
+  /** Where it was bought. Null on every entry that predates the vendor, and on most. */
+  vendor_id: string | null;
   amount: Money;
   occurred_on: string;
   note: string | null;
@@ -284,4 +286,27 @@ export interface Purchase {
 export interface PurchaseResult {
   item: InventoryItem;
   purchase: Purchase;
+}
+
+/** Where something was bought. Reference data, so the comparison is not three spellings. */
+export interface Vendor {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface VendorPrice {
+  vendor_id: string;
+  vendor_name: string;
+  /** Null for rows recorded without a quantity; they still count towards `spent`. */
+  unit: Unit | null;
+  spent: Money;
+  entries: number;
+  /** Null when nothing in this group carried a quantity — never "0.0000". */
+  unit_price: Rate | null;
+}
+
+export interface VendorPrices {
+  months: string[];
+  vendors: VendorPrice[];
 }

@@ -1,9 +1,10 @@
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Query
 
 from app.core.deps import CurrentUserId, DbSession
-from app.schemas.dashboard import SummaryOut, TrendsOut, UnitPricesOut
+from app.schemas.dashboard import SummaryOut, TrendsOut, UnitPricesOut, VendorPricesOut
 from app.services import dashboard
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -40,4 +41,20 @@ def unit_prices(
     """AD-29: one series per (category, unit), volume-weighted, null where nothing was bought."""
     return UnitPricesOut.model_validate(
         dashboard.unit_prices(session, user_id, months=months, ending=ending)
+    )
+
+
+@router.get("/vendor-prices", response_model=VendorPricesOut)
+def vendor_prices(
+    user_id: CurrentUserId,
+    session: DbSession,
+    category_id: uuid.UUID,
+    months: Annotated[int, Query(ge=1, le=36)] = 6,
+    ending: Annotated[str | None, Query(description="YYYY-MM, defaults to this month")] = None,
+) -> VendorPricesOut:
+    """Is one shop dearer than another, for this category? The reason vendors exist."""
+    return VendorPricesOut.model_validate(
+        dashboard.vendor_prices(
+            session, user_id, category_id=category_id, months=months, ending=ending
+        )
     )

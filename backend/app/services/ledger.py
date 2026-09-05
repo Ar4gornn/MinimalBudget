@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.core import search
 from app.core.errors import Conflict, Invalid, NotFound
 from app.core.months import month_range
-from app.models.ledger import Category, Entry, EntryKind
+from app.models.ledger import Category, Entry, EntryKind, Vendor
 
 # ---------------------------------------------------------------- categories
 
@@ -102,6 +102,83 @@ def delete_category(session: Session, user_id: uuid.UUID, category_id: uuid.UUID
         raise NotFound("No category with that id")
 
 
+# ------------------------------------------------------------------- vendors
+
+
+def list_vendors(session: Session, user_id: uuid.UUID) -> list[Vendor]:
+    query = (
+        select(Vendor).where(Vendor.user_id == user_id).order_by(func.lower(Vendor.name), Vendor.id)
+    )
+    return list(session.execute(query).scalars())
+
+
+def get_or_create_vendor(session: Session, user_id: uuid.UUID, *, name: str) -> Vendor:
+    """AD-12, the same idempotent shape as categories: insert-or-return, never check-then-act."""
+    inserted = session.execute(
+        text(
+            """
+            INSERT INTO vendors (user_id, name)
+            VALUES (:uid, :name)
+            ON CONFLICT (user_id, lower(name)) DO NOTHING
+            RETURNING id
+            """
+        ),
+        {"uid": str(user_id), "name": name},
+    ).scalar_one_or_none()
+
+    if inserted is None:
+        existing = session.execute(
+            select(Vendor).where(Vendor.user_id == user_id, func.lower(Vendor.name) == name.lower())
+        ).scalar_one_or_none()
+        if existing is None:  # pragma: no cover — would mean the unique index disagrees
+            raise Conflict("vendor could not be created or found")
+        return existing
+
+    session.expire_all()
+    vendor = session.get(Vendor, inserted)
+    if vendor is None:  # pragma: no cover
+        raise Conflict("vendor was inserted but is not readable")
+    return vendor
+
+
+def resolve_vendor(session: Session, user_id: uuid.UUID, vendor_id: uuid.UUID) -> Vendor:
+    vendor = session.execute(
+        select(Vendor).where(Vendor.user_id == user_id, Vendor.id == vendor_id)
+    ).scalar_one_or_none()
+    if vendor is None:
+        raise NotFound("No vendor with that id")
+    return vendor
+
+
+def delete_vendor(session: Session, user_id: uuid.UUID, vendor_id: uuid.UUID) -> None:
+    try:
+        result = session.execute(
+            delete(Vendor).where(Vendor.user_id == user_id, Vendor.id == vendor_id)
+        )
+    except IntegrityError as exc:
+        # AD-21: RESTRICT. Deleting a vendor would erase which shop a year of entries
+        # came from, so the database refuses while any still reference it.
+        session.rollback()
+        raise Conflict("That vendor is still used by some entries") from exc
+    if result.rowcount == 0:
+        raise NotFound("No vendor with that id")
+
+
+def _resolve_vendor_field(
+    session: Session,
+    user_id: uuid.UUID,
+    *,
+    vendor_id: uuid.UUID | None,
+    vendor_name: str | None,
+) -> uuid.UUID | None:
+    """At most one of the two; a name creates the vendor, as a category name does."""
+    if vendor_name is not None:
+        return get_or_create_vendor(session, user_id, name=vendor_name).id
+    if vendor_id is not None:
+        return resolve_vendor(session, user_id, vendor_id).id
+    return None
+
+
 # ------------------------------------------------------------------- entries
 
 
@@ -163,6 +240,8 @@ def create_entry(
     category_name: str | None,
     quantity: Decimal | None = None,
     unit: str | None = None,
+    vendor_id: uuid.UUID | None = None,
+    vendor_name: str | None = None,
 ) -> Entry:
     if category_name is not None:
         category = get_or_create_category(session, user_id, kind=kind, name=category_name)
@@ -179,6 +258,9 @@ def create_entry(
         note=note,
         quantity=quantity,
         unit=unit,
+        vendor_id=_resolve_vendor_field(
+            session, user_id, vendor_id=vendor_id, vendor_name=vendor_name
+        ),
     )
     session.add(entry)
     session.flush()
@@ -198,6 +280,9 @@ def update_entry(
     quantity: Decimal | None = None,
     unit: str | None = None,
     quantity_given: bool = False,
+    vendor_id: uuid.UUID | None = None,
+    vendor_name: str | None = None,
+    vendor_given: bool = False,
 ) -> Entry:
     entry = get_entry(session, user_id, entry_id)
 
@@ -218,6 +303,10 @@ def update_entry(
             raise Invalid("only an expense can carry a quantity")
         entry.quantity = quantity
         entry.unit = unit
+    if vendor_given:
+        entry.vendor_id = _resolve_vendor_field(
+            session, user_id, vendor_id=vendor_id, vendor_name=vendor_name
+        )
 
     session.flush()
     return entry

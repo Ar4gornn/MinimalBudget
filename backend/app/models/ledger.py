@@ -13,6 +13,7 @@ from sqlalchemy import (
     Numeric,
     PrimaryKeyConstraint,
     String,
+    UniqueConstraint,
     func,
     text,
 )
@@ -66,6 +67,21 @@ class Category(TimestampedMixin, Base):
     name: Mapped[str] = mapped_column(String(80), nullable=False)
 
 
+class Vendor(TimestampedMixin, Base):
+    """Where something was bought. Reference data per AD-12, so the comparison is not noise."""
+
+    __tablename__ = "vendors"
+    __table_args__ = (UniqueConstraint("user_id", "id", name="vendors_user_id_id_key"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+
+
 class Entry(TimestampedMixin, Base):
     __tablename__ = "entries"
     __table_args__ = (
@@ -88,6 +104,13 @@ class Entry(TimestampedMixin, Base):
             "kind = 'expense' OR quantity IS NULL", name="entries_quantity_expense_only"
         ),
         CheckConstraint(_UNIT_CHECK, name="entries_unit_supported"),
+        # AD-18: the vendor reference carries user_id too. RESTRICT per AD-21.
+        ForeignKeyConstraint(
+            ["user_id", "vendor_id"],
+            ["vendors.user_id", "vendors.id"],
+            name="entries_vendor_fkey",
+            ondelete="RESTRICT",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -103,6 +126,7 @@ class Entry(TimestampedMixin, Base):
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     quantity: Mapped[decimal.Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
     unit: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    vendor_id: Mapped[uuid.UUID | None] = mapped_column(PgUUID(as_uuid=True), nullable=True)
 
     @property
     def unit_price(self) -> decimal.Decimal | None:

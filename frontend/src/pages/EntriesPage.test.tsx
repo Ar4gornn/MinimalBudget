@@ -347,4 +347,28 @@ describe("quantity and unit price (AD-29)", () => {
       expect(asked.at(-1)).toContain("q=diesel");
     });
   });
+
+  it("sends the vendor by name, creating it, and omits it when blank", async () => {
+    const fetchMock = mockApi();
+    const user = userEvent.setup();
+    render(<EntriesPage />);
+    await screen.findByRole("table", { name: "Entries" });
+
+    const form = screen.getByRole("form", { name: "Record an entry" });
+    await user.type(within(form).getByLabelText(/^Amount/), "60.00");
+    await user.type(within(form).getByLabelText("Category"), "Fuel");
+    await user.type(within(form).getByLabelText("Vendor"), "Shell");
+    await user.click(within(form).getByRole("button", { name: "Add" }));
+
+    await waitFor(() => {
+      const posted = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url).includes("/api/entries") && (init as RequestInit)?.method === "POST",
+      );
+      expect(JSON.parse(String((posted?.[1] as RequestInit).body))).toMatchObject({
+        category_name: "Fuel",
+        vendor_name: "Shell",
+      });
+    });
+  });
 });

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
-import type { Category, Entry, Trends, UnitPrices } from "../api/types";
+import type { Category, Entry, Trends, UnitPrices, VendorPrices } from "../api/types";
 import { RateChart } from "../charts/RateChart";
 import { Sparkline } from "../charts/Sparkline";
 import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
@@ -34,6 +34,7 @@ export function CategoryPage() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [trends, setTrends] = useState<Trends | null>(null);
   const [unitPrices, setUnitPrices] = useState<UnitPrices | null>(null);
+  const [vendorPrices, setVendorPrices] = useState<VendorPrices | null>(null);
   const [month, setMonth] = useState(currentMonth());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,11 +45,16 @@ export function CategoryPage() {
     try {
       // The unit-price series is an addition to this page, not its reason to exist: if
       // that one request fails the entries and the spend chart still render.
-      const [categories, rows, nextTrends, unitPricesResult] = await Promise.all([
+      const [categories, rows, nextTrends, unitPricesResult, vendorResult] = await Promise.all([
         api.listCategories(),
         api.listEntries({ category_id: categoryId, month }),
         api.trends(TREND_MONTHS, month),
         api.unitPrices(TREND_MONTHS, month).then(
+          (value) => value,
+          () => null,
+        ),
+        // Same posture: an addition to the page, not a reason for it to fail.
+        api.vendorPrices(categoryId, TREND_MONTHS, month).then(
           (value) => value,
           () => null,
         ),
@@ -57,6 +63,7 @@ export function CategoryPage() {
       setEntries(rows);
       setTrends(nextTrends);
       setUnitPrices(unitPricesResult);
+      setVendorPrices(vendorResult);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not load this category.");
     } finally {
@@ -135,6 +142,51 @@ export function CategoryPage() {
           <div className="value">{entries.length}</div>
         </div>
       </div>
+
+      {vendorPrices && vendorPrices.vendors.length > 1 && (
+        <Card
+          title="By vendor"
+          collapseKey="category.vendors"
+          summary={`${vendorPrices.vendors.length} rows`}
+        >
+          <TableWrap>
+            <table className="stacked" aria-label="By vendor">
+              <thead>
+                <tr>
+                  <th>Vendor</th>
+                  <th className="num">Spent ({money.symbol})</th>
+                  <th className="num">Per unit</th>
+                  <th className="num">Entries</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vendorPrices.vendors.map((row) => (
+                  <tr key={`${row.vendor_id}-${row.unit ?? "none"}`}>
+                    <td data-label="Vendor">{row.vendor_name}</td>
+                    <td className="num" data-label="Spent">
+                      {money.plain(row.spent)}
+                    </td>
+                    <td className="num" data-label="Per unit">
+                      {row.unit_price === null ? (
+                        <span className="hint">—</span>
+                      ) : (
+                        `${row.unit_price} /${row.unit}`
+                      )}
+                    </td>
+                    <td className="num" data-label="Entries">
+                      {row.entries}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+          <p className="hint" style={{ marginTop: 8 }}>
+            Volume-weighted over the last {TREND_MONTHS} months. A dash means those entries
+            carried no quantity, so there is no rate to compare — they still count as spend.
+          </p>
+        </Card>
+      )}
 
       {series && (
         <Card title={`Last ${TREND_MONTHS} months`}>

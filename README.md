@@ -19,6 +19,7 @@ queries as a second user rather than by reading a policy and believing it.
 - Set a **standing monthly budget** per expense category and a **monthly target** per savings type.
 - Change your password, and generate one-time **recovery codes** so a forgotten password is not a
   trip to the operator.
+- Record the **vendor** on an entry, and compare what each shop charged per litre or per kilo.
 - **Export** everything as CSV, from Settings.
 - **Search** your entries and your stock, and widen the dashboard to a year.
 - Shop from a **list** of what is below its threshold, with an estimated cost. Ticking
