@@ -13,6 +13,9 @@ export function SignInPage() {
   const [currency, setCurrency] = useState<Currency>("USD");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A typo in a hidden field is indistinguishable from a wrong password, and eight wrong
+  // passwords lock the account for fifteen minutes. Letting people look is cheaper.
+  const [showPassword, setShowPassword] = useState(false);
 
   const registering = mode === "register";
 
@@ -56,15 +59,26 @@ export function SignInPage() {
 
         <label>
           Password
-          <input
-            type="password"
-            name="password"
-            autoComplete={registering ? "new-password" : "current-password"}
-            required
-            minLength={10}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
+          <div className="password-field">
+            <input
+              type={showPassword ? "text" : "password"}
+              name="password"
+              autoComplete={registering ? "new-password" : "current-password"}
+              required
+              minLength={10}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <button
+              type="button"
+              className="quiet"
+              onClick={() => setShowPassword((was) => !was)}
+              aria-pressed={showPassword}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </div>
         </label>
 
         {registering && (
