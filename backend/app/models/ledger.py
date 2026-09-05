@@ -20,12 +20,35 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampedMixin
+from app.schemas.common import quantise_rate
 
 
 class EntryKind(enum.StrEnum):
     income = "income"
     expense = "expense"
 
+
+class Unit(enum.StrEnum):
+    """AD-29: the closed list of units a quantity may be expressed in.
+
+    Closed because the point of a quantity is comparing the rate across months, and that
+    only works when this month's ``l`` is the same token as last month's. Extended by a
+    migration altering the CHECK, never by free text. No conversion between units exists.
+    """
+
+    litre = "l"
+    gal = "gal"
+    kg = "kg"
+    lb = "lb"
+    kwh = "kwh"
+    m3 = "m3"
+    unit = "unit"
+
+
+UNIT_VALUES = tuple(u.value for u in Unit)
+# The ORM's copy of the CHECK is built from the enum, so the two cannot drift; a test holds
+# the database's own constraint (frozen in migration 0007) to the same list.
+_UNIT_CHECK = "unit IS NULL OR unit IN (" + ", ".join(f"'{u}'" for u in UNIT_VALUES) + ")"
 
 _kind = Enum(EntryKind, name="entry_kind", values_callable=lambda e: [m.value for m in e])
 
@@ -55,6 +78,16 @@ class Entry(TimestampedMixin, Base):
             name="entries_category_fkey",
             ondelete="RESTRICT",
         ),
+        # AD-29: quantity and unit travel together, are positive, and only an expense
+        # carries them. The migration is the authority; these keep the ORM honest.
+        CheckConstraint("quantity IS NULL OR quantity > 0", name="entries_quantity_positive"),
+        CheckConstraint(
+            "(quantity IS NULL) = (unit IS NULL)", name="entries_quantity_unit_together"
+        ),
+        CheckConstraint(
+            "kind = 'expense' OR quantity IS NULL", name="entries_quantity_expense_only"
+        ),
+        CheckConstraint(_UNIT_CHECK, name="entries_unit_supported"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -68,6 +101,19 @@ class Entry(TimestampedMixin, Base):
     amount: Mapped[decimal.Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     occurred_on: Mapped[dt.date] = mapped_column(Date, nullable=False)
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    quantity: Mapped[decimal.Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
+    unit: Mapped[str | None] = mapped_column(String(8), nullable=True)
+
+    @property
+    def unit_price(self) -> decimal.Decimal | None:
+        """AD-29: derived, never stored. ``amount / quantity`` to four places, half-up.
+
+        Lives on the model rather than in a schema so there is exactly one definition,
+        and the SQL in the dashboard is tested to agree with it.
+        """
+        if self.quantity is None:
+            return None
+        return quantise_rate(decimal.Decimal(self.amount) / decimal.Decimal(self.quantity))
 
 
 class Budget(Base):

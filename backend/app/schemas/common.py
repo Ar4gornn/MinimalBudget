@@ -47,16 +47,23 @@ def _to_decimal(value: object) -> Decimal:
     raise ValueError(_NOT_A_NUMBER)
 
 
-def _quantise(value: Decimal) -> Decimal:
+def _quantise(value: Decimal, places: int = 2) -> Decimal:
     exponent = value.as_tuple().exponent
     # A non-finite Decimal reports its exponent as a string ('n', 'N', 'F'), so comparing
     # it to an int raises TypeError — another 500. _to_decimal already rejects those; this
     # is the belt to that brace.
     if not isinstance(exponent, int):
         raise ValueError(_NOT_A_NUMBER)
-    if exponent < -2:
-        raise ValueError("amounts carry at most two decimal places")
-    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if exponent < -places:
+        words = {2: "two", 3: "three", 4: "four"}.get(places, str(places))
+        noun = "amounts" if places == 2 else "values"
+        raise ValueError(f"{noun} carry at most {words} decimal places")
+    return value.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP)
+
+
+def quantise_rate(value: Decimal) -> Decimal:
+    """AD-29: a rate is quantised to four places, half-up, in SQL and in Python alike."""
+    return value.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
 
 
 # AD-5: NUMERIC(14,2) in the database, Decimal in Python, a two-place string on the wire —
@@ -83,6 +90,32 @@ SignedMoney = Annotated[
     BeforeValidator(lambda v: _quantise(_to_decimal(v))),
     Field(ge=Decimal("-999999999999.99"), le=Decimal("999999999999.99")),
     PlainSerializer(lambda v: f"{v:.2f}", return_type=str),
+]
+
+# AD-29: how much of something was bought. NUMERIC(12,3) — a pump shows three places, a
+# shop scale shows grams. Same shape rule as money: a string, never a float.
+Quantity = Annotated[
+    Decimal,
+    BeforeValidator(lambda v: _quantise(_to_decimal(v), places=3)),
+    Field(gt=Decimal("0"), le=Decimal("999999999.999")),
+    PlainSerializer(lambda v: f"{v:.3f}", return_type=str),
+]
+
+# A period's total quantity may be zero — nothing bought that month.
+NonNegativeQuantity = Annotated[
+    Decimal,
+    BeforeValidator(lambda v: _quantise(_to_decimal(v), places=3)),
+    Field(ge=Decimal("0"), le=Decimal("999999999.999")),
+    PlainSerializer(lambda v: f"{v:.3f}", return_type=str),
+]
+
+# AD-29: a rate is *not* money. Derived, four places, its own type so it can never be
+# confused with an amount in a sum or on the wire.
+Rate = Annotated[
+    Decimal,
+    BeforeValidator(lambda v: _quantise(_to_decimal(v), places=4)),
+    Field(ge=Decimal("0")),
+    PlainSerializer(lambda v: f"{v:.4f}", return_type=str),
 ]
 
 

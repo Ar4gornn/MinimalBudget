@@ -37,6 +37,8 @@ def create_entry(payload: EntryCreate, user_id: CurrentUserId, session: DbSessio
         note=payload.note,
         category_id=payload.category_id,
         category_name=payload.category_name,
+        quantity=payload.quantity,
+        unit=payload.unit.value if payload.unit is not None else None,
     )
     return EntryOut.model_validate(entry)
 
@@ -59,6 +61,10 @@ def update_entry(
         # question as "is it None?".
         note_given="note" in payload.model_fields_set,
         category_id=payload.category_id,
+        quantity=payload.quantity,
+        unit=payload.unit.value if payload.unit is not None else None,
+        # The validator has already refused a lone half; either key present means the pair.
+        quantity_given="quantity" in payload.model_fields_set,
     )
     return EntryOut.model_validate(entry)
 

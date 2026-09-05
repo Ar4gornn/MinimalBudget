@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from app.core.deps import CurrentUserId, DbSession
-from app.schemas.dashboard import SummaryOut, TrendsOut
+from app.schemas.dashboard import SummaryOut, TrendsOut, UnitPricesOut
 from app.services import dashboard
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -27,4 +27,17 @@ def trends(
 ) -> TrendsOut:
     return TrendsOut.model_validate(
         dashboard.trends(session, user_id, months=months, ending=ending)
+    )
+
+
+@router.get("/unit-prices", response_model=UnitPricesOut)
+def unit_prices(
+    user_id: CurrentUserId,
+    session: DbSession,
+    months: Annotated[int, Query(ge=1, le=36)] = 6,
+    ending: Annotated[str | None, Query(description="YYYY-MM, defaults to this month")] = None,
+) -> UnitPricesOut:
+    """AD-29: one series per (category, unit), volume-weighted, null where nothing was bought."""
+    return UnitPricesOut.model_validate(
+        dashboard.unit_prices(session, user_id, months=months, ending=ending)
     )

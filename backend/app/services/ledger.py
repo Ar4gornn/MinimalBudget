@@ -13,7 +13,7 @@ from sqlalchemy import Select, delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.errors import Conflict, NotFound
+from app.core.errors import Conflict, Invalid, NotFound
 from app.core.months import month_range
 from app.models.ledger import Category, Entry, EntryKind
 
@@ -148,6 +148,8 @@ def create_entry(
     note: str | None,
     category_id: uuid.UUID | None,
     category_name: str | None,
+    quantity: Decimal | None = None,
+    unit: str | None = None,
 ) -> Entry:
     if category_name is not None:
         category = get_or_create_category(session, user_id, kind=kind, name=category_name)
@@ -162,6 +164,8 @@ def create_entry(
         amount=amount,
         occurred_on=occurred_on,
         note=note,
+        quantity=quantity,
+        unit=unit,
     )
     session.add(entry)
     session.flush()
@@ -178,6 +182,9 @@ def update_entry(
     note: str | None,
     note_given: bool,
     category_id: uuid.UUID | None,
+    quantity: Decimal | None = None,
+    unit: str | None = None,
+    quantity_given: bool = False,
 ) -> Entry:
     entry = get_entry(session, user_id, entry_id)
 
@@ -191,6 +198,13 @@ def update_entry(
         entry.occurred_on = occurred_on
     if note_given:
         entry.note = note
+    if quantity_given:
+        # The schema already refused a lone quantity or a lone unit. What it could not
+        # know is the entry's kind (AD-29: only an expense carries a quantity).
+        if quantity is not None and entry.kind is not EntryKind.expense:
+            raise Invalid("only an expense can carry a quantity")
+        entry.quantity = quantity
+        entry.unit = unit
 
     session.flush()
     return entry

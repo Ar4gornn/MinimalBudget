@@ -3,10 +3,23 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
 import type { EntryInput } from "../api/client";
-import type { Category, Entry, EntryKind } from "../api/types";
+import { UNITS, type Category, type Entry, type EntryKind, type Unit } from "../api/types";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
-import {isPositiveMoney } from "../money";
+import { isPositiveMoney } from "../money";
+import {
+  formatQuantity,
+  formatRate,
+  isQuantity,
+  isRate,
+  recallUnit,
+  rememberUnit,
+  solveAmount,
+  solveQuantity,
+  solveRate,
+  toMilli,
+  unitLabel,
+} from "../quantity";
 import { useMoney } from "../useMoney";
 import { currentMonth, todayIso } from "../months";
 
@@ -31,6 +44,17 @@ export function EntriesPage() {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // AD-29: the optional "how much of what" section. Any two of amount, quantity and unit
+  // price fill in the third — the pump shows a total, the receipt shows a rate, and the
+  // person should be able to type whichever they are looking at.
+  const [quantity, setQuantity] = useState("");
+  const [unit, setUnit] = useState<Unit | "">("");
+  const [rate, setRate] = useState("");
+  const [showQuantity, setShowQuantity] = useState(false);
+  // Set by the × button and cleared on submit: a remembered unit must not reopen a section
+  // the person just closed, however many more characters they type into the category.
+  const [unitDismissed, setUnitDismissed] = useState(false);
+
   // Inline editing rather than a modal: the rows already become cards on a phone, so the
   // same markup turns into a sensible form without needing focus trapping, escape
   // handling and scroll locking to be got right.
@@ -40,6 +64,8 @@ export function EntriesPage() {
     occurred_on: string;
     category_id: string;
     note: string;
+    quantity: string;
+    unit: Unit | "";
   } | null>(null);
 
   const load = useCallback(async () => {
@@ -80,10 +106,63 @@ export function EntriesPage() {
     return (id: string) => lookup.get(id) ?? "—";
   }, [categories]);
 
+  // --- the three-way solve -------------------------------------------------------
+
+  function onAmountChange(value: string) {
+    setAmount(value);
+    if (!isPositiveMoney(value)) return;
+    if (isQuantity(quantity)) setRate(solveRate(value.trim(), quantity.trim()));
+    else if (isRate(rate) && !quantity) setQuantity(solveQuantity(value.trim(), rate.trim()));
+  }
+
+  function onQuantityChange(value: string) {
+    setQuantity(value);
+    if (!isQuantity(value)) return;
+    if (isPositiveMoney(amount)) setRate(solveRate(amount.trim(), value.trim()));
+    else if (isRate(rate) && !amount) setAmount(solveAmount(value.trim(), rate.trim()));
+  }
+
+  function onRateChange(value: string) {
+    setRate(value);
+    if (!isRate(value)) return;
+    if (isQuantity(quantity)) setAmount(solveAmount(quantity.trim(), value.trim()));
+    else if (isPositiveMoney(amount) && !quantity) {
+      setQuantity(solveQuantity(amount.trim(), value.trim()));
+    }
+  }
+
+  function onCategoryNameChange(value: string) {
+    setCategoryName(value);
+    // Pre-fill the unit this category was last quantified in. Only for an expense, only
+    // when the section is untouched, and never after it was dismissed for this entry.
+    if (kind === "expense" && !unitDismissed && !unit && !quantity) {
+      const remembered = recallUnit(value);
+      if (remembered) {
+        setUnit(remembered);
+        setShowQuantity(true);
+      }
+    }
+  }
+
+  function clearQuantity() {
+    setQuantity("");
+    setUnit("");
+    setRate("");
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!isPositiveMoney(amount)) {
       setError("Enter an amount with at most two decimal places, greater than zero.");
+      return;
+    }
+    const quantified = kind === "expense" && quantity.trim() !== "";
+    if (quantified && !isQuantity(quantity)) {
+      setError("Enter a quantity with at most three decimal places, greater than zero.");
+      return;
+    }
+    if (quantified && !unit) {
+      setError("Choose a unit for the quantity.");
       return;
     }
     setSaving(true);
@@ -97,9 +176,13 @@ export function EntriesPage() {
         occurred_on: occurredOn,
         category_name: categoryName.trim(),
         ...(note.trim() ? { note: note.trim() } : {}),
+        ...(quantified && unit ? { quantity: quantity.trim(), unit } : {}),
       });
+      if (quantified && unit) rememberUnit(categoryName, unit);
       setAmount("");
       setNote("");
+      clearQuantity();
+      setUnitDismissed(false);
       await load();
       toast.show("Entry added");
     } catch (caught) {
@@ -116,6 +199,8 @@ export function EntriesPage() {
       occurred_on: entry.occurred_on,
       category_id: entry.category_id,
       note: entry.note ?? "",
+      quantity: entry.quantity ?? "",
+      unit: entry.unit ?? "",
     });
   }
 
@@ -123,6 +208,15 @@ export function EntriesPage() {
     if (!draft) return;
     if (!isPositiveMoney(draft.amount)) {
       setError("Enter an amount with at most two decimal places, greater than zero.");
+      return;
+    }
+    const draftQuantified = draft.quantity.trim() !== "";
+    if (draftQuantified && !isQuantity(draft.quantity)) {
+      setError("Enter a quantity with at most three decimal places, greater than zero.");
+      return;
+    }
+    if (draftQuantified && !draft.unit) {
+      setError("Choose a unit for the quantity.");
       return;
     }
 
@@ -135,6 +229,24 @@ export function EntriesPage() {
     if (draft.note.trim() !== (entry.note ?? "")) {
       // An emptied note is a deliberate clear, which is null rather than "".
       patch.note = draft.note.trim() === "" ? null : draft.note.trim();
+    }
+    // The pair travels together (AD-29): both values, or both null to clear.
+    const wasQuantified = Boolean(entry.quantity);
+    // Compared as milli-units, not as text: "40" and "40.000" are the same quantity, and
+    // re-sending an unchanged pair would overwrite an edit made elsewhere.
+    const pairChanged =
+      draftQuantified !== wasQuantified ||
+      (draftQuantified &&
+        (toMilli(draft.quantity) !== toMilli(entry.quantity ?? "0") ||
+          draft.unit !== entry.unit));
+    if (pairChanged) {
+      if (draftQuantified && draft.unit) {
+        patch.quantity = draft.quantity.trim();
+        patch.unit = draft.unit;
+      } else {
+        patch.quantity = null;
+        patch.unit = null;
+      }
     }
 
     if (Object.keys(patch).length === 0) {
@@ -169,6 +281,9 @@ export function EntriesPage() {
             occurred_on: entry.occurred_on,
             category_id: entry.category_id,
             ...(entry.note ? { note: entry.note } : {}),
+            ...(entry.quantity && entry.unit
+              ? { quantity: entry.quantity, unit: entry.unit }
+              : {}),
           });
           await load();
         },
@@ -177,6 +292,8 @@ export function EntriesPage() {
       setError(caught instanceof Error ? caught.message : "Could not delete the entry.");
     }
   }
+
+  const quantitySectionOpen = kind === "expense" && (showQuantity || quantity !== "" || unit !== "");
 
   return (
     <>
@@ -189,7 +306,16 @@ export function EntriesPage() {
             <select
               aria-label="Kind"
               value={kind}
-              onChange={(event) => setKind(event.target.value as EntryKind)}
+              onChange={(event) => {
+                const next = event.target.value as EntryKind;
+                setKind(next);
+                // Only an expense buys something. Drop the section rather than send a
+                // payload the API would refuse.
+                if (next === "income") {
+                  clearQuantity();
+                  setShowQuantity(false);
+                }
+              }}
             >
               <option value="expense">Expense</option>
               <option value="income">Income</option>
@@ -206,7 +332,7 @@ export function EntriesPage() {
               aria-label={`Amount in ${money.currency}`}
               required
               value={amount}
-              onChange={(event) => setAmount(event.target.value)}
+              onChange={(event) => onAmountChange(event.target.value)}
             />
           </label>
 
@@ -218,7 +344,7 @@ export function EntriesPage() {
               placeholder="Rent, Salary…"
               required
               value={categoryName}
-              onChange={(event) => setCategoryName(event.target.value)}
+              onChange={(event) => onCategoryNameChange(event.target.value)}
             />
           </label>
           <datalist id="category-names">
@@ -249,12 +375,78 @@ export function EntriesPage() {
             />
           </label>
 
+          {kind === "expense" && !quantitySectionOpen && (
+            <button
+              type="button"
+              className="quiet"
+              onClick={() => setShowQuantity(true)}
+              aria-expanded={false}
+            >
+              + Quantity
+            </button>
+          )}
+
+          {quantitySectionOpen && (
+            <div className="row quantity-row" role="group" aria-label="Quantity details">
+              <label style={{ flex: "0 0 120px" }}>
+                Quantity
+                <input
+                  className="num"
+                  inputMode="decimal"
+                  placeholder="40"
+                  aria-label="Quantity"
+                  value={quantity}
+                  onChange={(event) => onQuantityChange(event.target.value)}
+                />
+              </label>
+              <label style={{ flex: "0 0 110px" }}>
+                Unit
+                <select
+                  aria-label="Unit"
+                  value={unit}
+                  onChange={(event) => setUnit(event.target.value as Unit | "")}
+                >
+                  <option value="">—</option>
+                  {UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {unitLabel(u)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ flex: "0 0 130px" }}>
+                Unit price
+                <input
+                  className="num"
+                  inputMode="decimal"
+                  placeholder="1.4990"
+                  aria-label={`Unit price in ${money.currency}`}
+                  value={rate}
+                  onChange={(event) => onRateChange(event.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="quiet"
+                onClick={() => {
+                  clearQuantity();
+                  setShowQuantity(false);
+                  setUnitDismissed(true);
+                }}
+                aria-label="Remove quantity"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           <button type="submit" disabled={saving}>
             {saving ? "Saving…" : "Add"}
           </button>
         </form>
         <p className="hint" style={{ marginTop: 8 }}>
           A category that does not exist yet is created as you type it.
+          {quantitySectionOpen && " Fill any two of amount, quantity and unit price."}
         </p>
       </Card>
 
@@ -371,6 +563,34 @@ export function EntriesPage() {
                           value={draft.amount}
                           onChange={(event) => setDraft({ ...draft, amount: event.target.value })}
                         />
+                        {entry.kind === "expense" && (
+                          <div className="row" style={{ flexWrap: "nowrap", gap: 6, marginTop: 6 }}>
+                            <input
+                              className="num"
+                              inputMode="decimal"
+                              placeholder="qty"
+                              aria-label="Edit quantity"
+                              value={draft.quantity}
+                              onChange={(event) =>
+                                setDraft({ ...draft, quantity: event.target.value })
+                              }
+                            />
+                            <select
+                              aria-label="Edit unit"
+                              value={draft.unit}
+                              onChange={(event) =>
+                                setDraft({ ...draft, unit: event.target.value as Unit | "" })
+                              }
+                            >
+                              <option value="">—</option>
+                              {UNITS.map((u) => (
+                                <option key={u} value={u}>
+                                  {u}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </td>
                       <td className="wrap" data-label="Note">
                         <input
@@ -408,6 +628,11 @@ export function EntriesPage() {
                       </td>
                       <td className="num" data-label="Amount">
                         {money.plain(entry.amount)}
+                        {entry.quantity && entry.unit && entry.unit_price && (
+                          <div className="hint rate" title={`${formatQuantity(entry.quantity)} ${entry.unit}`}>
+                            {formatRate(entry.unit_price, entry.unit)}
+                          </div>
+                        )}
                       </td>
                       <td className="wrap" data-label="Note">
                         {entry.note ?? ""}

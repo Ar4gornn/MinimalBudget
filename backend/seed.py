@@ -22,11 +22,12 @@ from decimal import Decimal
 from sqlalchemy import delete, select
 
 from app.core.db import tenant_session
+from app.models.inventory import InventoryItem, Space
 from app.models.ledger import Entry, EntryKind
 from app.models.savings import SavingsContribution, SavingsTarget, SavingsType
 from app.models.user import User
 from app.services import auth as auth_service
-from app.services import ledger, savings
+from app.services import inventory, ledger, savings
 
 MONTHS_OF_HISTORY = 6
 
@@ -41,6 +42,37 @@ EXPENSES: list[tuple[str, str, list[str]]] = [
     ("Eating out", "180.00", ["210.55", "165.30", "198.75", "142.60", "223.40", "176.20"]),
     # Budgeted and never spent on — the row the dashboard must still show at zero.
     ("Gym", "45.00", ["0.00"] * 6),
+]
+
+# Fuel is the unit-price case (AD-29): litres and a rate that drifts, so the category page
+# has a price-per-litre series to draw. (litres, price per litre) per month, oldest first.
+FUEL: list[tuple[str, str]] = [
+    ("42.150", "1.4490"),
+    ("38.900", "1.4790"),
+    ("45.300", "1.5120"),
+    ("40.000", "1.4990"),
+    ("43.700", "1.5310"),
+    ("41.200", "1.5590"),
+]
+
+# (space, [(item, quantity, restock_below, cost, note)])
+INVENTORY: list[tuple[str, list[tuple[str, int, int | None, str | None, str | None]]]] = [
+    (
+        "Fridge",
+        [
+            ("Milk", 0, 1, "3.50", None),
+            ("Eggs", 6, 2, "3.20", None),
+            ("Butter", 1, 1, "2.80", "salted"),
+        ],
+    ),
+    (
+        "Garage",
+        [("Engine oil", 1, None, "24.00", "5W-30"), ("Windscreen wash", 2, 1, "4.50", None)],
+    ),
+    (
+        "House stuff",
+        [("Toilet paper", 2, 4, "12.00", None), ("AA batteries", 8, 4, "9.90", None)],
+    ),
 ]
 
 SAVINGS = [
@@ -118,6 +150,8 @@ def main() -> int:
 
     with tenant_session(user_id) as session:
         # Order matters: the RESTRICT foreign keys refuse it otherwise (AD-21).
+        session.execute(delete(InventoryItem).where(InventoryItem.user_id == user_id))
+        session.execute(delete(Space).where(Space.user_id == user_id))
         session.execute(delete(SavingsContribution).where(SavingsContribution.user_id == user_id))
         session.execute(delete(SavingsTarget).where(SavingsTarget.user_id == user_id))
         session.execute(delete(Entry).where(Entry.user_id == user_id))
@@ -158,11 +192,40 @@ def main() -> int:
                     )
                 )
 
+        fuel = ledger.get_or_create_category(session, user_id, kind=EntryKind.expense, name="Fuel")
+        savings.set_budget(session, user_id, fuel.id, monthly_amount=Decimal("70.00"))
+        for month, (litres, rate) in zip(months, FUEL, strict=True):
+            amount = (Decimal(litres) * Decimal(rate)).quantize(Decimal("0.01"))
+            session.add(
+                Entry(
+                    user_id=user_id,
+                    kind=EntryKind.expense,
+                    category_id=fuel.id,
+                    amount=amount,
+                    occurred_on=month.replace(day=9),
+                    note=None,
+                    quantity=Decimal(litres),
+                    unit="l",
+                )
+            )
+
+        for space_name, things in INVENTORY:
+            for name, quantity, restock_below, cost, note in things:
+                inventory.create_item(
+                    session,
+                    user_id,
+                    name=name,
+                    quantity=quantity,
+                    restock_below=restock_below,
+                    cost=Decimal(cost) if cost else None,
+                    note=note,
+                    space_id=None,
+                    space_name=space_name,
+                )
+
         for name, target, amounts in SAVINGS:
             savings_type = session.execute(
-                select(SavingsType).where(
-                    SavingsType.user_id == user_id, SavingsType.name == name
-                )
+                select(SavingsType).where(SavingsType.user_id == user_id, SavingsType.name == name)
             ).scalar_one_or_none()
             if savings_type is None:
                 savings_type = savings.get_or_create_type(session, user_id, name=name)
