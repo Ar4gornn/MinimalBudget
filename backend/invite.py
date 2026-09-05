@@ -104,6 +104,9 @@ def list_invites() -> int:
 
 
 def main() -> int:
+    # Windows consoles default to cp1252 and would print the em dash below as garbage.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
