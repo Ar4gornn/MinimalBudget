@@ -17,6 +17,8 @@ queries as a second user rather than by reading a policy and believing it.
 - Record **savings contributions** against savings types (`startup`, `vacation` and `investment`
   are seeded; add your own).
 - Set a **standing monthly budget** per expense category and a **monthly target** per savings type.
+- Change your password, and generate one-time **recovery codes** so a forgotten password is not a
+  trip to the operator.
 - A **dashboard** for any month: income, expense, net and saved; budget versus actual per category;
   savings progress per type; and six months of trend, with a small multiple per category.
 - An expense can carry a **quantity and unit** — `$60.14` for `40.123 l` — and the app derives the
@@ -191,8 +193,13 @@ another if it is lost. Send it over something private — anyone holding it can 
 
 ### When someone forgets their password
 
-There is no self-service reset, because that needs email delivery this deployment does not have.
-Confirm who is asking through some channel that is not the app, then:
+Each person can generate eight one-time **recovery codes** on the Plan page (it asks for the
+current password first) and should keep them somewhere that is not the app. "Forgot your
+password?" on the sign-in page takes their email, one unused code and a new password; the code
+is spent and every session is signed out. No email is involved.
+
+If the codes are lost as well, the operator can still reset it. Confirm who is asking through
+some channel that is not the app, then:
 
 ```bash
 docker compose -f docker-compose.prod.yml run --rm migrate python reset_password.py sam@example.com

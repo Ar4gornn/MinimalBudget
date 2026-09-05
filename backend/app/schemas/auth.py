@@ -56,3 +56,40 @@ class RefreshRequest(BaseModel):
 
 class CurrencyUpdate(BaseModel):
     currency: Currency
+
+
+_PASSWORD = Field(min_length=10, max_length=200)
+
+
+class RecoverRequest(BaseModel):
+    """Forgot password: an email, one unused recovery code, and the replacement."""
+
+    email: EmailStr
+    code: str = Field(min_length=1, max_length=40)
+    new_password: str = _PASSWORD
+
+    @field_validator("email")
+    @classmethod
+    def _normalise(cls, v: str) -> str:
+        return v.strip().lower()
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(min_length=1, max_length=200)
+    new_password: str = _PASSWORD
+
+
+class PasswordConfirm(BaseModel):
+    """Re-authentication for a sensitive action by a signed-in user."""
+
+    password: str = Field(min_length=1, max_length=200)
+
+
+class RecoveryCodesOut(BaseModel):
+    # Plain text, once. Stored only as hashes from here on.
+    codes: list[str]
+
+
+class RecoveryStatusOut(BaseModel):
+    unused: int
+    total: int

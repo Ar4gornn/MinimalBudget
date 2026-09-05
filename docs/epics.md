@@ -48,6 +48,8 @@ up front.
 | FR-25 | A user can do all of the above through the React client, on a phone. |
 | FR-26 | A family member can install the client on a phone's home screen and open it without browser chrome. |
 | FR-27 | An account has one currency, USD or EUR, chosen at sign-up, and every amount is shown in it. |
+| FR-28 | A signed-in user can generate recovery codes and change their password. |
+| FR-29 | A user who forgot their password can set a new one with their email and one recovery code, without the operator. |
 
 ### NonFunctional Requirements
 
@@ -77,6 +79,7 @@ Sourced from the architecture spine. These bind every story that touches them.
 | AR-8 | No service imports another module's models; the dashboard page composes endpoints. | AD-31 |
 | AR-9 | The service worker never caches `/api` or `/health`; hashed assets are cache-first only because Vite content-hashes filenames. | AD-14, AD-27 |
 | AR-10 | Currency is an attribute of the account, never of an entry; changing it relabels and is refused once the ledger holds a row. | AD-5 |
+| AR-11 | A password hash is written only by `auth_set_password`, which refuses any tenant but the transaction's own; every password change revokes all sessions. | AD-32 |
 
 ### UX Design Requirements
 
@@ -122,6 +125,7 @@ AD-17).
 | AR-8 | Stories 11.2, 11.5 |
 | FR-26, AR-9 | Story 8.1 |
 | FR-27, AR-10 | Story 9.1 |
+| FR-28, FR-29, AR-11 | Stories 12.1, 12.2 |
 
 ## Epic List
 
@@ -138,6 +142,7 @@ AD-17).
 | 9 | Per-account currency | Each account keeps its ledger in its own currency, dollars or euros, with no conversion anywhere. |
 | 10 | Unit-priced entries | An expense can say how much of what was bought, and the per-unit price can be watched over time. |
 | 11 | Inventory | A user can keep track of what they have, where, see what is running out without leaving the dashboard, and see how each item's stock moved. |
+| 12 | Password recovery | A person who forgets their password gets back in on their own, without email and without the operator. |
 
 Epics 8 and 9 were built on 2026-08-30 and 2026-09-01 and written up here afterwards, from the
 commits and the tests, on 2026-09-05. Each is one story because each was one commit with one
@@ -694,6 +699,55 @@ So that every figure I see is the one I actually paid, with no conversion anywhe
 **And** one account cannot change another's, and two accounts can hold different currencies
 **And** on the client, every formatted amount goes through one `useMoney` hook bound to the signed-in account — no module-level global, which would be read during render while auth writes it and flash one family member's symbol in another's session — degrading to dollars outside a provider
 **And** headline figures carry the symbol and table cells stay bare with the symbol in the column header, keeping tables numbers-first; the locale is pinned to `en-US` so the display format matches the input format the fields accept
+
+---
+
+## Epic 12: Password recovery
+
+Added 2026-09-05. The operator console was the only way back into a forgotten account, and the
+deployment has no email delivery. Recovery codes need neither: eight one-time codes generated
+while signed in, kept by the person, redeemed with a new password. Chosen over an email link
+(an outbound mail dependency and a mailbox that becomes the account) and over an
+operator-minted reset code (still needs the operator awake). The console command stays for
+whoever loses the codes as well.
+
+### Story 12.1: Recovery codes and change-password for a signed-in user
+
+As a family member,
+I want to generate recovery codes and change my password from inside the app,
+So that I hold my own way back in and never need the operator for a routine change.
+
+**Acceptance Criteria:**
+
+**Given** a signed-in user on the Plan page
+**When** they confirm their current password and ask for recovery codes
+**Then** `POST /api/auth/me/recovery-codes` returns eight codes of ten characters from an alphabet without `0/O` and `1/I/l`, shown once, formatted `xxxxx-xxxxx` (FR-28)
+**And** the `recovery_codes` table, created by this story through `protect()`, stores only SHA-256 hashes; the plain text appears nowhere after the response
+**And** generating a new set deletes the old one, so an old code stops working
+**And** a wrong current password answers `403` — authenticated, failing a rule about their own data (AD-8)
+**And** `GET /api/auth/me/recovery-codes` reports `unused` and `total` so the page can say "5 of 8 unused"
+**And** `POST /api/auth/me/password` with the current and a new password changes it through `auth_set_password` and revokes every refresh token of the account (AR-11); the client signs straight back in with the new password
+**And** the password field on every form can be shown in clear with a toggle
+
+### Story 12.2: Forgot password, with a code
+
+As a family member who forgot their password,
+I want to set a new one with my email and one of my codes,
+So that I am not locked out until the operator is awake.
+
+**Acceptance Criteria:**
+
+**Given** the sign-in page's "Forgot your password?" form
+**When** an email, a code and a new password are submitted to `POST /api/auth/recover`
+**Then** the email is resolved through `auth_lookup`, the transaction is pinned to that id before the code is read, the code is redeemed by a guarded `UPDATE ... WHERE used_at IS NULL`, the hash is written by `auth_set_password`, and every session is revoked — all in one transaction (FR-29, AD-19, AD-32)
+**And** the response is `204`, and the client then signs in with the new password
+**And** unknown email, wrong code and already-used code answer `401` with one identical body, so the endpoint is not an oracle
+**And** case, spaces and the dash in a typed code are ignored
+**And** a code is single-use: the same code a second time is refused
+**And** a new password that fails validation does not spend the code
+**And** repeated failures lock recovery for that email and for the source address under a limiter separate from login's, with the same thresholds, answering `429` with `Retry-After` (AD-26)
+**And** `auth_set_password` called with another user's id, or with no tenant set, raises — proven by executing it as the runtime role under user B's tenancy against user A's id, and the runtime role still cannot `UPDATE users.password_hash` directly (AR-11)
+**And** user B can see none of user A's codes, and cannot redeem one against their own email
 
 ---
 

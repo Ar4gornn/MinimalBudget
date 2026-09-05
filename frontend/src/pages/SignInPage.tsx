@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from "react";
 
+import { api } from "../api/client";
 import { ErrorBanner } from "../components/ui";
 import { useAuth } from "../auth/AuthContext";
 import type { Currency } from "../api/types";
 
 export function SignInPage() {
   const { signIn, register } = useAuth();
-  const [mode, setMode] = useState<"signin" | "register">("signin");
+  const [mode, setMode] = useState<"signin" | "register" | "recover">("signin");
+  const [recoveryCode, setRecoveryCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
@@ -18,6 +20,7 @@ export function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const registering = mode === "register";
+  const recovering = mode === "recover";
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -25,7 +28,11 @@ export function SignInPage() {
     setBusy(true);
     try {
       if (registering) await register(email, password, inviteCode, currency);
-      else await signIn(email, password);
+      else if (recovering) {
+        // The code sets the password and revokes every session; then sign in with it.
+        await api.recover(email, recoveryCode, password);
+        await signIn(email, password);
+      } else await signIn(email, password);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Something went wrong.");
     } finally {
@@ -39,7 +46,9 @@ export function SignInPage() {
       <p className="hint">
         {registering
           ? "Create an account. Your data is visible only to you."
-          : "Sign in to your account."}
+          : recovering
+            ? "Enter your email, one unused recovery code, and a new password."
+            : "Sign in to your account."}
       </p>
 
       <form className="stack" onSubmit={submit}>
@@ -57,13 +66,27 @@ export function SignInPage() {
           />
         </label>
 
+        {recovering && (
+          <label>
+            Recovery code
+            <input
+              name="recovery-code"
+              autoComplete="off"
+              placeholder="xxxxx-xxxxx"
+              required
+              value={recoveryCode}
+              onChange={(event) => setRecoveryCode(event.target.value)}
+            />
+          </label>
+        )}
+
         <label>
-          Password
+          {recovering ? "New password" : "Password"}
           <div className="password-field">
             <input
               type={showPassword ? "text" : "password"}
               name="password"
-              autoComplete={registering ? "new-password" : "current-password"}
+              autoComplete={registering || recovering ? "new-password" : "current-password"}
               required
               minLength={10}
               value={password}
@@ -112,9 +135,30 @@ export function SignInPage() {
         )}
 
         <button type="submit" disabled={busy}>
-          {busy ? "Working…" : registering ? "Create account" : "Sign in"}
+          {busy
+            ? "Working…"
+            : registering
+              ? "Create account"
+              : recovering
+                ? "Set new password"
+                : "Sign in"}
         </button>
       </form>
+
+      {!registering && (
+        <p className="hint" style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="link"
+            onClick={() => {
+              setMode(recovering ? "signin" : "recover");
+              setError(null);
+            }}
+          >
+            {recovering ? "Back to sign in" : "Forgot your password?"}
+          </button>
+        </p>
+      )}
 
       <p className="hint" style={{ marginTop: 16 }}>
         {registering ? "Already have an account? " : "No account yet? "}

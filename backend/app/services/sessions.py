@@ -47,9 +47,7 @@ def look_up(session: Session, token: str) -> Lookup:
     return Lookup(row.user_id, row.family_id, row.expired, row.revoked)
 
 
-def issue(
-    session: Session, *, user_id: uuid.UUID, family_id: uuid.UUID | None = None
-) -> str:
+def issue(session: Session, *, user_id: uuid.UUID, family_id: uuid.UUID | None = None) -> str:
     """Mint a refresh token. Runs inside the caller's tenant-pinned transaction."""
     token = secrets.token_urlsafe(32)
     expires = datetime.now(UTC) + timedelta(days=get_settings().refresh_token_ttl_days)
@@ -86,6 +84,18 @@ def revoke_family(session: Session, family_id: uuid.UUID) -> None:
             "WHERE family_id = :fid AND revoked_at IS NULL"
         ),
         {"fid": str(family_id)},
+    )
+
+
+def revoke_all(session: Session, user_id: uuid.UUID) -> None:
+    """Every session of the account, every family. Used when the password changes: if the
+    reason is that someone else got in, leaving their session alive would defeat it."""
+    session.execute(
+        text(
+            "UPDATE refresh_tokens SET revoked_at = now() "
+            "WHERE user_id = :uid AND revoked_at IS NULL"
+        ),
+        {"uid": str(user_id)},
     )
 
 

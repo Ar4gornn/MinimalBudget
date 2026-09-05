@@ -394,6 +394,26 @@ security-definer function
   performs both writes in the one request transaction of AD-4, named for what it does, never a
   side effect of an ordinary create.
 
+### AD-32 — A password hash is written only by a function that checks the tenant itself
+
+- **Binds:** auth, recovery
+- **Extends:** AD-19 (the runtime role never reads or writes `users.password_hash`; narrow
+  security-definer functions are the only holes) and AD-27 (a credential change revokes sessions)
+- **Prevents:** self-service recovery being built by granting the runtime role `UPDATE` on the
+  hash column — after which a compromised API could reset every account — or by a
+  security-definer function that takes any user id, which is the same hole with a longer name.
+- **Rule:** `auth_set_password(user_id, hash)` is the only path that writes a hash from the
+  application. It runs as the owner but refuses any `user_id` other than
+  `app_current_user_id()`, so it can only change the password of the transaction's own tenant.
+  Recovery therefore resolves the email through `auth_lookup`, pins the transaction to that id
+  (the registration pattern of AD-19), redeems the code under row-level security, and only then
+  calls the function. Recovery codes are stored as SHA-256 hashes, are single-use by a guarded
+  `UPDATE`, and a regenerated set replaces the old one. Any password change — by code or by a
+  signed-in person — revokes every refresh token of the account. Unknown email, wrong code and
+  spent code are refused identically, and recovery has its own rate limiter with the same
+  thresholds as login, so a code is as expensive to guess as a password. The operator command
+  remains, for the person who lost the codes too.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -568,10 +588,11 @@ MinimalBudget/
   additive, so this deferral cannot cause divergence.
 - ~~**Rate limiting and lockout on login.**~~ **Came due 2026-08-30**, when the instance was
   pointed at the public internet — exactly the condition this deferral named. See AD-26.
-- **Refresh tokens** came due with public exposure; see AD-27. **Password reset** remains out of
-  scope as a self-service flow — it needs email delivery this deployment does not have — and is
-  served instead by an operator command that also revokes the account's sessions. **Email
-  verification** is still deferred: on an invite-only instance the invite is the vouching step.
+- **Refresh tokens** came due with public exposure; see AD-27. ~~**Password reset** remains out
+  of scope as a self-service flow.~~ **Settled 2026-09-05 without email:** recovery codes, see
+  AD-32 and Epic 12. The operator command stays as the fallback for someone who lost the codes
+  as well. **Email verification** is still deferred: on an invite-only instance the invite is the
+  vouching step.
 - **Per-month budget overrides.** AD-11 fixes the v1 meaning; the schema takes a nullable `month`
   column later without a rewrite.
 - **Connection pool sizing and read replicas.** No load justifies tuning them; defaults stand until

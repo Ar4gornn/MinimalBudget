@@ -495,6 +495,33 @@ tr.history td {
   padding: 7px 10px;
 }
 
+.rule {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+/* Recovery codes: monospace, wide-spaced, easy to read off a screen or a printout. */
+.codes {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+}
+
+.codes li {
+  padding: 6px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  user-select: all;
+}
+
 
 /* ======================================================================== *
  * Mobile

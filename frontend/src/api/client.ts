@@ -138,6 +138,8 @@ async function send(path: string, init: RequestInit): Promise<Response> {
   return fetch(`${BASE}${path}`, { ...init, headers });
 }
 
+const CREDENTIAL_ENDPOINTS = new Set(["/api/auth/login", "/api/auth/recover"]);
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response = await send(path, init);
 
@@ -150,6 +152,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (response.status === 401) {
+    // A 401 from a credential endpoint is a wrong password or a wrong code, not an expired
+    // session: report the server's own words and leave the sign-in form alone.
+    if (CREDENTIAL_ENDPOINTS.has(path)) {
+      const body = await response.json().catch(() => null);
+      throw new ApiError(401, detailOf(body, 401));
+    }
     clearTokens();
     onUnauthorized?.();
     throw new ApiError(401, "Your session has expired. Please sign in again.");
@@ -233,6 +241,29 @@ export const api = {
     }),
 
   me: () => request<User>("/api/auth/me"),
+
+  /** Forgot password: email + one unused recovery code + the replacement. 204 on success. */
+  recover: (email: string, code: string, newPassword: string) =>
+    request<void>("/api/auth/recover", {
+      method: "POST",
+      body: JSON.stringify({ email, code: code.trim(), new_password: newPassword }),
+    }),
+
+  /** Revokes every session, including this one; the caller signs in again. */
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>("/api/auth/me/password", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
+
+  /** A fresh set, shown once. Replaces any earlier set. */
+  generateRecoveryCodes: (password: string) =>
+    request<{ codes: string[] }>("/api/auth/me/recovery-codes", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
+
+  recoveryStatus: () => request<{ unused: number; total: number }>("/api/auth/me/recovery-codes"),
 
   setCurrency: (currency: Currency) =>
     request<User>("/api/auth/me/currency", {

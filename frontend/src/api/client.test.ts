@@ -69,6 +69,22 @@ describe("api client", () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
+  it("reports a wrong password in the server's words, not as an expired session", async () => {
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(respond({ detail: "Incorrect email or password" }, 401)),
+    );
+
+    await expect(api.login("a@example.com", "wrong-password-1")).rejects.toMatchObject({
+      status: 401,
+      message: "Incorrect email or password",
+    });
+    // The sign-in form is not a session: nothing to clear, nobody to sign out.
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it("surfaces the server's detail message rather than a generic failure", async () => {
     vi.stubGlobal(
       "fetch",

@@ -9,6 +9,7 @@ import type {
   SavingsType,
   Target,
 } from "../api/types";
+import { SecurityCard } from "../components/SecurityCard";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import {isNonNegativeMoney, isPositiveMoney } from "../money";
 import { useAuth } from "../auth/AuthContext";
@@ -158,6 +159,8 @@ export function PlanPage() {
           the account has its first entry.
         </p>
       </Card>
+
+      <SecurityCard />
 
       <div className="columns">
         <div>
