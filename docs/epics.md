@@ -60,6 +60,7 @@ up front.
 | FR-37 | A user can export their entries, savings and stock as CSV files. |
 | FR-38 | A user can record which vendor an entry was bought from, creating the vendor by name. |
 | FR-39 | A user can compare what each vendor charged for a category, per unit and in total. |
+| FR-40 | A user can turn on notifications for a device and receive at most one daily reminder of what needs doing. |
 
 ### NonFunctional Requirements
 
@@ -92,6 +93,7 @@ Sourced from the architecture spine. These bind every story that touches them.
 | AR-11 | A password hash is written only by `auth_set_password`, which refuses any tenant but the transaction's own; every password change revokes all sessions. | AD-32 |
 | AR-12 | Recurrence materialises on read and is idempotent; a decision is recorded, never recomputed. | AD-33 |
 | AR-13 | The ledger and the inventory touch in exactly one named service, in one transaction, never as a side effect. | AD-31 |
+| AR-14 | Scheduled work runs from cron as the runtime role, under RLS, and never writes domain data. | AD-34 |
 
 ### UX Design Requirements
 
@@ -143,6 +145,7 @@ AD-17).
 | FR-35, FR-36 | Story 15.1 |
 | FR-37 | Story 16.1 |
 | FR-38, FR-39 | Story 17.1 |
+| FR-40, AR-14 | Stories 18.1, 18.2 |
 
 ## Epic List
 
@@ -165,6 +168,7 @@ AD-17).
 | 15 | Finding things | A year of records stays usable: search what was written, and look at a year rather than half of one. |
 | 16 | Export | The data can leave, as files a spreadsheet opens and cannot be tricked by. |
 | 17 | Vendors | "Is Shell dearer than Total?" becomes a number rather than an impression. |
+| 18 | Notifications | The reminders reach a phone that is not open on the app, without a scheduler this deployment cannot host. |
 
 Epics 8 and 9 were built on 2026-08-30 and 2026-09-01 and written up here afterwards, from the
 commits and the tests, on 2026-09-05. Each is one story because each was one commit with one
@@ -962,6 +966,58 @@ So that the choice is a number rather than an impression.
 **And** an entry recorded without a quantity counts towards `spent` and towards no rate — its unit price is `null`, never `0.0000`, and a vendor with both kinds is reported as two rows
 **And** the window is the same half-open range as everywhere else, and excludes other categories (AD-10)
 **And** the category page shows the comparison when there is more than one row to compare, and its failure degrades that card alone
+
+---
+
+## Epic 18: Notifications
+
+Deferred twice, with a reason that was correct: web push needs a push service, VAPID keys and
+a schedule. This epic provides each explicitly. The schedule is cron on the host, not a
+scheduler inside the API — see AD-34 — which is the same answer this deployment already gives
+for backups.
+
+Push is **off** on an instance that has no keys. Not degraded, not stubbed: the endpoints
+answer `503` and the client hides the control, so an existing deployment is untouched until
+someone runs `vapid.py` and pastes three lines into `.env`.
+
+### Story 18.1: A device asks to be told
+
+As a family member,
+I want to turn notifications on for my phone,
+So that "we are out of milk" reaches me when the app is closed, which is when it matters.
+
+**Acceptance Criteria:**
+
+**Given** an instance with VAPID keys configured
+**When** someone turns notifications on in Settings
+**Then** the browser is asked for permission only after they click — a prompt on page load is why people block notifications for good — and the subscription is stored against their account (FR-40)
+**And** the `push_subscriptions` table, created by this story through `protect()`, holds the endpoint and the two browser keys, with the endpoint unique **across the table** because it identifies a browser install rather than a person
+**And** a device handed to another family member follows the new account rather than notifying the old one: the previous claim is released through a `SECURITY DEFINER` function that can **only delete** by endpoint — it returns void, so it is not an oracle, and it cannot read a row, name its owner or grant anything (the AD-32 shape). `ON CONFLICT DO UPDATE` cannot do this, because resolving the conflict means updating a row row-level security correctly refuses to show the caller
+**And** subscribing twice from one device is one row, and two devices are two rows
+**And** turning it off is idempotent, is scoped to the caller — naming someone else's endpoint does nothing — and works **even when push is disabled on the instance**, because stopping notifications must always be possible
+**And** with no keys configured, `GET /api/push/key` and `POST /api/push/subscribe` answer `503` and the status endpoint still answers, so the client hides the control rather than showing a broken one (AD-15)
+**And** user B sees none of user A's subscriptions, through the API or as the runtime role
+
+### Story 18.2: One digest a day, from cron
+
+As the person running this instance,
+I want the reminders sent by a job I can see and schedule,
+So that there is no scheduler inside the API to die with the container or run twice.
+
+**Acceptance Criteria:**
+
+**Given** `backend/notify.py` on a cron schedule
+**When** it runs
+**Then** it connects as the **runtime role**, one tenant at a time, so every read obeys row-level security exactly as a request does (AR-14, AD-34)
+**And** it sends at most one notification per device per day, recorded in `notified_on`, because a reminder that arrives every hour is a reminder nobody reads
+**And** it sends nothing at all to a person with nothing waiting
+**And** the body reads as a sentence — "2 items need restocking (Eggs, Milk). 1 recurring entry is waiting." — naming at most three items
+**And** it **never materialises recurring occurrences**: it reports what is already pending, because a job nobody is watching must not create entries (AD-34)
+**And** a push service answering `404` or `410` means that endpoint is gone for good, so the subscription is deleted; any other failure is left alone for the next run to retry
+**And** `--dry-run` prints what would be sent and sends nothing
+**And** with no keys configured it says so and exits `0`, so a cron entry on an unconfigured instance is harmless
+**And** the service worker shows the notification under one tag, so a second digest replaces the first rather than stacking, and clicking it focuses an open window instead of opening a second copy of the app
+**And** `backend/vapid.py` generates the key pair and prints the three lines to paste into `.env`, and the generated public key is the one derived from the generated private key — verified against the sending library's own parser
 
 ---
 

@@ -19,6 +19,7 @@ queries as a second user rather than by reading a policy and believing it.
 - Set a **standing monthly budget** per expense category and a **monthly target** per savings type.
 - Change your password, and generate one-time **recovery codes** so a forgotten password is not a
   trip to the operator.
+- Turn on **notifications** for a phone and get one daily reminder of what needs doing.
 - Record the **vendor** on an entry, and compare what each shop charged per litre or per kilo.
 - **Export** everything as CSV, from Settings.
 - **Search** your entries and your stock, and widen the dashboard to a year.
@@ -198,6 +199,29 @@ docker compose -f docker-compose.prod.yml run --rm migrate python invite.py new 
 The code is printed once and stored only as a hash; there is no way to recover it, so issue
 another if it is lost. Send it over something private — anyone holding it can create one account.
 `invite.py list` shows what has been issued and whether it was used.
+
+### Notifications
+
+Optional, and off until it is configured. Generate a key pair:
+
+```bash
+cd backend && ./.venv/Scripts/python.exe vapid.py
+```
+
+Paste the three lines it prints into `.env` — `VAPID_SUBJECT` must be a real address a push
+service can reach — and restart the API. Each person then turns notifications on per device
+in Settings.
+
+Sending is a cron job on the host, not a scheduler inside the API: this is one container, and
+an in-process scheduler would die with it and double up if a second ever ran. Once a day is
+plenty:
+
+```bash
+0 8 * * *  cd /srv/minimalbudget/backend && python notify.py
+```
+
+It sends at most one notification per device per day, nothing at all to someone with nothing
+waiting, and never creates an entry. `python notify.py --dry-run` shows what it would send.
 
 ### When someone forgets their password
 

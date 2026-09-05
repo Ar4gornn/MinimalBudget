@@ -81,6 +81,11 @@ services:
       REGISTRATION_MODE: "invite"
       LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-8}
       LOGIN_LOCKOUT_MINUTES: ${LOGIN_LOCKOUT_MINUTES:-15}
+      # Empty unless set: push is off on an instance that was never given keys, and the
+      # API only ever reads the public one — notify.py, run from cron on the host, is what
+      # holds the private key and does the sending (AD-34).
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       # Same origin in production, so the browser never makes a cross-origin request and
       # there is no allowlist to get wrong.
       CORS_ORIGINS: ""

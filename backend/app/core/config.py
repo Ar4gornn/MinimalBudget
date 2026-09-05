@@ -41,6 +41,19 @@ class Settings(BaseSettings):
 
     refresh_token_ttl_days: int = Field(default=30, gt=0)
 
+    # Epic 18. All three empty means push is simply off: the endpoints answer 503 and the
+    # client hides the toggle. That keeps an existing deployment working untouched, and
+    # honours AD-15's rule that no secret has a working default — there is no fallback key.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    # The "mailto:" a push service contacts if this application misbehaves. Required by the
+    # VAPID spec, so push stays off until it is set rather than failing at send time.
+    vapid_subject: str = ""
+
+    @property
+    def push_enabled(self) -> bool:
+        return bool(self.vapid_public_key and self.vapid_private_key and self.vapid_subject)
+
     # mode="before" matters. A field_validator defaults to running *after* the field's
     # constraints, and every literal below is shorter than 32 characters — so min_length
     # rejected them first and this check never ran at all. It looked like a guard and was

@@ -19,6 +19,7 @@ import type {
   Cadence,
   Page,
   PendingEntry,
+  PushStatus,
   Purchase,
   PurchaseResult,
   Quantity,
@@ -348,6 +349,19 @@ export const api = {
 
   deleteCategory: (id: string) =>
     request<void>(`/api/categories/${id}`, { method: "DELETE" }),
+
+  pushStatus: () => request<PushStatus>("/api/push/status"),
+
+  pushKey: () => request<{ public_key: string }>("/api/push/key"),
+
+  pushSubscribe: (input: { endpoint: string; p256dh: string; auth: string }) =>
+    request<void>("/api/push/subscribe", { method: "POST", body: JSON.stringify(input) }),
+
+  pushUnsubscribe: (endpoint: string) =>
+    request<void>("/api/push/unsubscribe", {
+      method: "POST",
+      body: JSON.stringify({ endpoint }),
+    }),
 
   listVendors: () => items(request<Page<Vendor>>("/api/vendors")),
 

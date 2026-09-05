@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
+import { disablePush, enablePush, pushSupported } from "../push";
 import type { Currency } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { SecurityCard } from "../components/SecurityCard";
@@ -24,6 +25,51 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
+  const [push, setPush] = useState<{ enabled: boolean; devices: number } | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.pushStatus().then(
+      (status) => {
+        if (!cancelled) setPush(status);
+      },
+      () => {
+        // An older server with no push endpoints: hide the card rather than show an error.
+        if (!cancelled) setPush(null);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function togglePush(on: boolean) {
+    setError(null);
+    setPushBusy(true);
+    try {
+      if (!on) {
+        await disablePush();
+      } else {
+        const outcome = await enablePush();
+        if (outcome === "denied") {
+          setError(
+            "Your browser is blocking notifications for this site. Allow them in its site " +
+              "settings, then try again.",
+          );
+        } else if (outcome === "unsupported") {
+          setError("This browser cannot show notifications.");
+        } else if (outcome === "unavailable") {
+          setError("Notifications are not configured on this instance.");
+        }
+      }
+      setPush(await api.pushStatus());
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not change that.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   async function exportCsv(kind: "entries" | "savings" | "inventory") {
     setError(null);
@@ -103,6 +149,34 @@ export function SettingsPage() {
           ))}
         </div>
       </Card>
+
+      {push?.enabled && pushSupported() && (
+        <Card title="Notifications">
+          <p className="hint" style={{ margin: "0 0 10px" }}>
+            A single daily reminder on this device when something needs restocking or a
+            recurring entry is waiting. At most one a day, and nothing at all on a day with
+            nothing to say.
+          </p>
+          <div className="row">
+            <button type="button" disabled={pushBusy} onClick={() => void togglePush(true)}>
+              {pushBusy ? "Working…" : "Turn on for this device"}
+            </button>
+            <button
+              type="button"
+              className="quiet"
+              disabled={pushBusy || push.devices === 0}
+              onClick={() => void togglePush(false)}
+            >
+              Turn off
+            </button>
+          </div>
+          <p className="hint" style={{ marginTop: 8 }}>
+            {push.devices === 0
+              ? "No devices are receiving notifications."
+              : `${push.devices} ${push.devices === 1 ? "device is" : "devices are"} receiving them.`}
+          </p>
+        </Card>
+      )}
 
       <Card title="Session">
         <p className="hint" style={{ margin: "0 0 10px" }}>

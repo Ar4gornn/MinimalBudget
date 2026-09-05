@@ -310,3 +310,9 @@ export interface VendorPrices {
   months: string[];
   vendors: VendorPrice[];
 }
+
+export interface PushStatus {
+  /** False when the instance has no VAPID keys: the toggle is hidden rather than broken. */
+  enabled: boolean;
+  devices: number;
+}

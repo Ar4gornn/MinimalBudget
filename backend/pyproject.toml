@@ -14,6 +14,9 @@ dependencies = [
     "pydantic-settings==2.15.0",
     "argon2-cffi==25.1.0",
     "pyjwt==2.13.0",
+    # Web Push, from web-push-libs — the same org as the reference JS implementation.
+    # MPL-2.0. Only ops/notify.py imports it; the API never sends a push itself.
+    "pywebpush==2.5.0",
 ]
 
 [project.optional-dependencies]

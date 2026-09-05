@@ -438,6 +438,25 @@ security-definer function
   worse than one not created at all. The anchor for a monthly cadence is the template's start
   date, so the 31st clamps to a short month and then recovers rather than drifting.
 
+### AD-34 — Anything on a schedule runs from cron on the host, never inside the API
+
+- **Binds:** push notifications, backups, any future periodic job
+- **Extends:** AD-4 (a request opens one transaction and the dependency owns it) and AD-26's
+  admission that this is a single-container deployment
+- **Prevents:** an in-process scheduler that dies with the container, runs twice the day a
+  second replica appears, and puts a network call to an outside service inside somebody's
+  request. Also prevents the opposite mistake — a notification job that writes to the ledger
+  because it happened to be convenient.
+- **Rule:** periodic work is a script in `backend/` run by cron on the host, the way
+  `ops/backup.sh` already is. It connects as the **runtime role**, one tenant at a time, so
+  every read obeys row-level security exactly as a request does — a notifier that bypassed
+  RLS could tell one person what is in another's fridge. It is **read-only with respect to
+  domain data**: `notify.py` reports the proposals that already exist and never materialises
+  new ones, because a job nobody is watching must not create entries. The only rows it
+  writes are its own bookkeeping (`notified_on`, and deleting a subscription the push service
+  has declared dead). Push is off unless the instance is given VAPID keys: there is no
+  fallback key, per AD-15, and the endpoints answer `503` while the client hides the control.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -619,6 +638,10 @@ MinimalBudget/
   vouching step.
 - ~~**Recurring transactions.**~~ **Built as Epic 13** (2026-09-05), on the propose-first
   model recorded in the 2026-08-30 direction note. Materialisation is pull-based; see AD-33.
+- ~~**Push notifications.**~~ **Built as Epic 18** (2026-09-05), on cron rather than an
+  in-process scheduler; see AD-34. The deferral's reasoning stands — it did need a push
+  service, VAPID keys and a schedule — and each is now provided explicitly rather than
+  assumed.
 - ~~**CSV export.**~~ **Built as Epic 16** (2026-09-05). Streamed, and every cell neutralised
   against spreadsheet formula injection — the export is opened by people, in Excel.
 - **Per-month budget overrides.** AD-11 fixes the v1 meaning; the schema takes a nullable `month`

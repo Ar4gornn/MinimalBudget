@@ -95,3 +95,48 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data === "skip-waiting") self.skipWaiting();
 });
+
+// --------------------------------------------------------------- push (Epic 18)
+
+// The payload is JSON the server built: {title, body, url}. It is treated as data, never
+// as anything to evaluate — a notification body is plain text by definition.
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    // A push with no body, or a body we did not send. Show nothing rather than a blank
+    // notification: some platforms require *a* notification, but an empty one is worse.
+    return;
+  }
+  if (!payload.body) return;
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title || "MinimalBudget", {
+      body: payload.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      // One tag, so a second digest replaces the first instead of stacking up.
+      tag: "minimalbudget-digest",
+      renotify: false,
+      data: { url: payload.url || "/" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/";
+
+  // Focus an open window if there is one rather than opening a second copy of the app.
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      for (const client of windows) {
+        if (new URL(client.url).origin === self.location.origin) {
+          return client.focus().then(() => client.navigate(target));
+        }
+      }
+      return self.clients.openWindow(target);
+    }),
+  );
+});
