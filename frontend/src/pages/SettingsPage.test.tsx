@@ -21,10 +21,11 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+const CSV_BODY = "date,kind,category";
 const me = { id: "u1", email: "sam@example.com", currency: "USD", created_at: "" };
 
 function mockApi(overrides: { currencyStatus?: number; currencyDetail?: string } = {}) {
-  window.localStorage.setItem("minimalbudget.token", "access");
+  window.localStorage.setItem("minimalbudget.token", "test-token");
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     if (url.includes("/api/auth/me/currency")) {
@@ -35,6 +36,15 @@ function mockApi(overrides: { currencyStatus?: number; currencyDetail?: string }
     }
     if (url.includes("/api/auth/me/recovery-codes") && method === "GET") {
       return json({ unused: 3, total: 8 });
+    }
+    if (url.includes("/api/export/")) {
+      return new Response(CSV_BODY, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": 'attachment; filename="minimalbudget-entries-2026-09-05.csv"',
+        },
+      });
     }
     if (url.includes("/api/auth/me")) return json(me);
     if (url.includes("/api/auth/logout")) return json(null, 204);
@@ -92,5 +102,39 @@ describe("SettingsPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Sign out" }));
     await waitFor(() => expect(window.localStorage.getItem("minimalbudget.token")).toBeNull());
+  });
+
+  it("downloads an export with the token, under the name the server gives it", async () => {
+    const clicked: { href: string; download: string }[] = [];
+    const created: string[] = [];
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => "blob:fake"),
+      revokeObjectURL: vi.fn((url: string) => created.push(url)),
+    });
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        clicked.push({ href: this.href, download: this.download });
+      });
+
+    const fetchMock = mockApi();
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+    await screen.findByText("Export");
+
+    await user.click(screen.getByRole("button", { name: "Entries CSV" }));
+
+    await waitFor(() => expect(clicked).toHaveLength(1));
+    // Named by the server's Content-Disposition, not by the client.
+    expect(clicked[0]?.download).toBe("minimalbudget-entries-2026-09-05.csv");
+    // The blob URL is released rather than held for the life of the page.
+    expect(created).toEqual(["blob:fake"]);
+    // A plain link could not carry this, which is why it is fetched.
+    const call = fetchMock.mock.calls.find((c) => String(c[0]).includes("/api/export/"));
+    expect(new Headers((call?.[1] as RequestInit).headers).get("Authorization")).toBe(
+      "Bearer test-token",
+    );
+    click.mockRestore();
   });
 });

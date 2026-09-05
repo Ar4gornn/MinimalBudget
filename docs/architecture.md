@@ -619,6 +619,8 @@ MinimalBudget/
   vouching step.
 - ~~**Recurring transactions.**~~ **Built as Epic 13** (2026-09-05), on the propose-first
   model recorded in the 2026-08-30 direction note. Materialisation is pull-based; see AD-33.
+- ~~**CSV export.**~~ **Built as Epic 16** (2026-09-05). Streamed, and every cell neutralised
+  against spreadsheet formula injection — the export is opened by people, in Excel.
 - **Per-month budget overrides.** AD-11 fixes the v1 meaning; the schema takes a nullable `month`
   column later without a rewrite.
 - **Connection pool sizing and read replicas.** No load justifies tuning them; defaults stand until

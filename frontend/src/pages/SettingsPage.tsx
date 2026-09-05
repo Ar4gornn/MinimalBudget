@@ -12,11 +12,30 @@ import { useMoney } from "../useMoney";
  * signing out. These used to sit on the Plan page beside budgets, where "change my
  * password" is not a thing anyone goes looking for.
  */
+const EXPORTS = [
+  { kind: "entries" as const, label: "Entries CSV" },
+  { kind: "savings" as const, label: "Savings CSV" },
+  { kind: "inventory" as const, label: "Stock CSV" },
+];
+
 export function SettingsPage() {
   const { user, signOut, refreshUser: refreshProfile } = useAuth();
   const money = useMoney();
   const [error, setError] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
+  const [exporting, setExporting] = useState<string | null>(null);
+
+  async function exportCsv(kind: "entries" | "savings" | "inventory") {
+    setError(null);
+    setExporting(kind);
+    try {
+      await api.exportCsv(kind);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not export that.");
+    } finally {
+      setExporting(null);
+    }
+  }
 
   async function changeCurrency(next: Currency) {
     if (next === money.currency) return;
@@ -64,6 +83,26 @@ export function SettingsPage() {
       </Card>
 
       <SecurityCard />
+
+      <Card title="Export">
+        <p className="hint" style={{ margin: "0 0 10px" }}>
+          Your records as CSV files, for a spreadsheet or for keeping. Text that a
+          spreadsheet would run as a formula is written as plain text.
+        </p>
+        <div className="row">
+          {EXPORTS.map(({ kind, label }) => (
+            <button
+              key={kind}
+              type="button"
+              className="quiet"
+              disabled={exporting !== null}
+              onClick={() => void exportCsv(kind)}
+            >
+              {exporting === kind ? "Preparing…" : label}
+            </button>
+          ))}
+        </div>
+      </Card>
 
       <Card title="Session">
         <p className="hint" style={{ margin: "0 0 10px" }}>

@@ -57,6 +57,7 @@ up front.
 | FR-34 | Ticking an item off the list restocks it and records the expense in one action, and the purchase is kept as history. |
 | FR-35 | A user can search their entries by note or category name, and their items by name or note. |
 | FR-36 | A user can widen the dashboard's trend window from six months to a year. |
+| FR-37 | A user can export their entries, savings and stock as CSV files. |
 
 ### NonFunctional Requirements
 
@@ -138,6 +139,7 @@ AD-17).
 | FR-30, FR-31, FR-32, AR-12 | Stories 13.1, 13.2 |
 | FR-33, FR-34, AR-13 | Stories 14.1, 14.2 |
 | FR-35, FR-36 | Story 15.1 |
+| FR-37 | Story 16.1 |
 
 ## Epic List
 
@@ -158,6 +160,7 @@ AD-17).
 | 13 | Recurring entries | The entries that repeat every month stop being typed every month, without anything being written behind the person's back. |
 | 14 | Shopping list | What is running out becomes a list, and buying it is one action that both restocks the shelf and records the spend. |
 | 15 | Finding things | A year of records stays usable: search what was written, and look at a year rather than half of one. |
+| 16 | Export | The data can leave, as files a spreadsheet opens and cannot be tricked by. |
 
 Epics 8 and 9 were built on 2026-08-30 and 2026-09-01 and written up here afterwards, from the
 commits and the tests, on 2026-09-05. Each is one story because each was one commit with one
@@ -900,6 +903,32 @@ So that the history is something I can use rather than only add to.
 **And** an empty `q` returns everything, and search never crosses a user boundary
 **And** the entries table and the stock page each carry a search box, and an empty result says what was searched for
 **And** the dashboard's trend window can be switched between six months and a year, remembered per device like the collapsed sections (FR-36)
+
+---
+
+## Epic 16: Export
+
+Deferred since v1, and cheap insurance: a personal tracker that cannot hand back its own data
+is a trap. Three endpoints, streamed, one per thing worth keeping.
+
+### Story 16.1: CSV export that a spreadsheet cannot be tricked by
+
+As the owner of my records,
+I want my data as files I can open in a spreadsheet or keep,
+So that using this app is not a decision I cannot reverse.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user
+**When** they `GET /api/export/entries.csv`, `savings.csv` or `inventory.csv`
+**Then** each answers `text/csv` as a dated `attachment`, with `Cache-Control: no-store`, and rows are yielded one at a time rather than assembled in memory (FR-37)
+**And** every field goes through a guard that neutralises **formula injection**: a note reading `=HYPERLINK("http://evil","click")` is written with a leading apostrophe, so a family member opening the file sees text rather than a live link — the text is preserved, not censored, and a mutation test turns seven assertions red when the guard is removed
+**And** the same guard covers category and item names, which are user-written too
+**And** monetary values are written as the decimal strings they are, never through a float (AD-5), and an unquantified entry leaves the quantity, unit and unit-price columns empty rather than zero (AD-29)
+**And** a comma or a newline inside a note survives the round trip without becoming a second row
+**And** an export with no data is a header row and nothing else
+**And** the endpoints require a token, and one user's export contains none of another's rows
+**And** the client fetches the file with its bearer token and hands it to the browser as a blob, because a plain link carries no headers, and releases the blob URL afterwards
 
 ---
 

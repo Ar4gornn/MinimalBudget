@@ -239,6 +239,42 @@ export interface ItemInput {
   space_name?: string;
 }
 
+/**
+ * Fetch a file rather than JSON.
+ *
+ * A plain link cannot be used: the export endpoints need the bearer token, and an <a href>
+ * carries no headers. So the file is fetched with auth like any other request, then handed
+ * to the browser as a blob.
+ */
+async function download(path: string, fallbackName: string): Promise<void> {
+  const response = await send(path, {});
+  if (response.status === 401 && (await refreshOnce())) {
+    return download(path, fallbackName);
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, `Could not export (${response.status}).`);
+  }
+
+  // The server names the file and dates it; the fallback is only for a proxy that strips
+  // the header.
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const match = /filename="([^"]+)"/.exec(disposition);
+  const name = match?.[1] ?? fallbackName;
+
+  const url = URL.createObjectURL(await response.blob());
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.append(link);
+    link.click();
+    link.remove();
+  } finally {
+    // Revoked, or the blob is held for the life of the page.
+    URL.revokeObjectURL(url);
+  }
+}
+
 export const api = {
   register: (email: string, password: string, inviteCode?: string, currency?: Currency) =>
     request<User>("/api/auth/register", {
@@ -414,6 +450,9 @@ export const api = {
 
   skipPending: (id: string) =>
     request<void>(`/api/recurring/occurrences/${id}/skip`, { method: "POST" }),
+
+  exportCsv: (kind: "entries" | "savings" | "inventory") =>
+    download(`/api/export/${kind}.csv`, `minimalbudget-${kind}.csv`),
 
   summary: (month: string) => request<Summary>(`/api/dashboard/summary${query({ month })}`),
 
