@@ -23,6 +23,9 @@ const entries = [
     amount: "800.00",
     occurred_on: "2026-08-01",
     note: "August rent",
+    quantity: null,
+    unit: null,
+    unit_price: null,
     created_at: "",
   },
 ];
@@ -238,5 +241,93 @@ describe("editing an entry", () => {
 
     expect(screen.queryByLabelText("Edit amount")).toBeNull();
     expect(patchesFrom(fetchMock)).toHaveLength(0);
+  });
+});
+
+describe("quantity and unit price (AD-29)", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function openQuantity(user: ReturnType<typeof userEvent.setup>) {
+    render(<EntriesPage />);
+    await screen.findByRole("table", { name: "Entries" });
+    const form = screen.getByRole("form", { name: "Record an entry" });
+    await user.click(within(form).getByRole("button", { name: "+ Quantity" }));
+    return form;
+  }
+
+  it("fills the unit price from amount and quantity, and posts only the pair", async () => {
+    const fetchMock = mockApi();
+    const user = userEvent.setup();
+    const form = await openQuantity(user);
+
+    await user.type(within(form).getByLabelText("Amount"), "60.00");
+    await user.type(within(form).getByLabelText("Quantity"), "40");
+    await user.selectOptions(within(form).getByLabelText("Unit"), "l");
+    expect(within(form).getByLabelText(/Unit price/)).toHaveValue("1.5000");
+
+    await user.type(within(form).getByLabelText("Category"), "Fuel");
+    await user.click(within(form).getByRole("button", { name: "Add" }));
+
+    await waitFor(() => {
+      const posted = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+      const body = JSON.parse(String(posted?.[1]?.body));
+      expect(body.quantity).toBe("40");
+      expect(body.unit).toBe("l");
+      // The rate is derived server-side; sending it would be a second source of truth.
+      expect(body.unit_price).toBeUndefined();
+    });
+  });
+
+  it("fills the amount from quantity and unit price", async () => {
+    mockApi();
+    const user = userEvent.setup();
+    const form = await openQuantity(user);
+
+    await user.type(within(form).getByLabelText("Quantity"), "40.123");
+    await user.type(within(form).getByLabelText(/Unit price/), "1.499");
+    expect(within(form).getByLabelText("Amount")).toHaveValue("60.14");
+  });
+
+  it("refuses a quantity without a unit before it reaches the server", async () => {
+    const fetchMock = mockApi();
+    const user = userEvent.setup();
+    const form = await openQuantity(user);
+
+    await user.type(within(form).getByLabelText("Amount"), "60.00");
+    await user.type(within(form).getByLabelText("Quantity"), "40");
+    await user.type(within(form).getByLabelText("Category"), "Fuel");
+    await user.click(within(form).getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Choose a unit");
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+  });
+
+  it("hides the section for an income entry", async () => {
+    mockApi();
+    const user = userEvent.setup();
+    const form = await openQuantity(user);
+
+    await user.selectOptions(within(form).getByLabelText("Kind"), "income");
+    expect(within(form).queryByLabelText("Quantity")).toBeNull();
+    expect(within(form).queryByRole("button", { name: "+ Quantity" })).toBeNull();
+  });
+
+  it("shows the rate beneath a quantified amount in the table", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/api/categories")) return json({ items: categories });
+        return json({
+          items: [
+            { ...entries[0], quantity: "40.000", unit: "l", unit_price: "20.0000" },
+          ],
+        });
+      }),
+    );
+    render(<EntriesPage />);
+    const table = await screen.findByRole("table", { name: "Entries" });
+    expect(within(table).getByText("20.0000 /l")).toBeInTheDocument();
   });
 });

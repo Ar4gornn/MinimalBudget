@@ -158,6 +158,54 @@ _EXPENSE_SERIES = text(
 )
 
 
+# AD-29. The monthly rate is SUM(amount) / SUM(quantity) — volume-weighted — never the
+# average of per-entry rates: two fills of 10 l at 1.60 and 50 l at 1.40 cost 1.433/l, not
+# 1.50/l. ROUND(x, 4) in Postgres rounds half away from zero, which for a positive rate is
+# the same ROUND_HALF_UP the model's ``unit_price`` property uses; a test holds them equal.
+# A month with nothing quantified is NULL for the rate — the one deliberate exception to
+# AD-22, because 0.0000 is a price — and 0 for the quantity, because "bought nothing" is one.
+_UNIT_PRICES = text(
+    """
+    WITH months AS (
+        SELECT CAST(
+            generate_series(CAST(:start AS date), CAST(:last AS date), interval '1 month')
+            AS date
+        ) AS m
+    ),
+    quantified AS (
+        SELECT category_id,
+               unit,
+               CAST(date_trunc('month', occurred_on) AS date) AS m,
+               SUM(amount)   AS spent,
+               SUM(quantity) AS qty
+        FROM entries
+        WHERE user_id = :uid AND kind = 'expense' AND quantity IS NOT NULL
+          AND occurred_on >= :start AND occurred_on < :end
+        GROUP BY 1, 2, 3
+    ),
+    series AS (
+        SELECT DISTINCT q.category_id, c.name AS category_name, q.unit
+        FROM quantified q
+        JOIN categories c ON c.id = q.category_id AND c.user_id = :uid
+    )
+    SELECT series.category_id,
+           series.category_name,
+           series.unit,
+           to_char(months.m, 'YYYY-MM') AS month,
+           CASE WHEN quantified.qty IS NULL THEN NULL
+                ELSE ROUND(quantified.spent / quantified.qty, 4) END AS unit_price,
+           COALESCE(quantified.qty, 0) AS quantity
+    FROM series
+    CROSS JOIN months
+    LEFT JOIN quantified
+           ON quantified.category_id = series.category_id
+          AND quantified.unit = series.unit
+          AND quantified.m = months.m
+    ORDER BY lower(series.category_name), series.unit, series.category_id, months.m
+    """
+)
+
+
 class Summary:
     def __init__(
         self,
@@ -245,3 +293,29 @@ def trends(
         "saved": series["saved"],
         "expense_by_category": list(by_category.values()),
     }
+
+
+def unit_prices(
+    session: Session, user_id: uuid.UUID, *, months: int, ending: str | None = None
+) -> dict:
+    last_month = parse_month(ending) if ending else dt.date.today().replace(day=1)
+    window = _window_ending_at(user_id, last_month, months)
+
+    labels = [row.month for row in session.execute(_TRENDS, window)]
+
+    by_key: dict[tuple[uuid.UUID, str], dict] = {}
+    for row in session.execute(_UNIT_PRICES, window):
+        series = by_key.setdefault(
+            (row.category_id, row.unit),
+            {
+                "category_id": row.category_id,
+                "category_name": row.category_name,
+                "unit": row.unit,
+                "unit_price": [],
+                "quantity": [],
+            },
+        )
+        series["unit_price"].append(row.unit_price)
+        series["quantity"].append(row.quantity)
+
+    return {"months": labels, "series": list(by_key.values())}

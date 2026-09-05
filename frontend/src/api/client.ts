@@ -15,11 +15,14 @@ import type {
   EntryKind,
   Money,
   Page,
+  Quantity,
   SavingsType,
   Summary,
   Target,
   Token,
   Trends,
+  Unit,
+  UnitPrices,
   User,
 } from "./types";
 
@@ -190,6 +193,9 @@ export interface EntryInput {
   note?: string | null;
   category_id?: string;
   category_name?: string;
+  /** AD-29: both or neither. Sent as an explicit null pair to clear. */
+  quantity?: Quantity | null;
+  unit?: Unit | null;
 }
 
 export const api = {
@@ -297,4 +303,9 @@ export const api = {
 
   trends: (months: number, ending?: string) =>
     request<Trends>(`/api/dashboard/trends${query({ months: String(months), ending })}`),
+
+  unitPrices: (months: number, ending?: string) =>
+    request<UnitPrices>(
+      `/api/dashboard/unit-prices${query({ months: String(months), ending })}`,
+    ),
 };

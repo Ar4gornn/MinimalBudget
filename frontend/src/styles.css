@@ -345,6 +345,19 @@ button.link {
   font-size: 14px;
 }
 
+/* AD-29: the derived rate sits under the amount, in the same face, quieter. */
+.hint.rate {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+/* The optional quantity block takes its own line inside the entry form. */
+.quantity-row {
+  flex: 1 1 100%;
+}
+
 .hint {
   color: var(--faint);
   font-size: 13px;

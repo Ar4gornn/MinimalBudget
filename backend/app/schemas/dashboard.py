@@ -2,7 +2,8 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.common import NonNegativeMoney, SignedMoney
+from app.models.ledger import Unit
+from app.schemas.common import NonNegativeMoney, NonNegativeQuantity, Rate, SignedMoney
 
 
 class BudgetVsActual(BaseModel):
@@ -51,3 +52,23 @@ class TrendsOut(BaseModel):
     expense: list[NonNegativeMoney]
     saved: list[NonNegativeMoney]
     expense_by_category: list[CategorySeries]
+
+
+class UnitPriceSeries(BaseModel):
+    """One (category, unit) pair across the window.
+
+    ``unit_price[i]`` is ``null`` for a month with no quantified purchase — the one place
+    an aggregate here may be null, because ``0.0000`` would be a price (AD-29).
+    ``quantity[i]`` is zero for the same month, because "bought nothing" is a quantity.
+    """
+
+    category_id: uuid.UUID
+    category_name: str
+    unit: Unit
+    unit_price: list[Rate | None]
+    quantity: list[NonNegativeQuantity]
+
+
+class UnitPricesOut(BaseModel):
+    months: list[str]
+    series: list[UnitPriceSeries]

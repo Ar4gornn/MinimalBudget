@@ -41,6 +41,40 @@ export interface Category {
   created_at: string;
 }
 
+/**
+ * AD-29: the closed list of units a quantity can be in. Defined once, here; the select in
+ * the entry form and the labels beside a rate both read from it.
+ */
+export const UNITS = ["l", "gal", "kg", "lb", "kwh", "m3", "unit"] as const;
+export type Unit = (typeof UNITS)[number];
+
+export const UNIT_LABELS: Record<Unit, string> = {
+  l: "litres",
+  gal: "gallons",
+  kg: "kg",
+  lb: "lb",
+  kwh: "kWh",
+  m3: "m³",
+  unit: "units",
+};
+
+/** "per litre", "per kWh": the singular for a rate's caption. */
+export const UNIT_SINGULAR: Record<Unit, string> = {
+  l: "litre",
+  gal: "gallon",
+  kg: "kg",
+  lb: "lb",
+  kwh: "kWh",
+  m3: "m³",
+  unit: "unit",
+};
+
+/** A three-place decimal string: how much of something was bought. */
+export type Quantity = string;
+
+/** A four-place decimal string. Derived, never money, never a number (AD-29). */
+export type Rate = string;
+
 export interface Entry {
   id: string;
   kind: EntryKind;
@@ -48,6 +82,10 @@ export interface Entry {
   amount: Money;
   occurred_on: string;
   note: string | null;
+  quantity: Quantity | null;
+  unit: Unit | null;
+  /** Computed by the server from amount and quantity; null when there is no quantity. */
+  unit_price: Rate | null;
   created_at: string;
 }
 
@@ -115,4 +153,19 @@ export interface Trends {
   expense: Money[];
   saved: Money[];
   expense_by_category: CategorySeries[];
+}
+
+export interface UnitPriceSeries {
+  category_id: string;
+  category_name: string;
+  unit: Unit;
+  /** null for a month with no quantified purchase — not zero, because zero is a price. */
+  unit_price: (Rate | null)[];
+  /** Zero for such a month, because "bought nothing" is a quantity. */
+  quantity: Quantity[];
+}
+
+export interface UnitPrices {
+  months: string[];
+  series: UnitPriceSeries[];
 }
