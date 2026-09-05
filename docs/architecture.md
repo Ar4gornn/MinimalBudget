@@ -457,6 +457,37 @@ security-definer function
   has declared dead). Push is off unless the instance is given VAPID keys: there is no
   fallback key, per AD-15, and the endpoints answer `503` while the client hides the control.
 
+### AD-35 — A plan and a record are separate rows, and neither rewrites the other
+
+- **Binds:** gym, recurring entries, inventory
+- **Extends:** AD-33 (a decision is recorded, never recomputed) and AD-21 (delete behaviour is
+  fixed in the schema)
+- **Prevents:** the shortcut every training app takes — copying a routine's targets into a
+  session as "sets", so the log says you benched 4×8 because you *planned* to. It also prevents
+  the mirror mistake: deleting the plan taking the history with it.
+- **Rule:** a plan (a routine, a recurring template, a restock threshold) and a record (a set,
+  an entry, a purchase) never share a row and never write each other. Starting a session from a
+  routine copies nothing; the client reads the plan to prefill a form, and a set exists once it
+  was done. Deleting a plan therefore uses `ON DELETE SET NULL` on the record's reference — and
+  the **column-list form**, `SET NULL (routine_id)`, because the plain form nulls every column
+  of the referencing key including the `NOT NULL` `user_id` that AD-18 requires, which makes the
+  delete fail outright. The same applies to `recurring_occurrences.entry_id` and
+  `inventory_purchases.entry_id`.
+
+### AD-36 — A unit of measure belongs to the account, and changing it relabels
+
+- **Binds:** gym, currency
+- **Extends:** the per-account currency decision of Epic 9, generalised
+- **Prevents:** a log holding both 100 kg and 100 lb, in which every chart is ambiguous and
+  every comparison silently wrong; and the "fix" of converting on read, which needs a rule about
+  the past that nobody chose.
+- **Rule:** a unit that scales stored numbers — the account's currency, the account's weight
+  unit — is a property of the account, not of the row. Changing it **relabels rather than
+  converts**, so it is refused once any row depends on it: the currency once the ledger has an
+  entry or a contribution, the weight unit once a set is logged. Units that merely *name* what
+  was measured (AD-29's litres and kilos on an entry) are per-row and never converted either;
+  the difference is that those are compared within a unit, not across one.
+
 ## Consistency Conventions
 
 | Concern | Convention |

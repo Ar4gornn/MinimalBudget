@@ -19,6 +19,8 @@ queries as a second user rather than by reading a policy and believing it.
 - Set a **standing monthly budget** per expense category and a **monthly target** per savings type.
 - Change your password, and generate one-time **recovery codes** so a forgotten password is not a
   trip to the operator.
+- Train from reusable **routines** and log a workout set by set, with a chart of whether the
+  lift is going up.
 - Turn on **notifications** for a phone and get one daily reminder of what needs doing.
 - Record the **vendor** on an entry, and compare what each shop charged per litre or per kilo.
 - **Export** everything as CSV, from Settings.

@@ -100,7 +100,16 @@ a {
   flex-wrap: wrap;
 }
 
-.nav a {
+/* Always visible, including on a phone where .nav is hidden: these are the sections that
+   did not fit the bottom bar, so hiding them too would strand them. */
+.nav-extra {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.nav a,
+.nav-extra a {
   padding: 5px 10px;
   border-radius: var(--radius);
   color: var(--muted);
@@ -108,12 +117,14 @@ a {
   font-size: 14px;
 }
 
-.nav a:hover {
+.nav a:hover,
+.nav-extra a:hover {
   background: var(--surface);
   color: var(--text);
 }
 
-.nav a[aria-current="page"] {
+.nav a[aria-current="page"],
+.nav-extra a[aria-current="page"] {
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
@@ -581,6 +592,16 @@ tr.history td {
   /* Replaced by the bottom bar, which is reachable by thumb. */
   .nav {
     display: none;
+  }
+
+  /* .nav-extra stays: it holds the sections the bottom bar has no room for. */
+  .nav-extra {
+    margin-left: 0;
+  }
+
+  .nav-extra a {
+    padding: 4px 8px;
+    font-size: 13px;
   }
 
   .identity {

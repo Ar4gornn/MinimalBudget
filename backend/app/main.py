@@ -9,6 +9,7 @@ from app.api import (
     dashboard,
     entries,
     export,
+    gym,
     inventory,
     push,
     recurring,
@@ -75,6 +76,7 @@ app.include_router(recurring.router)
 app.include_router(export.router)
 app.include_router(vendors.router)
 app.include_router(push.router)
+app.include_router(gym.router)
 
 
 @app.get("/health", tags=["meta"])

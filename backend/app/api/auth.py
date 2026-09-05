@@ -20,6 +20,7 @@ from app.schemas.auth import (
     RegistrationRequest,
     TokenOut,
     UserOut,
+    WeightUnitUpdate,
 )
 from app.services import auth as auth_service
 from app.services import invites as invite_service
@@ -276,6 +277,22 @@ def set_currency(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 "This account already has entries. Changing the currency would relabel them "
+                "rather than convert them, so it is locked."
+            ),
+        ) from None
+
+
+@router.patch("/me/weight-unit", response_model=UserOut)
+def set_weight_unit(
+    payload: WeightUnitUpdate, user_id: CurrentUserId, session: DbSession
+) -> auth_service.UserRow:
+    try:
+        return auth_service.set_weight_unit(session, user_id, payload.weight_unit)
+    except auth_service.WeightUnitLocked:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This account already has logged sets. Changing the unit would relabel them "
                 "rather than convert them, so it is locked."
             ),
         ) from None

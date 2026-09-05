@@ -15,7 +15,7 @@ _DECIMAL_TEXT = re.compile(r"^-?\d{1,15}(\.\d+)?$")
 _NOT_A_NUMBER = 'amount must be a plain decimal number, for example "1250.00"'
 
 
-def _to_decimal(value: object) -> Decimal:
+def to_decimal(value: object) -> Decimal:
     """Accept a string, an int, or a Decimal. Reject everything else.
 
     Every failure here must raise ``ValueError``. Pydantic turns a ``ValueError`` into a
@@ -47,10 +47,10 @@ def _to_decimal(value: object) -> Decimal:
     raise ValueError(_NOT_A_NUMBER)
 
 
-def _quantise(value: Decimal, places: int = 2) -> Decimal:
+def quantise(value: Decimal, places: int = 2) -> Decimal:
     exponent = value.as_tuple().exponent
     # A non-finite Decimal reports its exponent as a string ('n', 'N', 'F'), so comparing
-    # it to an int raises TypeError — another 500. _to_decimal already rejects those; this
+    # it to an int raises TypeError — another 500. to_decimal already rejects those; this
     # is the belt to that brace.
     if not isinstance(exponent, int):
         raise ValueError(_NOT_A_NUMBER)
@@ -70,7 +70,7 @@ def quantise_rate(value: Decimal) -> Decimal:
 # so a JavaScript client cannot round-trip it through a float and lose cents.
 Money = Annotated[
     Decimal,
-    BeforeValidator(lambda v: _quantise(_to_decimal(v))),
+    BeforeValidator(lambda v: quantise(to_decimal(v))),
     Field(gt=Decimal("0"), le=Decimal("999999999999.99")),
     PlainSerializer(lambda v: f"{v:.2f}", return_type=str),
 ]
@@ -78,7 +78,7 @@ Money = Annotated[
 # Budgets and targets may legitimately be zero — "I intend to spend nothing here".
 NonNegativeMoney = Annotated[
     Decimal,
-    BeforeValidator(lambda v: _quantise(_to_decimal(v))),
+    BeforeValidator(lambda v: quantise(to_decimal(v))),
     Field(ge=Decimal("0"), le=Decimal("999999999999.99")),
     PlainSerializer(lambda v: f"{v:.2f}", return_type=str),
 ]
@@ -87,7 +87,7 @@ NonNegativeMoney = Annotated[
 # Net income can legitimately be negative — that is the month you overspent.
 SignedMoney = Annotated[
     Decimal,
-    BeforeValidator(lambda v: _quantise(_to_decimal(v))),
+    BeforeValidator(lambda v: quantise(to_decimal(v))),
     Field(ge=Decimal("-999999999999.99"), le=Decimal("999999999999.99")),
     PlainSerializer(lambda v: f"{v:.2f}", return_type=str),
 ]
@@ -96,7 +96,7 @@ SignedMoney = Annotated[
 # shop scale shows grams. Same shape rule as money: a string, never a float.
 Quantity = Annotated[
     Decimal,
-    BeforeValidator(lambda v: _quantise(_to_decimal(v), places=3)),
+    BeforeValidator(lambda v: quantise(to_decimal(v), places=3)),
     Field(gt=Decimal("0"), le=Decimal("999999999.999")),
     PlainSerializer(lambda v: f"{v:.3f}", return_type=str),
 ]
@@ -104,7 +104,7 @@ Quantity = Annotated[
 # A period's total quantity may be zero — nothing bought that month.
 NonNegativeQuantity = Annotated[
     Decimal,
-    BeforeValidator(lambda v: _quantise(_to_decimal(v), places=3)),
+    BeforeValidator(lambda v: quantise(to_decimal(v), places=3)),
     Field(ge=Decimal("0"), le=Decimal("999999999.999")),
     PlainSerializer(lambda v: f"{v:.3f}", return_type=str),
 ]
@@ -113,7 +113,7 @@ NonNegativeQuantity = Annotated[
 # confused with an amount in a sum or on the wire.
 Rate = Annotated[
     Decimal,
-    BeforeValidator(lambda v: _quantise(_to_decimal(v), places=4)),
+    BeforeValidator(lambda v: quantise(to_decimal(v), places=4)),
     Field(ge=Decimal("0")),
     PlainSerializer(lambda v: f"{v:.4f}", return_type=str),
 ]

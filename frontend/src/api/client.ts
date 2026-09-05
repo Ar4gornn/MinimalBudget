@@ -10,6 +10,8 @@ import type {
   Budget,
   Currency,
   Category,
+  Exercise,
+  ExerciseHistory,
   Contribution,
   Entry,
   EntryKind,
@@ -25,6 +27,9 @@ import type {
   Quantity,
   RecurringTemplate,
   Restocks,
+  Routine,
+  RoutineDetail,
+  RoutineLine,
   SavingsType,
   ShoppingList,
   Space,
@@ -37,6 +42,11 @@ import type {
   User,
   Vendor,
   VendorPrices,
+  Weight,
+  WeightUnit,
+  Workout,
+  WorkoutDetail,
+  WorkoutSet,
 } from "./types";
 
 // AD-15: configuration, never a hardcoded host. Empty means "same origin", which is what
@@ -349,6 +359,89 @@ export const api = {
 
   deleteCategory: (id: string) =>
     request<void>(`/api/categories/${id}`, { method: "DELETE" }),
+
+  setWeightUnit: (weightUnit: WeightUnit) =>
+    request<User>("/api/auth/me/weight-unit", {
+      method: "PATCH",
+      body: JSON.stringify({ weight_unit: weightUnit }),
+    }),
+
+  listExercises: () => items(request<Page<Exercise>>("/api/gym/exercises")),
+
+  createExercise: (input: { name: string; video_url?: string | null; note?: string | null }) =>
+    request<Exercise>("/api/gym/exercises", { method: "POST", body: JSON.stringify(input) }),
+
+  updateExercise: (
+    id: string,
+    patch: { name?: string; video_url?: string | null; note?: string | null },
+  ) =>
+    request<Exercise>(`/api/gym/exercises/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+
+  deleteExercise: (id: string) =>
+    request<void>(`/api/gym/exercises/${id}`, { method: "DELETE" }),
+
+  exerciseHistory: (id: string) =>
+    request<ExerciseHistory>(`/api/gym/exercises/${id}/history`),
+
+  listRoutines: () => items(request<Page<Routine>>("/api/gym/routines")),
+
+  createRoutine: (name: string, note?: string) =>
+    request<Routine>("/api/gym/routines", {
+      method: "POST",
+      body: JSON.stringify({ name, ...(note ? { note } : {}) }),
+    }),
+
+  readRoutine: (id: string) => request<RoutineDetail>(`/api/gym/routines/${id}`),
+
+  deleteRoutine: (id: string) => request<void>(`/api/gym/routines/${id}`, { method: "DELETE" }),
+
+  addRoutineLine: (
+    routineId: string,
+    input: {
+      exercise_id?: string;
+      exercise_name?: string;
+      target_sets?: number | null;
+      target_reps?: number | null;
+    },
+  ) =>
+    request<RoutineLine>(`/api/gym/routines/${routineId}/exercises`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  removeRoutineLine: (lineId: string) =>
+    request<void>(`/api/gym/routines/lines/${lineId}`, { method: "DELETE" }),
+
+  listWorkouts: (filters: { month?: string; limit?: number } = {}) =>
+    items(
+      request<Page<Workout>>(
+        `/api/gym/workouts${query({
+          month: filters.month,
+          limit: filters.limit ? String(filters.limit) : undefined,
+        })}`,
+      ),
+    ),
+
+  startWorkout: (input: { performed_on?: string; routine_id?: string; note?: string }) =>
+    request<Workout>("/api/gym/workouts", { method: "POST", body: JSON.stringify(input) }),
+
+  readWorkout: (id: string) => request<WorkoutDetail>(`/api/gym/workouts/${id}`),
+
+  deleteWorkout: (id: string) => request<void>(`/api/gym/workouts/${id}`, { method: "DELETE" }),
+
+  logSet: (
+    workoutId: string,
+    input: { exercise_id?: string; exercise_name?: string; reps: number; weight?: Weight },
+  ) =>
+    request<WorkoutSet>(`/api/gym/workouts/${workoutId}/sets`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  deleteSet: (id: string) => request<void>(`/api/gym/sets/${id}`, { method: "DELETE" }),
 
   pushStatus: () => request<PushStatus>("/api/push/status"),
 

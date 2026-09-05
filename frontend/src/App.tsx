@@ -6,16 +6,22 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { EntriesPage } from "./pages/EntriesPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { PlanPage } from "./pages/PlanPage";
+import { GymPage } from "./pages/GymPage";
 import { ProjectionsPage } from "./pages/ProjectionsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SignInPage } from "./pages/SignInPage";
+
+/** Reachable from the top bar only; the bottom bar holds the five thumb-reachable ones. */
+const TOP_ONLY = [{ to: "/projections", label: "Grow" }];
 
 const SECTIONS = [
   { to: "/", label: "Dashboard", glyph: "◪", end: true },
   { to: "/entries", label: "Entries", glyph: "≡", end: false },
   { to: "/plan", label: "Plan", glyph: "◎", end: false },
-  { to: "/projections", label: "Grow", glyph: "↗", end: false },
   { to: "/inventory", label: "Stock", glyph: "▤", end: false },
+  // Gym is a thing you open at the gym, so it earns a thumb-reachable tab. Grow is a thing
+  // you consult occasionally, so it moved to the top bar — six tabs do not fit 375px.
+  { to: "/gym", label: "Gym", glyph: "◈", end: false },
 ];
 
 export function App() {
@@ -43,6 +49,18 @@ export function App() {
             </NavLink>
           ))}
         </nav>
+
+        {/* Grow lives here rather than in the bottom bar: interest projections are a thing
+            you consult now and then, and the bottom bar is for the five things you open at
+            the moment you need them. Its own element, not part of .nav, because .nav is
+            hidden on a phone — which would leave Grow unreachable there. */}
+        <nav className="nav-extra" aria-label="More">
+          {TOP_ONLY.map((section) => (
+            <NavLink key={section.to} to={section.to}>
+              {section.label}
+            </NavLink>
+          ))}
+        </nav>
         {/* The email is the way into Settings: currency, password, recovery codes and
             sign-out all live there, so the top bar carries one link instead of a button
             for each. Six bottom tabs would not fit a phone; one link here does. */}
@@ -63,6 +81,7 @@ export function App() {
           <Route path="/categories/:categoryId" element={<CategoryPage />} />
           <Route path="/plan" element={<PlanPage />} />
           <Route path="/projections" element={<ProjectionsPage />} />
+          <Route path="/gym" element={<GymPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

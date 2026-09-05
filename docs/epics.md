@@ -61,6 +61,8 @@ up front.
 | FR-38 | A user can record which vendor an entry was bought from, creating the vendor by name. |
 | FR-39 | A user can compare what each vendor charged for a category, per unit and in total. |
 | FR-40 | A user can turn on notifications for a device and receive at most one daily reminder of what needs doing. |
+| FR-41 | A user can define reusable routines: a named list of exercises with target sets and reps. |
+| FR-42 | A user can log a workout set by set, with reps and an optional weight, and see whether a lift is going up. |
 
 ### NonFunctional Requirements
 
@@ -94,6 +96,8 @@ Sourced from the architecture spine. These bind every story that touches them.
 | AR-12 | Recurrence materialises on read and is idempotent; a decision is recorded, never recomputed. | AD-33 |
 | AR-13 | The ledger and the inventory touch in exactly one named service, in one transaction, never as a side effect. | AD-31 |
 | AR-14 | Scheduled work runs from cron as the runtime role, under RLS, and never writes domain data. | AD-34 |
+| AR-15 | A plan and a record are separate rows; deleting the plan leaves the record, via the column-list `SET NULL`. | AD-35 |
+| AR-16 | A scaling unit belongs to the account and locks once anything depends on it. | AD-36 |
 
 ### UX Design Requirements
 
@@ -146,6 +150,7 @@ AD-17).
 | FR-37 | Story 16.1 |
 | FR-38, FR-39 | Story 17.1 |
 | FR-40, AR-14 | Stories 18.1, 18.2 |
+| FR-41, FR-42, AR-15, AR-16 | Stories 19.1, 19.2 |
 
 ## Epic List
 
@@ -169,6 +174,7 @@ AD-17).
 | 16 | Export | The data can leave, as files a spreadsheet opens and cannot be tricked by. |
 | 17 | Vendors | "Is Shell dearer than Total?" becomes a number rather than an impression. |
 | 18 | Notifications | The reminders reach a phone that is not open on the app, without a scheduler this deployment cannot host. |
+| 19 | Gym | The first module that is not about money: routines to train from, and a log honest enough to answer whether the lift is going up. |
 
 Epics 8 and 9 were built on 2026-08-30 and 2026-09-01 and written up here afterwards, from the
 commits and the tests, on 2026-09-05. Each is one story because each was one commit with one
@@ -1021,6 +1027,64 @@ So that there is no scheduler inside the API to die with the container or run tw
 
 ---
 
+## Epic 19: Gym
+
+The first module with nothing to do with money, and the point at which this stops being a
+budgeting app with extras and becomes the personal tracker the 2026-08-30 direction note
+described. It reuses the whole substrate — invite-only accounts, row-level isolation, the
+create-by-name pattern, hand-rolled SVG — and adds no new machinery.
+
+Scoped by interview before any code, per the repo's own rule. The choices, with what was
+rejected: **reusable routines** rather than a calendar of planned sessions (a missed gym day is
+not something the app should nag about); **per-set** logging rather than a top set or an
+attendance record (it is the only level at which "am I getting stronger?" has an answer); a
+**user-owned exercise list** rather than a built-in catalogue (opinionated data in a personal
+app, and anything missing needs a free-text escape anyway); and **a fifth bottom tab, with Grow
+moving to the top bar**, because six tabs do not fit a 375px phone and Grow is consulted
+occasionally while Gym is opened at the gym.
+
+### Story 19.1: Exercises and routines
+
+As someone who trains to a plan,
+I want to describe that plan once,
+So that starting a session does not mean typing the same six exercises again.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user
+**When** they create a routine and add exercises to it, by name
+**Then** the exercise is created for that user if absent and reused case-insensitively, keeping the first spelling (FR-41, AD-12)
+**And** each line carries a position, so the routine has an order, and optional target sets and reps
+**And** the same exercise twice in one routine is refused — "bench, then bench again" is sets, not two lines
+**And** an exercise may carry an **https** link to a form video: the scheme is validated in the service *and* by a database `CHECK`, because it ends up in an anchor somebody taps, and `javascript:` must never get that far. It is rendered as an external link with `rel="noopener noreferrer"`, never framed — an embed would mean loosening the `Content-Security-Policy` and loading a third-party player into a private family app
+**And** the `exercises`, `routines` and `routine_exercises` tables, created by this story through `protect()`, carry composite foreign keys including `user_id` (AD-18); a routine's lines cascade with it, and an exercise still referenced anywhere answers `409` (AD-21)
+**And** a duplicate routine name answers `409`
+
+### Story 19.2: The log, and whether it is going up
+
+As someone who wants to know if the training is working,
+I want each set recorded as it happened,
+So that the answer is a line on a chart rather than a feeling.
+
+**Acceptance Criteria:**
+
+**Given** a session started from a routine, or empty
+**When** sets are logged
+**Then** each set carries an exercise, reps, an optional weight and a position, so supersets and any order work without a second concept (FR-42)
+**And** starting from a routine **copies nothing**: the plan prefills the form, and a set exists once it was done (AR-15, AD-35)
+**And** a bodyweight set carries no weight at all — not zero, which would be a weight — and shows as "bodyweight"
+**And** a weight is a two-place decimal string on the wire, never a float, refused on the client and by the API (AD-5)
+**And** zero reps is refused by validation and by a database `CHECK`
+**And** deleting a routine keeps the sessions done from it, with a null `routine_id` — via `ON DELETE SET NULL (routine_id)`, the column-list form, because the plain form nulls the `NOT NULL` `user_id` too and the delete fails outright (AR-15)
+**And** deleting a session takes its sets, which are part of it
+**And** `GET /api/gym/exercises/{id}/history` reports, per session, the heaviest set, total reps, set count and volume — with volume `null` rather than `0` on a session where nothing carried a weight, since "did nothing" is not what a bodyweight day means
+**And** the chart draws the heaviest set per session, leaving a gap rather than a drop to zero for a bodyweight session, and says so in words when every session was bodyweight
+**And** the account's weight unit is `kg` or `lb`, defaults to `kg`, and locks once a set exists, because changing it relabels rather than converts (AR-16, AD-36)
+**And** Gym is the fifth bottom tab and Grow moves to the top bar, which stays visible on a phone — hiding it there would strand it
+**And** user B sees none of user A's exercises, routines, sessions or history, and cannot log a set against A's session or exercise
+
+---
+
 ## Decided, not yet specced
 
 Direction settled on 2026-08-30. Recorded here so it is not re-litigated; none of it is built,
@@ -1035,7 +1099,8 @@ and each needs its own epic before any code.
 - **A native app, not a PWA**, because the intent is to grow past budgeting — gym plans, todos,
   other trackers. That makes this a personal-tracking platform with a budget module, and the name
   and the API shape both need to follow. The v2 Expo plan stands; the API's module boundaries are
-  the thing to get right first.
+  the thing to get right first. **The first non-money module landed as Epic 19 (gym)**, and it
+  needed no new machinery — which is the evidence the module boundaries were right.
 - **Users stay fully independent.** No household or shared pot. Family members live in different
   countries, so there is nothing to share and the row-level security already delivers exactly
   this. No work required — recorded so the option is not revisited by accident.

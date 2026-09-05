@@ -18,9 +18,13 @@ export interface Page<T> {
 
 export type Currency = "USD" | "EUR";
 
+export type WeightUnit = "kg" | "lb";
+
 export interface User {
   id: string;
   email: string;
+  /** kg or lb. Like the currency, changing it relabels rather than converts. */
+  weight_unit: WeightUnit;
   /** Scoped to the account: one ledger, one currency, so totals need no conversion. */
   currency: Currency;
   created_at: string;
@@ -315,4 +319,80 @@ export interface PushStatus {
   /** False when the instance has no VAPID keys: the toggle is hidden rather than broken. */
   enabled: boolean;
   devices: number;
+}
+
+/** A weight, as a two-place decimal string. Null for a bodyweight set — 0 would be a weight. */
+export type Weight = string;
+
+export interface Exercise {
+  id: string;
+  name: string;
+  /** An https link to a form video. Opened externally, never embedded. */
+  video_url: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface Routine {
+  id: string;
+  name: string;
+  note: string | null;
+  created_at: string;
+}
+
+export interface RoutineLine {
+  id: string;
+  exercise_id: string;
+  exercise_name: string;
+  video_url: string | null;
+  position: number;
+  target_sets: number | null;
+  target_reps: number | null;
+}
+
+export interface RoutineDetail {
+  id: string;
+  name: string;
+  note: string | null;
+  lines: RoutineLine[];
+}
+
+export interface Workout {
+  id: string;
+  routine_id: string | null;
+  performed_on: string;
+  note: string | null;
+  created_at: string;
+}
+
+export interface WorkoutSet {
+  id: string;
+  exercise_id: string;
+  exercise_name: string;
+  position: number;
+  reps: number;
+  weight: Weight | null;
+}
+
+export interface WorkoutDetail {
+  id: string;
+  routine_id: string | null;
+  performed_on: string;
+  note: string | null;
+  sets: WorkoutSet[];
+}
+
+export interface HistoryPoint {
+  performed_on: string;
+  top_weight: Weight | null;
+  reps: number;
+  sets: number;
+  /** Null on a session where nothing carried a weight. */
+  volume: Weight | null;
+}
+
+export interface ExerciseHistory {
+  exercise_id: string;
+  exercise_name: string;
+  points: HistoryPoint[];
 }

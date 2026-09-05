@@ -6,6 +6,14 @@ here. The migration is the authority; these declarations keep the ORM honest abo
 """
 
 from app.models.base import Base
+from app.models.gym import (
+    Exercise,
+    Routine,
+    RoutineExercise,
+    WeightUnit,
+    Workout,
+    WorkoutSet,
+)
 from app.models.inventory import InventoryItem, InventoryItemChange, Space
 from app.models.ledger import Budget, Category, Entry, EntryKind, Unit, Vendor
 from app.models.purchase import InventoryPurchase
@@ -24,9 +32,15 @@ __all__ = [
     "Category",
     "Entry",
     "EntryKind",
+    "Exercise",
     "InventoryItem",
     "InventoryPurchase",
     "PushSubscription",
+    "Routine",
+    "RoutineExercise",
+    "WeightUnit",
+    "Workout",
+    "WorkoutSet",
     "InventoryItemChange",
     "SavingsContribution",
     "SavingsTarget",

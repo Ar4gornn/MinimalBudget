@@ -35,17 +35,25 @@ class UserRow:
     """
 
     def __init__(
-        self, id: uuid.UUID, email: str, currency: str, created_at: datetime
+        self,
+        id: uuid.UUID,
+        email: str,
+        currency: str,
+        weight_unit: str,
+        created_at: datetime,
     ) -> None:
         self.id = id
         self.email = email
         self.currency = currency
+        self.weight_unit = weight_unit
         self.created_at = created_at
 
 
 def _read_user(session: Session, user_id: uuid.UUID) -> UserRow | None:
     row = session.execute(
-        select(User.id, User.email, User.currency, User.created_at).where(User.id == user_id)
+        select(User.id, User.email, User.currency, User.weight_unit, User.created_at).where(
+            User.id == user_id
+        )
     ).one_or_none()
     return None if row is None else UserRow(*row)
 
@@ -120,6 +128,35 @@ def authenticate(session: Session, *, email: str, password: str) -> uuid.UUID | 
 _DUMMY_HASH = hash_password(uuid.uuid4().hex)
 
 
+class WeightUnitLocked(Exception):
+    """Refused because the account already has logged sets."""
+
+
+def set_weight_unit(session: Session, user_id: uuid.UUID, weight_unit: str) -> UserRow:
+    """Same rule as the currency, for the same reason (Epic 9).
+
+    Changing it relabels rather than converts: 100 kg does not become 100 lb, and silently
+    rewriting a training history is the same data-integrity bug wearing a different toggle.
+    So it locks once anything has been logged.
+    """
+    current = _read_user(session, user_id)
+    if current is None:
+        raise NotFound("No such account")
+    if current.weight_unit == weight_unit:
+        return current
+
+    logged = session.execute(text("SELECT count(*) FROM workout_sets")).scalar_one()
+    if logged:
+        raise WeightUnitLocked
+
+    session.execute(update(User).where(User.id == user_id).values(weight_unit=weight_unit))
+    session.flush()
+    updated = _read_user(session, user_id)
+    if updated is None:  # pragma: no cover
+        raise NotFound("No such account")
+    return updated
+
+
 class CurrencyLocked(Exception):
     """Refused because the account already holds entries."""
 
@@ -139,17 +176,12 @@ def set_currency(session: Session, user_id: uuid.UUID, currency: str) -> UserRow
         return current
 
     used = session.execute(
-        text(
-            "SELECT (SELECT count(*) FROM entries) + "
-            "(SELECT count(*) FROM savings_contributions)"
-        )
+        text("SELECT (SELECT count(*) FROM entries) + (SELECT count(*) FROM savings_contributions)")
     ).scalar_one()
     if used:
         raise CurrencyLocked
 
-    session.execute(
-        update(User).where(User.id == user_id).values(currency=currency)
-    )
+    session.execute(update(User).where(User.id == user_id).values(currency=currency))
     session.flush()
     updated = _read_user(session, user_id)
     if updated is None:  # pragma: no cover

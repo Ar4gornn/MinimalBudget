@@ -18,3 +18,6 @@ class User(TimestampedMixin, Base):
     # Scoped to the account, not the entry: every amount in one ledger is the same unit,
     # so no conversion and no rate history are needed. See migration 0006.
     currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default="USD")
+    weight_unit: Mapped[str] = mapped_column(
+        String(2), nullable=False, server_default="kg"
+    )

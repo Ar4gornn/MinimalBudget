@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 Currency = Literal["USD", "EUR"]
+WeightUnit = Literal["kg", "lb"]
 
 
 class Credentials(BaseModel):
@@ -38,6 +39,7 @@ class UserOut(BaseModel):
     id: UUID
     email: str
     currency: Currency
+    weight_unit: WeightUnit
     created_at: datetime
 
 
@@ -56,6 +58,10 @@ class RefreshRequest(BaseModel):
 
 class CurrencyUpdate(BaseModel):
     currency: Currency
+
+
+class WeightUnitUpdate(BaseModel):
+    weight_unit: WeightUnit
 
 
 _PASSWORD = Field(min_length=10, max_length=200)
