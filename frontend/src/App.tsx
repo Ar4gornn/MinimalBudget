@@ -4,6 +4,7 @@ import { useAuth } from "./auth/AuthContext";
 import { CategoryPage } from "./pages/CategoryPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { EntriesPage } from "./pages/EntriesPage";
+import { InventoryPage } from "./pages/InventoryPage";
 import { PlanPage } from "./pages/PlanPage";
 import { ProjectionsPage } from "./pages/ProjectionsPage";
 import { SignInPage } from "./pages/SignInPage";
@@ -13,6 +14,7 @@ const SECTIONS = [
   { to: "/entries", label: "Entries", glyph: "≡", end: false },
   { to: "/plan", label: "Plan", glyph: "◎", end: false },
   { to: "/projections", label: "Grow", glyph: "↗", end: false },
+  { to: "/inventory", label: "Stock", glyph: "▤", end: false },
 ];
 
 export function App() {
@@ -55,6 +57,7 @@ export function App() {
           <Route path="/categories/:categoryId" element={<CategoryPage />} />
           <Route path="/plan" element={<PlanPage />} />
           <Route path="/projections" element={<ProjectionsPage />} />
+          <Route path="/inventory" element={<InventoryPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

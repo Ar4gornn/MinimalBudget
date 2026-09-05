@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api/client";
-import type { Summary, Trends } from "../api/types";
+import type { InventoryItem, Space, Summary, Trends } from "../api/types";
 import { Sparkline } from "../charts/Sparkline";
 import { ProgressBar } from "../charts/ProgressBar";
 import { TrendChart } from "../charts/TrendChart";
@@ -20,6 +20,12 @@ export function DashboardPage() {
   const [trends, setTrends] = useState<Trends | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // AD-31: the inventory is its own module, composed here by calling its own endpoint —
+  // the same one the inventory page filters on, so the count can never disagree with
+  // the list (AD-30). It is allowed to fail on its own: a broken inventory must not
+  // blank the ledger.
+  const [lowItems, setLowItems] = useState<InventoryItem[] | null>(null);
+  const [spaces, setSpaces] = useState<Space[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,6 +47,24 @@ export function DashboardPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([api.listItems({ needs_restock: true }), api.listSpaces()])
+      .then(([items, nextSpaces]) => {
+        if (cancelled) return;
+        setLowItems(items);
+        setSpaces(nextSpaces);
+      })
+      .catch(() => {
+        if (!cancelled) setLowItems(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const spaceName = (id: string) => spaces.find((space) => space.id === id)?.name ?? "";
 
   // How many categories are over budget: the one number worth keeping visible when the
   // section is folded away, because it is the only one that asks you to do something.
@@ -108,6 +132,33 @@ export function DashboardPage() {
             <Stat label="Net" value={summary.net} />
             <Stat label="Saved" value={summary.saved} />
           </div>
+
+          {lowItems && lowItems.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <Card
+                title="Restock"
+                collapseKey="dashboard.restock"
+                summary={`${lowItems.length} ${lowItems.length === 1 ? "item" : "items"}`}
+              >
+                <p style={{ margin: "0 0 6px" }} data-stat="Restock">
+                  <Link to="/inventory?filter=restock">
+                    {lowItems.length} {lowItems.length === 1 ? "item needs" : "items need"}{" "}
+                    restocking
+                  </Link>
+                </p>
+                <p className="hint" style={{ margin: 0 }}>
+                  {lowItems
+                    .slice(0, 3)
+                    .map((item) => {
+                      const space = spaceName(item.space_id);
+                      return space ? `${item.name} · ${space}` : item.name;
+                    })
+                    .join(", ")}
+                  {lowItems.length > 3 ? ", …" : ""}
+                </p>
+              </Card>
+            </div>
+          )}
 
           <div className="columns" style={{ marginTop: 16 }}>
             <Card

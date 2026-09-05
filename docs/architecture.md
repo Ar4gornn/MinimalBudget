@@ -7,8 +7,8 @@ paradigm: 'layered service application with the database as the isolation author
 scope: 'MinimalBudget v1 — React SPA, FastAPI JSON API, Postgres with row-level security'
 status: final
 created: '2026-08-29'
-updated: '2026-08-29'
-binds: [slice-1-foundation-auth, slice-2-categories-entries, slice-3-savings-budgets, slice-4-dashboard, slice-5-client, slice-6-ship]
+updated: '2026-09-05'
+binds: [slice-1-foundation-auth, slice-2-categories-entries, slice-3-savings-budgets, slice-4-dashboard, slice-5-client, slice-6-ship, epic-10-unit-prices, epic-11-inventory]
 sources: [docs/brief.md, docs/prd.md]
 companions: [docs/architecture.md]
 ---
@@ -338,6 +338,62 @@ security-definer function
   RLS by definition, so a dump is complete by construction. `--enable-row-security` is never used.
   A dump is kept only after it is non-empty and carries the custom-format magic header.
 
+### AD-29 — A quantity is a fact and a unit price is derived from it; a rate is not money
+
+- **Binds:** entries, category detail, dashboard trends, client
+- **Extends:** AD-5 (money representation), AD-9 and AD-22 (aggregation and zero-fill)
+- **Prevents:** a stored `unit_price` drifting from `amount` after an edit; a `float` rate
+  crossing the wire because "it is not money"; an average-of-averages producing a price nobody
+  paid; and a zero-filled price series that charts an empty month as free fuel.
+- **Rule:** `entries` carries `quantity NUMERIC(12,3) NULL CHECK (quantity > 0)` and
+  `unit VARCHAR(8) NULL`, with `CHECK ((quantity IS NULL) = (unit IS NULL))`, a `CHECK` that only
+  an expense carries them, and `unit` restricted by a `CHECK` to a closed list (`l`, `gal`, `kg`,
+  `lb`, `kwh`, `m3`, `unit`) that is extended by migration and never by free text. No table
+  stores a unit price. A single entry's `unit_price` is `amount / quantity` quantised
+  `ROUND_HALF_UP` to four places, defined once as a property on the model; a period's unit price
+  is `SUM(amount) / SUM(quantity)` in SQL over the same rows, rounded the same way, and a test
+  holds the two equal for a period containing one entry. A rate is serialised as a **four-place
+  decimal string** under its own `Rate` type — never `Money`, never a JSON number — and the client
+  treats it like money: a string, arithmetic only on scaled integers. There is no conversion
+  between units; a series is keyed by `(category, unit)`. A period with no quantified rows yields
+  `null` for the rate, the one place in this system an aggregate may be null, because `0.00`
+  would be a price; its quantity is `0`, because "bought nothing" is a quantity.
+
+### AD-30 — A reminder is a predicate over stored facts, defined once, never a stored state
+
+- **Binds:** inventory, dashboard, client
+- **Extends:** AD-9 (aggregation in SQL) and AD-22 (derived figures, never divergent)
+- **Prevents:** an `is_low` flag that stays set after the item is restocked; a fired / dismissed /
+  snoozed state machine for something the data already knows; and the dashboard count disagreeing
+  with the inventory page because two developers wrote the condition twice.
+- **Rule:** an item needs restocking exactly when `restock_below IS NOT NULL AND quantity <=
+  restock_below`. That expression is defined **once**, as a `column_property` on the model, and
+  both the `needs_restock` filter on the list endpoint and every dashboard count are built from it
+  — the client reads the row's flag and never recomputes it. No column, row or table records that
+  a reminder is due, was shown, or was dismissed. A later reminder mechanic (a date, an expiry) is
+  a second term OR-ed into the same expression in the same place. The quantity **log**
+  (`inventory_item_changes`) is a different thing: a record of facts, append-only by grant — the
+  runtime role holds `SELECT, INSERT` and nothing else on it — and it cascades with its item.
+
+### AD-31 — Modules are independent; the dashboard composes them, it does not join them
+
+- **Binds:** inventory, dashboard, client, every future module
+- **Extends:** the Design Paradigm (one direction of dependency) and the settled direction of
+  2026-08-30 ("the API's module boundaries are the thing to get right first")
+- **Prevents:** `services/dashboard.py` growing a join into `inventory_items`, and
+  `services/inventory.py` importing the ledger, so that the two can never be split, versioned or
+  shipped to a native client independently; and a "convenience" auto-restock that silently writes
+  one module from another's unverified data.
+- **Rule:** a service module imports only its own models. The ledger (`entries`, `categories`,
+  `budgets`) and the inventory (`spaces`, `inventory_items`, `inventory_item_changes`) share
+  `users` and the tenancy machinery of AD-1 to AD-4, and nothing else — no foreign key between
+  them, no cross-module query in any service. The dashboard **page** composes modules by calling
+  each module's endpoint and rendering the results side by side, and a failure in one module
+  degrades that card only; the dashboard **service** aggregates the ledger only. A cross-module
+  write, when one is wanted (the v2 shopping-list tick), is a single explicit endpoint that
+  performs both writes in the one request transaction of AD-4, named for what it does, never a
+  side effect of an ordinary create.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -407,7 +463,14 @@ erDiagram
   categories ||--o| budgets : "capped by"
   savings_types ||--o{ savings_contributions : classifies
   savings_types ||--o| savings_targets : "targeted by"
+  users ||--o{ spaces : owns
+  users ||--o{ inventory_items : owns
+  spaces ||--o{ inventory_items : holds
+  inventory_items ||--o{ inventory_item_changes : "logged by"
 ```
+
+The inventory cluster (`spaces`, `inventory_items`, `inventory_item_changes`) has no edge to the
+ledger cluster, by AD-31.
 
 Every entity except `users` carries `user_id`, is governed by AD-1, and every relationship drawn
 here is a composite foreign key including `user_id` per AD-18.
@@ -487,6 +550,8 @@ MinimalBudget/
 | Savings types and contributions | `api/savings.py`, `services/savings.py` | AD-5, AD-10, AD-12, AD-20, AD-21 |
 | Budgets and savings targets | `api/budgets.py`, `api/savings.py` | AD-5, AD-8, AD-11, AD-18, AD-21 |
 | Dashboard summary and trends | `api/dashboard.py`, `services/dashboard.py` | AD-9, AD-10, AD-5, AD-22 |
+| Quantity, unit and unit-price series | `api/entries.py`, `api/dashboard.py`, `services/dashboard.py` | AD-29, AD-9, AD-10 |
+| Inventory — spaces, items, log, restock predicate | `api/inventory.py`, `services/inventory.py`, `models/inventory.py` | AD-30, AD-31, AD-8, AD-12, AD-18, AD-21 |
 | React client | `frontend/src/` | AD-5, AD-16, AD-20 |
 | Test strategy | `backend/tests/` | AD-24 |
 
@@ -515,3 +580,25 @@ MinimalBudget/
   reachable. Revisit at deploy time.
 - **Observability beyond stdlib logging.** No metrics or tracing stack in v1; the deployment has
   one API container.
+
+- **Vendor on entries.** Arrives as a reference table per AD-12 when a by-vendor price comparison
+  is wanted. Until then `note` holds it.
+- **Payment method.** A ledger-wide attribute with its own dashboard implications; its own epic.
+- **A price series on the dashboard.** Needs a "watched category" notion first. The category
+  page has it (Epic 10); lifting it is additive.
+- **Unit conversion.** Never planned: a series is per `(category, unit)`, and that is what was
+  paid.
+- **Date and expiry reminders.** `restock_on DATE NULL` and `expires_on DATE NULL`, each a second
+  term OR-ed into the AD-30 predicate in its one location. `restocked_at` already exists so a
+  "you buy this every N days" figure needs no backfill.
+- **Push notifications.** Needs a push service, VAPID keys and a scheduler. Reminders are
+  surfaced on open, on the dashboard.
+- **Ledger ↔ inventory link and the shopping list.** A purchase-history join table, requiring
+  `UNIQUE (user_id, id)` on `entries` per AD-18, and one explicit endpoint that restocks and
+  records the expense in one transaction per AD-31. Not two side effects. Auto-restock from a
+  grocery entry is rejected outright: a single entry covers many items and nothing in it says
+  which.
+- **Unit-quantified items.** Reuse the AD-29 unit list on `inventory_items` when someone needs
+  `2.5 kg` rather than `3`.
+- **Photos on items.** Not planned: the first blob in the system, outside `pg_dump`, so the first
+  restore after an upload would be the first partial restore.

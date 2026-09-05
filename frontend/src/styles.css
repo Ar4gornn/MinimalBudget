@@ -353,6 +353,63 @@ button.link {
   margin-top: 2px;
 }
 
+/* ------------------------------------------------------------- inventory */
+
+.chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.chip.on {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--warn-bg);
+  color: var(--spend);
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stepper button {
+  padding: 2px 9px;
+  line-height: 1.2;
+}
+
+.stepper span {
+  min-width: 2ch;
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+tr.history td {
+  background: var(--bg);
+}
+
 /* The optional quantity block takes its own line inside the entry form. */
 .quantity-row {
   flex: 1 1 100%;

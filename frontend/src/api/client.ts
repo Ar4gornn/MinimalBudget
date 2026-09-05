@@ -13,10 +13,14 @@ import type {
   Contribution,
   Entry,
   EntryKind,
+  InventoryItem,
+  ItemChange,
   Money,
   Page,
   Quantity,
+  Restocks,
   SavingsType,
+  Space,
   Summary,
   Target,
   Token,
@@ -198,6 +202,16 @@ export interface EntryInput {
   unit?: Unit | null;
 }
 
+export interface ItemInput {
+  name: string;
+  quantity: number;
+  restock_below?: number | null;
+  cost?: Money | null;
+  note?: string | null;
+  space_id?: string;
+  space_name?: string;
+}
+
 export const api = {
   register: (email: string, password: string, inviteCode?: string, currency?: Currency) =>
     request<User>("/api/auth/register", {
@@ -308,4 +322,52 @@ export const api = {
     request<UnitPrices>(
       `/api/dashboard/unit-prices${query({ months: String(months), ending })}`,
     ),
+
+  // --- inventory (AD-31: its own endpoints, composed by pages, never joined by the server)
+
+  listSpaces: () => items(request<Page<Space>>("/api/inventory/spaces")),
+
+  createSpace: (name: string) =>
+    request<Space>("/api/inventory/spaces", { method: "POST", body: JSON.stringify({ name }) }),
+
+  renameSpace: (id: string, name: string) =>
+    request<Space>(`/api/inventory/spaces/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+
+  deleteSpace: (id: string) =>
+    request<void>(`/api/inventory/spaces/${id}`, { method: "DELETE" }),
+
+  listItems: (filters: { space_id?: string; needs_restock?: boolean } = {}) =>
+    items(
+      request<Page<InventoryItem>>(
+        `/api/inventory/items${query({
+          space_id: filters.space_id,
+          needs_restock: filters.needs_restock === undefined ? undefined : String(filters.needs_restock),
+        })}`,
+      ),
+    ),
+
+  createItem: (input: ItemInput) =>
+    request<InventoryItem>("/api/inventory/items", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  updateItem: (id: string, patch: Partial<ItemInput>) =>
+    request<InventoryItem>(`/api/inventory/items/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+
+  deleteItem: (id: string) => request<void>(`/api/inventory/items/${id}`, { method: "DELETE" }),
+
+  itemHistory: (id: string, days = 90) =>
+    items(
+      request<Page<ItemChange>>(`/api/inventory/items/${id}/history${query({ days: String(days) })}`),
+    ),
+
+  restocks: (months: number, ending?: string) =>
+    request<Restocks>(`/api/inventory/restocks${query({ months: String(months), ending })}`),
 };

@@ -19,6 +19,15 @@ queries as a second user rather than by reading a policy and believing it.
 - Set a **standing monthly budget** per expense category and a **monthly target** per savings type.
 - A **dashboard** for any month: income, expense, net and saved; budget versus actual per category;
   savings progress per type; and six months of trend, with a small multiple per category.
+- An expense can carry a **quantity and unit** — `$60.14` for `40.123 l` — and the app derives the
+  **price per unit** and charts it by month on the category page. Units are a closed list
+  (`l gal kg lb kwh m3 unit`); nothing is converted between them. The entry form takes any two of
+  amount, quantity and unit price and fills in the third.
+- **Stock**: user-defined spaces (Fridge, Garage, House stuff…) holding items with a whole-number
+  quantity, an optional cost, a note, and an optional restock threshold. "Needs restocking" is a
+  predicate over quantity and threshold, computed in SQL, never a stored flag. The dashboard shows
+  "N items need restocking"; every quantity change is logged, and each item has a quantity-over-time
+  chart. The inventory never writes to the ledger and the ledger never writes to it.
 
 ### Not in v1
 

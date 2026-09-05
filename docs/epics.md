@@ -38,6 +38,14 @@ up front.
 | FR-15 | A user can read savings progress versus target for each savings type for a chosen month. |
 | FR-16 | A user can read month-over-month trends for income, expense and savings, and per-category expense series. |
 | FR-17 | A user can do all of the above through a React web client. |
+| FR-18 | A user can record an expense entry with an optional quantity and unit, and read its unit price. |
+| FR-19 | A user can read a month-over-month unit-price and quantity series per category and unit. |
+| FR-20 | A user can create, list, rename and delete spaces. |
+| FR-21 | A user can create, list, amend, move and delete items within their spaces, each with a name, a whole-number quantity, an optional cost, an optional restock threshold and an optional note. |
+| FR-22 | A user can list the items that need restocking, across all spaces. |
+| FR-23 | A user sees the count of items needing restocking on the dashboard. |
+| FR-24 | A user can see an item's quantity over time and restocks per space per month. |
+| FR-25 | A user can do all of the above through the React client, on a phone. |
 
 ### NonFunctional Requirements
 
@@ -62,6 +70,9 @@ Sourced from the architecture spine. These bind every story that touches them.
 | AR-3 | Another user's row answers 404; a `RESTRICT` or uniqueness conflict answers 409. | AD-8, AD-21 |
 | AR-4 | Every list endpoint returns `{"items": [...]}` with a total, deterministic sort order. | AD-20 |
 | AR-5 | Every slice that adds a user-scoped table ships a two-user isolation test run as the runtime role. | AD-24 |
+| AR-6 | A rate is derived, four-place, a string on the wire, null when absent; units are a closed list. | AD-29 |
+| AR-7 | "Needs restocking" is one SQL predicate shared by the list filter and the dashboard; the quantity log is append-only by grant. | AD-30 |
+| AR-8 | No service imports another module's models; the dashboard page composes endpoints. | AD-31 |
 
 ### UX Design Requirements
 
@@ -94,6 +105,17 @@ AD-17).
 | NFR-5 | Story 1.1 |
 | NFR-6 | Stories 1.5, 5.1 |
 | NFR-7 | Stories 4.1, 4.2, 4.3 |
+| FR-18 | Stories 10.1, 10.3 |
+| FR-19 | Stories 10.2, 10.3 |
+| FR-20 | Story 11.1 |
+| FR-21, FR-22 | Story 11.2 |
+| FR-23 | Story 11.5 |
+| FR-24 | Story 11.6 |
+| FR-25 | Stories 10.3, 11.4, 11.5, 11.6 |
+| AR-5 (Epics 10, 11) | Stories 10.4, 11.3 |
+| AR-6 | Stories 10.1, 10.2, 10.4 |
+| AR-7 | Stories 11.2, 11.5, 11.6 |
+| AR-8 | Stories 11.2, 11.5 |
 
 ## Epic List
 
@@ -105,6 +127,13 @@ AD-17).
 | 4 | Dashboard aggregation | The API can answer "did I earn, spend and save what I meant to this month?" in one call. |
 | 5 | React client | The whole of the above is usable in a browser. |
 | 6 | Ship preparation | The repository is presentable and the diff has been reviewed. |
+| 7 | Internet-facing hardening | The instance can be exposed to the public internet for a family's real money. |
+| 10 | Unit-priced entries | An expense can say how much of what was bought, and the per-unit price can be watched over time. |
+| 11 | Inventory | A user can keep track of what they have, where, see what is running out without leaving the dashboard, and see how each item's stock moved. |
+
+Epics 8 (installable PWA, Story 8.1) and 9 (per-account currency, Story 9.1) were built and
+committed without being written into this document. Their ids are reserved here so they are not
+reused; back-filling them is a separate task.
 
 ## Epic 1: Foundation, tenancy and auth
 
@@ -623,3 +652,199 @@ and each needs its own epic before any code.
 - **Currency: USD primary, EUR as an option.** Each amount carries its own currency; a user has a
   display currency; conversion happens at read time against a rate table. Amounts are never
   converted on write, because that destroys the figure the user actually entered.
+
+---
+
+## Epic 10: Unit-priced entries
+
+Two nullable columns, one derived figure, one series. The ledger's arithmetic is untouched.
+
+### Story 10.1: Quantity and unit on an entry, with the unit price derived on read
+
+As a user,
+I want to record that my `$60.00` fuel entry was for `40 l`,
+So that the entry carries the per-litre price without me working it out.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user with an expense category
+**When** they `POST /api/entries` with `amount`, `quantity` and `unit` alongside the existing fields
+**Then** the entry is stored with `quantity` as `NUMERIC(12,3)` and `unit` as one of the closed list, and the response carries `unit_price` as a four-place decimal string equal to `amount / quantity` rounded half-up (FR-18, AD-29)
+**And** the migration adds both columns as nullable, with `CHECK (quantity > 0)`, `CHECK ((quantity IS NULL) = (unit IS NULL))` and a `CHECK` restricting `unit` to `l`, `gal`, `kg`, `lb`, `kwh`, `m3`, `unit` — every existing row is untouched and reads back with `quantity`, `unit` and `unit_price` all `null`
+**And** a payload carrying `quantity` without `unit`, or `unit` without `quantity`, is refused with `422` by validation **and** by the database `CHECK` when validation is bypassed
+**And** a `unit` outside the list is refused with `422` and by the `CHECK`; `Litre`, `L` and `liters` are all refused rather than normalised, because the list is the normalisation
+**And** `quantity` is validated by the same shape rule as money — a plain decimal string, at most three places, never a float or a JSON number
+**And** `PATCH /api/entries/{id}` accepts `quantity` and `unit` together, and clears both when both are sent as `null`; a `PATCH` that would leave one set and the other unset is `422`
+**And** a `PATCH` that changes `amount` changes the returned `unit_price`, because nothing stored it
+**And** an income entry may not carry a quantity — `422`, and a `CHECK (kind = 'expense' OR quantity IS NULL)`
+**And** `unit_price` appears on every `EntryOut`, including the list, and is `null` when the entry has no quantity
+
+### Story 10.2: Unit-price series per category and unit
+
+As a user,
+I want to see what I paid per litre each month,
+So that I notice fuel getting dearer before the monthly total tells me.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user with quantified entries in some months and none in others
+**When** they `GET /api/dashboard/unit-prices?months=N&month=YYYY-MM`
+**Then** the response carries `months` (exactly N labels, chronological, no gaps, produced by the same `generate_series` as trends) and one series per `(category_id, unit)` the user has quantified in the window, each with `category_id`, `category_name`, `unit` and `values` of length N (FR-19)
+**And** each monthly value is `SUM(amount) / SUM(quantity)` over that month's entries for that category and unit, computed in SQL, quantised to four places, serialised as a `Rate` string — never the average of per-entry rates (AD-29)
+**And** a month with no quantified entry for that series is `null`, not `"0.0000"`, and a test asserts the `null` explicitly
+**And** each series also carries `quantity` per month — `SUM(quantity)`, zero for an empty month — so "am I buying more, or is it dearer?" can be told apart
+**And** the same category quantified in `l` one month and `gal` the next yields two series, and no conversion is attempted
+**And** the month window is a half-open date range (AD-10) and the series are ordered by `lower(category_name), unit, category_id` (AD-20)
+**And** the dashboard service imports only ledger models (AD-31)
+
+### Story 10.3: Recording and reading unit prices in the client
+
+As a user on a phone at the pump,
+I want to type in whichever two numbers the receipt gives me,
+So that recording fuel is no slower than recording anything else.
+
+**Acceptance Criteria:**
+
+**Given** a logged-in user on the entry form with an expense kind selected
+**When** they open the optional "quantity" section
+**Then** they can enter any two of *amount*, *quantity* and *unit price*, and the third is computed on the client through the decimal helper, never with floating-point arithmetic on the money string (AD-5, AD-29)
+**And** the unit is chosen from the closed list, with a display label per unit (`l` → "litres", `m3` → "m³", `unit` → "units") and the list defined once in `src/api/types.ts`
+**And** the unit a category was last quantified in is remembered per device and pre-filled the next time that category is typed
+**And** the section is hidden when the kind is income, and the payload sent to the API carries only `amount`, `quantity`, `unit` — never the computed rate
+**And** the entries table shows the rate beneath the amount on quantified rows (`1.4990 /l`), right-aligned, and nothing on unquantified rows
+**And** editing an entry in place (the existing edit flow) can add, change or clear the quantity and unit
+**And** the category detail page shows a unit-price sparkline per unit present, as inline SVG, with gaps where a month is `null` rather than a line to zero (Consistency Conventions, AD-29)
+**And** a validation error from the API (`422` on a bad unit) surfaces as a readable message on the field
+
+### Story 10.4: Rate correctness against fixtures, and the isolation check
+
+As a developer,
+I want the weighted average and the rounding pinned by numbers worked out by hand,
+So that a wrong join or a wrong rounding mode is caught by a test rather than by someone comparing receipts.
+
+**Acceptance Criteria:**
+
+**Given** a fixture with two fills in one month (`10.000 l` at `16.00` and `50.000 l` at `70.00`), one fill on the first of the next month, an unquantified entry in the same category, and a second category quantified in `kg`
+**When** the unit-price series is requested
+**Then** the first month's value for fuel is `"1.4333"` (the volume-weighted figure), not `"1.5000"`
+**And** the unquantified entry contributes to neither numerator nor denominator
+**And** the entry dated the first of the following month lands in the following month only (AD-10)
+**And** a month containing exactly one quantified entry returns the same string as that entry's own `unit_price`, proving the SQL and Python quantisation agree
+**And** the `kg` series is separate from the `l` series and each carries the other's months as `null`
+**And** user B requesting the series sees none of user A's categories, and the existing ledger isolation suite passes with the new columns and no new exemptions (AR-5)
+
+---
+
+## Epic 11: Inventory
+
+A new module beside the ledger, not inside it. Two tables, both through `protect()`, both
+composite-keyed, neither referencing the ledger.
+
+### Story 11.1: Spaces
+
+As a user,
+I want to define the places I keep things — Fridge, Garage, House stuff, or anything else,
+So that my items are grouped the way my home actually is.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user
+**When** they `POST /api/inventory/spaces` with a name
+**Then** the space is created for that user, and a second create differing only in case returns the existing one rather than a duplicate — unique on `(user_id, lower(name))` (AD-12, FR-20)
+**And** the `spaces` table is created by this story with `ENABLE` and `FORCE ROW LEVEL SECURITY` through `protect()`, and carries `UNIQUE (user_id, id)` so items can reference it compositely (AD-1, AD-18)
+**And** `GET /api/inventory/spaces` returns `{"items": [...]}` ordered by `lower(name), id` (AD-20)
+**And** `PATCH /api/inventory/spaces/{id}` renames a space, and a rename onto an existing name (case-insensitively) answers `409`
+**And** `DELETE` of an empty space succeeds; `DELETE` of a space that still has items answers `409` because the foreign key from items is `ON DELETE RESTRICT` — a space is reference data (AD-21)
+**And** requesting, renaming or deleting another user's space id returns `404` (AD-8)
+**And** registration seeds nothing: a new account has no spaces until it creates one, so the module is invisible to anyone who never opens it
+
+### Story 11.2: Items, with the restock predicate defined once
+
+As a user,
+I want to record what I have, how many, roughly what it costs, and when I should be reminded to buy more,
+So that "are we out of X?" is answered by the app rather than by opening the cupboard.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user with at least one space
+**When** they `POST /api/inventory/items` with a name, a `quantity`, and **exactly one** of `space_id` or `space_name`, plus optional `cost`, `restock_below` and `note`
+**Then** the item is created in that space — `space_name` creating the space for that user if absent, by the same `ON CONFLICT DO NOTHING` path categories use (AD-12, FR-21)
+**And** the `inventory_items` table is created by this story through `protect()`, with `quantity INTEGER NOT NULL CHECK (quantity >= 0)`, `restock_below INTEGER NULL CHECK (restock_below >= 0)`, `cost NUMERIC(14,2) NULL CHECK (cost >= 0)`, `note VARCHAR(500) NULL`, `restocked_at TIMESTAMPTZ NULL` (set whenever the quantity goes up), `created_at`, `updated_at`, and a composite foreign key `(user_id, space_id)` → `spaces (user_id, id)` `ON DELETE RESTRICT` (AD-1, AD-18, AD-21)
+**And** `cost` is `NonNegativeMoney` — a two-place decimal string on the wire, `null` when unknown (AD-5)
+**And** `needs_restock` is defined **once** as a SQL expression on the model — `restock_below IS NOT NULL AND quantity <= restock_below` — and appears as a boolean on every `ItemOut` (AD-30)
+**And** `GET /api/inventory/items` supports `space_id` and `needs_restock=true` filters, the second built from that same expression, and returns `{"items": [...]}` ordered by `lower(name), id` (AD-20, FR-22)
+**And** `PATCH /api/inventory/items/{id}` can change any field including `space_id` (moving the item), where `quantity` is set absolutely, never as a delta
+**And** a `PATCH` or `POST` naming another user's `space_id` is refused by the composite foreign key and answers `404` — never `201` from the absence of an error (AD-8, AD-18)
+**And** `DELETE` removes the item; there is no soft delete
+**And** the inventory service imports no ledger model, and the ledger imports nothing from it (AD-31)
+
+### Story 11.3: Prove isolation for the inventory tables
+
+As the owner of this system,
+I want the second-user proof extended to spaces and items,
+So that one family member's cupboards are as invisible to another as their budgets already are.
+
+**Acceptance Criteria:**
+
+**Given** users A and B, each with spaces and items, and a connection made **as the runtime role** with B's `app.user_id`
+**When** B selects A's space and item rows by primary key
+**Then** zero rows are returned, and B's `INSERT` carrying A's `user_id`, `UPDATE` of A's row and `DELETE` of A's row are all refused (AR-5)
+**And** B attempting to `POST /api/inventory/items` with A's `space_id` is rejected by the composite foreign key and answers `404`, and A can still delete that space afterwards (AD-18)
+**And** B calling `GET /api/inventory/items?needs_restock=true` sees none of A's low items
+**And** through the HTTP API, reading, renaming, moving or deleting A's ids as B returns `404` and never `403` (AD-8)
+**And** the schema audit test of Story 1.2 passes with both new tables, having been given no new exemptions (AD-24)
+**And** the test fails loudly if `app.user_id` is left unset
+
+### Story 11.4: The inventory page
+
+As a user,
+I want one page with every space on it,
+So that I never have to remember which room I filed something under.
+
+**Acceptance Criteria:**
+
+**Given** a logged-in user
+**When** they open the fifth bottom-nav tab (label `Stock`, route `/inventory`)
+**Then** every space is shown on one page, each as a card listing its items, with a "needs restocking" badge on low items and a filter row offering *all*, *needs restocking*, and one chip per space (FR-24)
+**And** quantity can be changed with `−` and `+` controls on the row, each an absolute `PATCH` of the new value, and an item at zero cannot go below it
+**And** a *Running low* action on an item sets `quantity` to `restock_below`, or sets `restock_below` to `1` and `quantity` to `0` when no threshold exists, in one `PATCH`
+**And** the add-item form takes a name, a quantity, a space chosen from existing ones or typed as a new name, and the optional cost, threshold and note, mirroring the entry form's category-by-name path
+**And** a space can be added and renamed inline, and a delete blocked by items shows the `409` as an explanation ("Fridge still has 12 items"), not a generic failure
+**And** an account with no spaces sees a short empty state explaining what a space is, with the add form ready
+**And** all network access goes through `src/api/client.ts` and the `{"items": [...]}` envelope is unwrapped there (AD-16, AD-20)
+**And** the bottom nav's five labels fit a 375 px viewport without wrapping or truncation, verified in the browser
+
+### Story 11.5: Restock reminders on the dashboard
+
+As a user glancing at the dashboard,
+I want to see "3 items need restocking" without opening the inventory,
+So that the reminder reaches me on the screen I actually open.
+
+**Acceptance Criteria:**
+
+**Given** a logged-in user with items below their thresholds
+**When** the dashboard loads
+**Then** a card reads "N items need restocking" and links to `/inventory?filter=restock`, where N is the length of `GET /api/inventory/items?needs_restock=true` — the same endpoint and the same predicate the inventory page uses, so the two can never disagree (FR-23, AD-30)
+**And** the request is made from the dashboard page alongside `summary` and `trends`, not folded into either; `services/dashboard.py` is unchanged (AD-31)
+**And** the card is absent when N is zero, and absent — not an error — when the user has no inventory at all
+**And** the card lists up to three item names with their spaces ("Milk · Fridge") so the most common case needs no click
+**And** the card follows the dashboard's existing collapsible-section behaviour and muted styling, with no notification badge, sound or push (deferred)
+**And** a failed inventory request degrades to no card, and does not blank the ledger sections
+
+---
+
+### Story 11.6: The quantity log, and charts per item and per space
+
+As a user,
+I want to see how an item's stock has moved and how often each space gets restocked,
+So that "we seem to buy a lot of milk" is a chart rather than an impression.
+
+**Acceptance Criteria:**
+
+**Given** an item whose quantity has been set several times
+**When** the item is created or its `quantity` changes
+**Then** a row is appended to `inventory_item_changes` with `quantity_before`, `quantity_after` and `changed_at`, and a `PATCH` that leaves the quantity unchanged, or changes only another field, appends nothing (FR-24)
+**And** the table is created through `protect()` with a composite foreign key `(user_id, item_id)` → `inventory_items (user_id, id)` `ON DELETE CASCADE`, and the runtime role holds `SELECT, INSERT` and nothing else on it — an `UPDATE` or `DELETE` as the runtime role is refused by the grant, and a deleted item takes its log with it under the owner's cascade (AD-21, AD-30)
+**And** `GET /api/inventory/items/{id}/history?days=N` returns the item's changes in the window, oldest first, enveloped (AD-20), and `404` for another user's item (AD-8)
+**And** `GET /api/inventory/restocks?months=N` returns, per space, the number of quantity increases per month — driven from the spaces so one with no restocks appears at zeroes, over a `generate_series` so no month is missing (AD-9)
+**And** on the inventory page, *History* on an item unfolds a step chart of its quantity over time as inline SVG, with the restock threshold as a dashed rule, and the page shows restocks per space per month as small multiples (Consistency Conventions)

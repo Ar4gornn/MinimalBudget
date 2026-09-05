@@ -169,3 +169,45 @@ export interface UnitPrices {
   months: string[];
   series: UnitPriceSeries[];
 }
+
+// ------------------------------------------------------------------ inventory
+
+export interface Space {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface InventoryItem {
+  id: string;
+  space_id: string;
+  name: string;
+  /** A whole number, set absolutely — never a delta. */
+  quantity: number;
+  restock_below: number | null;
+  cost: Money | null;
+  note: string | null;
+  /** AD-30: computed in SQL from quantity and restock_below; never stored. */
+  needs_restock: boolean;
+  restocked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ItemChange {
+  quantity_before: number;
+  quantity_after: number;
+  changed_at: string;
+}
+
+export interface SpaceRestockSeries {
+  space_id: string;
+  space_name: string;
+  /** Restocks per month, zero-filled. */
+  values: number[];
+}
+
+export interface Restocks {
+  months: string[];
+  series: SpaceRestockSeries[];
+}

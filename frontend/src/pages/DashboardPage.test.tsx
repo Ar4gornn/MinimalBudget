@@ -37,13 +37,19 @@ const trends: Trends = {
   expense_by_category: [{ category_id: "r", category_name: "Rent", values: ["790.00", "800.00"] }],
 };
 
-function mockApi(overrides: { summary?: Summary; trends?: Trends } = {}) {
+function mockApi(
+  overrides: { summary?: Summary; trends?: Trends; lowItems?: unknown[] } = {},
+) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
-      const body = url.includes("/summary")
-        ? (overrides.summary ?? summary)
-        : (overrides.trends ?? trends);
+      const body = url.includes("/api/inventory/items")
+        ? { items: overrides.lowItems ?? [] }
+        : url.includes("/api/inventory/spaces")
+          ? { items: [{ id: "sp1", name: "Fridge", created_at: "" }] }
+          : url.includes("/summary")
+            ? (overrides.summary ?? summary)
+            : (overrides.trends ?? trends);
       return new Response(JSON.stringify(body), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -262,5 +268,59 @@ describe("collapsible sections", () => {
     render(<DashboardPage />);
     expect(await screen.findByRole("table", { name: "Budget vs actual" })).toBeInTheDocument();
     getItem.mockRestore();
+  });
+});
+
+describe("restock reminders on the dashboard (AD-30, AD-31)", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+  });
+
+  const low = (name: string) => ({
+    id: name,
+    space_id: "sp1",
+    name,
+    quantity: 0,
+    restock_below: 1,
+    cost: null,
+    note: null,
+    needs_restock: true,
+    restocked_at: null,
+    created_at: "",
+    updated_at: "",
+  });
+
+  it("says how many items need restocking, with the first few named", async () => {
+    mockApi({ lowItems: [low("Milk"), low("Eggs"), low("Butter"), low("Rice")] });
+    render(<DashboardPage />);
+
+    const link = await screen.findByRole("link", { name: /4 items need restocking/ });
+    expect(link).toHaveAttribute("href", "/inventory?filter=restock");
+    expect(screen.getByText(/Milk · Fridge, Eggs · Fridge, Butter · Fridge, …/)).toBeInTheDocument();
+  });
+
+  it("shows no card at all when nothing is low", async () => {
+    mockApi();
+    render(<DashboardPage />);
+    await screen.findByText("Budget vs actual");
+    expect(screen.queryByText(/need restocking/)).toBeNull();
+  });
+
+  it("still renders the ledger when the inventory request fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/api/inventory")) {
+          return new Response(JSON.stringify({ detail: "down" }), { status: 500 });
+        }
+        const body = url.includes("/summary") ? summary : trends;
+        return new Response(JSON.stringify(body), { status: 200 });
+      }),
+    );
+    render(<DashboardPage />);
+    await screen.findByText("Budget vs actual");
+    expect(stat("Income")).toContain("3,000.00");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
