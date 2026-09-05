@@ -13,6 +13,7 @@ from sqlalchemy import Select, delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core import search
 from app.core.errors import Conflict, Invalid, NotFound
 from app.core.months import month_range
 from app.models.ledger import Category, Entry, EntryKind
@@ -115,8 +116,22 @@ def list_entries(
     kind: EntryKind | None = None,
     month: str | None = None,
     category_id: uuid.UUID | None = None,
+    q: str | None = None,
 ) -> list[Entry]:
     query = _entry_query(user_id)
+    if q:
+        # Matches the note or the category's name, so "fuel" finds both the category and a
+        # note that mentions it. Case-insensitive; the metacharacters are escaped.
+        like = search.pattern(q)
+        query = query.where(
+            Entry.note.ilike(like, escape=search.ESCAPE)
+            | Entry.category_id.in_(
+                select(Category.id).where(
+                    Category.user_id == user_id,
+                    Category.name.ilike(like, escape=search.ESCAPE),
+                )
+            )
+        )
     if kind is not None:
         query = query.where(Entry.kind == kind)
     if category_id is not None:
@@ -130,9 +145,7 @@ def list_entries(
 
 
 def get_entry(session: Session, user_id: uuid.UUID, entry_id: uuid.UUID) -> Entry:
-    entry = session.execute(
-        _entry_query(user_id).where(Entry.id == entry_id)
-    ).scalar_one_or_none()
+    entry = session.execute(_entry_query(user_id).where(Entry.id == entry_id)).scalar_one_or_none()
     if entry is None:
         raise NotFound("No entry with that id")
     return entry
@@ -211,8 +224,6 @@ def update_entry(
 
 
 def delete_entry(session: Session, user_id: uuid.UUID, entry_id: uuid.UUID) -> None:
-    result = session.execute(
-        delete(Entry).where(Entry.user_id == user_id, Entry.id == entry_id)
-    )
+    result = session.execute(delete(Entry).where(Entry.user_id == user_id, Entry.id == entry_id))
     if result.rowcount == 0:
         raise NotFound("No entry with that id")

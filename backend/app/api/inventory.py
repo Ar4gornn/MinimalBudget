@@ -65,8 +65,11 @@ def list_items(
     session: DbSession,
     space_id: uuid.UUID | None = None,
     needs_restock: bool | None = None,
+    q: Annotated[str | None, Query(max_length=80, description="matches name or note")] = None,
 ) -> Page[ItemOut]:
-    rows = inventory.list_items(session, user_id, space_id=space_id, needs_restock=needs_restock)
+    rows = inventory.list_items(
+        session, user_id, space_id=space_id, needs_restock=needs_restock, q=q
+    )
     return Page[ItemOut](items=[ItemOut.model_validate(r) for r in rows])
 
 

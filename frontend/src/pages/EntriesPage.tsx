@@ -36,6 +36,9 @@ export function EntriesPage() {
   const [kindFilter, setKindFilter] = useState<EntryKind | "">("");
   const [monthFilter, setMonthFilter] = useState(currentMonth());
   const [categoryFilter, setCategoryFilter] = useState("");
+  // Searched on the server, so it looks past the month on screen rather than filtering the
+  // rows already fetched — which would quietly answer a different question.
+  const [search, setSearch] = useState("");
 
   const [kind, setKind] = useState<EntryKind>("expense");
   const [amount, setAmount] = useState("");
@@ -77,6 +80,7 @@ export function EntriesPage() {
           ...(kindFilter ? { kind: kindFilter } : {}),
           ...(monthFilter ? { month: monthFilter } : {}),
           ...(categoryFilter ? { category_id: categoryFilter } : {}),
+          ...(search.trim() ? { q: search.trim() } : {}),
         }),
         api.listCategories(),
       ]);
@@ -87,7 +91,7 @@ export function EntriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [kindFilter, monthFilter, categoryFilter]);
+  }, [kindFilter, monthFilter, categoryFilter, search]);
 
   useEffect(() => {
     void load();
@@ -475,6 +479,16 @@ export function EntriesPage() {
                 onChange={(event) => setMonthFilter(event.target.value)}
               />
             </label>
+            <label style={{ flex: "1 1 160px" }}>
+              Search
+              <input
+                type="search"
+                aria-label="Search entries"
+                placeholder="note or category"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
             <label style={{ flex: "0 0 170px" }}>
               Category
               <select
@@ -496,7 +510,11 @@ export function EntriesPage() {
         {loading ? (
           <p className="empty">Loading…</p>
         ) : entries.length === 0 ? (
-          <Empty>Nothing recorded for this filter.</Empty>
+          <Empty>
+            {search.trim()
+              ? `Nothing matching “${search.trim()}” in this month.`
+              : "Nothing recorded for this filter."}
+          </Empty>
         ) : (
           <TableWrap>
             <table className="stacked" aria-label="Entries">

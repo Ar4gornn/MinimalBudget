@@ -55,6 +55,8 @@ up front.
 | FR-32 | A user sees on the dashboard how many recurring entries are waiting for them. |
 | FR-33 | A user can read a shopping list of everything below its threshold, with a suggested quantity and an estimated cost. |
 | FR-34 | Ticking an item off the list restocks it and records the expense in one action, and the purchase is kept as history. |
+| FR-35 | A user can search their entries by note or category name, and their items by name or note. |
+| FR-36 | A user can widen the dashboard's trend window from six months to a year. |
 
 ### NonFunctional Requirements
 
@@ -135,6 +137,7 @@ AD-17).
 | FR-28, FR-29, AR-11 | Stories 12.1, 12.2 |
 | FR-30, FR-31, FR-32, AR-12 | Stories 13.1, 13.2 |
 | FR-33, FR-34, AR-13 | Stories 14.1, 14.2 |
+| FR-35, FR-36 | Story 15.1 |
 
 ## Epic List
 
@@ -154,6 +157,7 @@ AD-17).
 | 12 | Password recovery | A person who forgets their password gets back in on their own, without email and without the operator. |
 | 13 | Recurring entries | The entries that repeat every month stop being typed every month, without anything being written behind the person's back. |
 | 14 | Shopping list | What is running out becomes a list, and buying it is one action that both restocks the shelf and records the spend. |
+| 15 | Finding things | A year of records stays usable: search what was written, and look at a year rather than half of one. |
 
 Epics 8 and 9 were built on 2026-08-30 and 2026-09-01 and written up here afterwards, from the
 commits and the tests, on 2026-09-05. Each is one story because each was one commit with one
@@ -870,6 +874,32 @@ So that the two never drift apart, and neither has to be typed twice.
 **And** deleting the item takes its purchases and leaves the entries, which are records of money that moved (AD-21)
 **And** the coupling lives only in `services/shopping.py`: a test reads the imports and fails if either module reaches into the other (AR-13)
 **And** user B cannot read A's list, purchase A's item, or insert a purchase row against it — the composite foreign key refuses it below the API too (AD-18)
+
+---
+
+## Epic 15: Finding things
+
+Small, and it earns its place the month the tables outgrow a screen. Search is server-side
+rather than a filter over the rows already fetched, because filtering the current view would
+quietly answer a different question — "of the entries I happen to be showing, which mention
+diesel?" is not what anyone means.
+
+### Story 15.1: Search, and a year at a time
+
+As a family member with a year of records,
+I want to find a thing I wrote down and to see a year rather than half of one,
+So that the history is something I can use rather than only add to.
+
+**Acceptance Criteria:**
+
+**Given** entries and items
+**When** `GET /api/entries?q=` or `GET /api/inventory/items?q=` is called
+**Then** entries match on their note or their category's name, and items on their name or note, case-insensitively (FR-35)
+**And** the phrase is escaped before it becomes a `LIKE` pattern, so searching `50%` finds the note that says "50% off" rather than matching every row — the escaping lives in `app/core/search.py`, shared by both modules because AD-31 forbids one importing the other, and a mutation test proves the escaping is load-bearing
+**And** search combines with the existing `kind`, `month` and `category_id` filters rather than replacing them
+**And** an empty `q` returns everything, and search never crosses a user boundary
+**And** the entries table and the stock page each carry a search box, and an empty result says what was searched for
+**And** the dashboard's trend window can be switched between six months and a year, remembered per device like the collapsed sections (FR-36)
 
 ---
 

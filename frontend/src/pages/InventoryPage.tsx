@@ -37,6 +37,8 @@ export function InventoryPage() {
   const [filter, setFilter] = useState<Filter>(
     searchParams.get("filter") === "restock" ? "restock" : "all",
   );
+  // Server-side, so it searches every space rather than the filtered view on screen.
+  const [search, setSearch] = useState("");
 
   // Add-item form.
   const [name, setName] = useState("");
@@ -77,7 +79,7 @@ export function InventoryPage() {
     try {
       const [nextSpaces, nextItems, nextRestocks] = await Promise.all([
         api.listSpaces(),
-        api.listItems(),
+        api.listItems(search.trim() ? { q: search.trim() } : {}),
         api.restocks(RESTOCK_MONTHS),
       ]);
       setSpaces(nextSpaces);
@@ -88,7 +90,7 @@ export function InventoryPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [search]);
 
   useEffect(() => {
     void load();
@@ -326,6 +328,16 @@ export function InventoryPage() {
 
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 16 }}>
         <h1 style={{ fontSize: 18, margin: 0 }}>Stock</h1>
+        <label style={{ flex: "1 1 160px", maxWidth: 240 }}>
+          Search
+          <input
+            type="search"
+            aria-label="Search items"
+            placeholder="name or note"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
         <div className="chips" role="group" aria-label="Filter">
           <button
             type="button"

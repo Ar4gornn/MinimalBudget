@@ -308,7 +308,9 @@ export const api = {
   deleteCategory: (id: string) =>
     request<void>(`/api/categories/${id}`, { method: "DELETE" }),
 
-  listEntries: (filters: { kind?: EntryKind; month?: string; category_id?: string } = {}) =>
+  listEntries: (
+    filters: { kind?: EntryKind; month?: string; category_id?: string; q?: string } = {},
+  ) =>
     items(request<Page<Entry>>(`/api/entries${query(filters)}`)),
 
   createEntry: (input: EntryInput) =>
@@ -439,7 +441,7 @@ export const api = {
   deleteSpace: (id: string) =>
     request<void>(`/api/inventory/spaces/${id}`, { method: "DELETE" }),
 
-  listItems: (filters: { space_id?: string; needs_restock?: boolean } = {}) =>
+  listItems: (filters: { space_id?: string; needs_restock?: boolean; q?: string } = {}) =>
     items(
       request<Page<InventoryItem>>(
         `/api/inventory/items${query({

@@ -1,4 +1,4 @@
-import { render as rtlRender, screen, within } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,9 +45,7 @@ function mockApi(
     pending?: unknown[];
   } = {},
 ) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string) => {
+  const fetchMock = vi.fn(async (url: string) => {
       const body = url.includes("/api/recurring/pending")
         ? { items: overrides.pending ?? [] }
         : url.includes("/api/inventory/items")
@@ -61,8 +59,9 @@ function mockApi(
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
-    }),
-  );
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
 /** Read one headline figure by its label, rather than by hunting for a number on the page. */
@@ -350,5 +349,28 @@ describe("restock reminders on the dashboard (AD-30, AD-31)", () => {
     render(<DashboardPage />);
     await screen.findByText("Budget vs actual");
     expect(screen.queryByText(/recurring/i)).toBeNull();
+  });
+
+  it("switches the trend window to a year and remembers it", async () => {
+    const fetchMock = mockApi();
+    const user = userEvent.setup();
+    const { unmount } = render(<DashboardPage />);
+    await screen.findByText("Budget vs actual");
+
+    await user.click(screen.getByRole("button", { name: "12 months" }));
+    await waitFor(() => {
+      const asked = fetchMock.mock.calls
+        .map((call) => String(call[0]))
+        .filter((url: string) => url.includes("/trends"));
+      expect(asked.at(-1)).toContain("months=12");
+    });
+    unmount();
+
+    // Remembered per device, like the collapsed sections.
+    render(<DashboardPage />);
+    expect(await screen.findByRole("button", { name: "12 months" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 });

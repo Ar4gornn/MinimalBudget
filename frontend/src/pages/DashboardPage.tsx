@@ -11,11 +11,23 @@ import {progress, subtractMoney, toChartNumber, toCents } from "../money";
 import { useMoney } from "../useMoney";
 import { currentMonth, monthLabel, shiftMonth } from "../months";
 
-const TREND_MONTHS = 6;
+const TREND_WINDOWS = [6, 12] as const;
+const TREND_KEY = "minimalbudget.trendMonths";
+
+/** Remembered per device, like the collapsed sections. */
+function readTrendMonths(): number {
+  try {
+    const stored = Number(window.localStorage.getItem(TREND_KEY));
+    return TREND_WINDOWS.includes(stored as (typeof TREND_WINDOWS)[number]) ? stored : 6;
+  } catch {
+    return 6;
+  }
+}
 
 export function DashboardPage() {
   const money = useMoney();
   const [month, setMonth] = useState(currentMonth());
+  const [trendMonths, setTrendMonths] = useState(readTrendMonths);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [trends, setTrends] = useState<Trends | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +46,7 @@ export function DashboardPage() {
     try {
       const [nextSummary, nextTrends] = await Promise.all([
         api.summary(month),
-        api.trends(TREND_MONTHS, month),
+        api.trends(trendMonths, month),
       ]);
       setSummary(nextSummary);
       setTrends(nextTrends);
@@ -43,7 +55,7 @@ export function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [month]);
+  }, [month, trendMonths]);
 
   useEffect(() => {
     void load();
@@ -336,7 +348,31 @@ export function DashboardPage() {
 
           {trends && (
             <div style={{ marginTop: 16 }}>
-              <Card title={`Last ${TREND_MONTHS} months`}>
+              <Card
+                title={`Last ${trendMonths} months`}
+                actions={
+                  <div className="chips" role="group" aria-label="Trend window">
+                    {TREND_WINDOWS.map((months) => (
+                      <button
+                        key={months}
+                        type="button"
+                        className={`chip ${trendMonths === months ? "on" : ""}`}
+                        aria-pressed={trendMonths === months}
+                        onClick={() => {
+                          setTrendMonths(months);
+                          try {
+                            window.localStorage.setItem(TREND_KEY, String(months));
+                          } catch {
+                            /* a forgotten preference is not worth a crash */
+                          }
+                        }}
+                      >
+                        {months} months
+                      </button>
+                    ))}
+                  </div>
+                }
+              >
                 <TrendChart
                   months={trends.months}
                   income={trends.income}

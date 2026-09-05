@@ -330,4 +330,21 @@ describe("quantity and unit price (AD-29)", () => {
     const table = await screen.findByRole("table", { name: "Entries" });
     expect(within(table).getByText("20.0000 /l")).toBeInTheDocument();
   });
+
+  it("searches on the server rather than filtering the rows already on screen", async () => {
+    const fetchMock = mockApi();
+    const user = userEvent.setup();
+    render(<EntriesPage />);
+    await screen.findByRole("table", { name: "Entries" });
+
+    await user.type(screen.getByLabelText("Search entries"), "diesel");
+
+    // The point of doing it server-side: it can find rows this page never fetched.
+    await waitFor(() => {
+      const asked = fetchMock.mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.includes("/api/entries?") && url.includes("q="));
+      expect(asked.at(-1)).toContain("q=diesel");
+    });
+  });
 });

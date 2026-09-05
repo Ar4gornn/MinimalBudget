@@ -19,9 +19,10 @@ def list_entries(
     kind: EntryKind | None = None,
     month: Annotated[str | None, Query(description="YYYY-MM")] = None,
     category_id: uuid.UUID | None = None,
+    q: Annotated[str | None, Query(max_length=80, description="matches note or category")] = None,
 ) -> Page[EntryOut]:
     rows = ledger.list_entries(
-        session, user_id, kind=kind, month=month, category_id=category_id
+        session, user_id, kind=kind, month=month, category_id=category_id, q=q
     )
     return Page[EntryOut](items=[EntryOut.model_validate(r) for r in rows])
 

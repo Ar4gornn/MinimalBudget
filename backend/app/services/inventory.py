@@ -13,6 +13,7 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core import search
 from app.core.errors import Conflict, NotFound
 from app.core.months import add_months, format_month, parse_month
 from app.models.inventory import InventoryItem, InventoryItemChange, Space
@@ -100,8 +101,15 @@ def list_items(
     *,
     space_id: uuid.UUID | None = None,
     needs_restock: bool | None = None,
+    q: str | None = None,
 ) -> list[InventoryItem]:
     query = _item_query(user_id)
+    if q:
+        like = search.pattern(q)
+        query = query.where(
+            InventoryItem.name.ilike(like, escape=search.ESCAPE)
+            | InventoryItem.note.ilike(like, escape=search.ESCAPE)
+        )
     if space_id is not None:
         query = query.where(InventoryItem.space_id == space_id)
     if needs_restock is not None:
