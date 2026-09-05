@@ -244,3 +244,24 @@ def test_b_sees_none_of_as_codes(client, user_a, user_b, runtime_connection):
         "unused": 0,
         "total": 0,
     }
+
+
+def test_the_operator_can_issue_a_code_that_works_once(client, user_a, capsys):
+    """The console fallback for someone who lost their codes too."""
+    import recovery as operator_tool
+
+    assert operator_tool.issue(user_a["email"]) == 0
+    printed = capsys.readouterr().out
+    code = next(
+        line.split(":")[-1].strip() for line in printed.splitlines() if "Recovery code" in line
+    )
+    assert _recover(client, user_a["email"], code).status_code == 204
+    assert _recover(client, user_a["email"], code, "yet-another-password").status_code == 401
+    assert _login(client, user_a["email"], NEW_PASSWORD).status_code == 200
+
+
+def test_the_operator_tool_refuses_an_unknown_account(capsys):
+    import recovery as operator_tool
+
+    assert operator_tool.issue("nobody@example.com") == 1
+    assert "No account" in capsys.readouterr().err

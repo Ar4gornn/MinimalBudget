@@ -198,8 +198,16 @@ current password first) and should keep them somewhere that is not the app. "For
 password?" on the sign-in page takes their email, one unused code and a new password; the code
 is spent and every session is signed out. No email is involved.
 
-If the codes are lost as well, the operator can still reset it. Confirm who is asking through
-some channel that is not the app, then:
+If the codes are lost as well (or were never generated), the operator can issue one. Confirm who
+is asking through some channel that is not the app, then:
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm migrate python recovery.py issue sam@example.com
+```
+
+The code is printed once; the person uses it on the sign-in page and chooses the new password
+themselves, so the operator never picks or learns one. `reset_password.py` still exists for the
+case where that is not workable:
 
 ```bash
 docker compose -f docker-compose.prod.yml run --rm migrate python reset_password.py sam@example.com
