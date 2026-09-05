@@ -19,10 +19,13 @@ import type {
   Cadence,
   Page,
   PendingEntry,
+  Purchase,
+  PurchaseResult,
   Quantity,
   RecurringTemplate,
   Restocks,
   SavingsType,
+  ShoppingList,
   Space,
   Summary,
   Target,
@@ -359,6 +362,27 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ monthly_amount: monthlyAmount }),
     }),
+
+  shoppingList: () => request<ShoppingList>("/api/inventory/shopping-list"),
+
+  /** AD-31's one cross-module write: restock the item and record what it cost, together. */
+  purchaseItem: (
+    id: string,
+    input: {
+      quantity: number;
+      amount?: Money;
+      occurred_on?: string;
+      category_id?: string;
+      category_name?: string;
+    },
+  ) =>
+    request<PurchaseResult>(`/api/inventory/items/${id}/purchase`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  itemPurchases: (id: string) =>
+    items(request<Page<Purchase>>(`/api/inventory/items/${id}/purchases`)),
 
   listTemplates: () => items(request<Page<RecurringTemplate>>("/api/recurring/templates")),
 

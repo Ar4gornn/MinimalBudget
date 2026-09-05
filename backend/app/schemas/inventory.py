@@ -3,7 +3,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.schemas.common import NonNegativeMoney
+from app.schemas.common import Money, NonNegativeMoney
 
 
 def _trimmed(name: str) -> str:
@@ -115,3 +115,77 @@ class SpaceRestockSeries(BaseModel):
 class RestocksOut(BaseModel):
     months: list[str]
     series: list[SpaceRestockSeries]
+
+
+class ShoppingRowOut(BaseModel):
+    """One thing to buy: how many, and what it is likely to cost."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    item_id: uuid.UUID
+    name: str
+    space_id: uuid.UUID
+    space_name: str
+    quantity: int
+    restock_below: int | None
+    unit_cost: NonNegativeMoney | None
+    suggested: int
+    # None when the item has no recorded cost — never 0.00, which would be a price.
+    estimate: NonNegativeMoney | None
+
+
+class ShoppingListOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    items: list[ShoppingRowOut]
+    # Covers only the rows that have a cost; `without_cost` says how many it leaves out, so
+    # the figure is never quietly wrong.
+    estimate: NonNegativeMoney
+    without_cost: int
+
+
+class PurchaseCreate(BaseModel):
+    """Ticking an item off the list: restock it, and record what it cost.
+
+    ``amount`` is optional — a restock that was free is still a restock — but an amount
+    needs a category, since an entry cannot exist without one (AD-7).
+    """
+
+    quantity: int = Field(gt=0)
+    amount: Money | None = None
+    occurred_on: dt.date | None = None
+    category_id: uuid.UUID | None = None
+    category_name: str | None = Field(default=None, min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def _rules(self) -> "PurchaseCreate":
+        if self.category_id is not None and self.category_name is not None:
+            raise ValueError("provide at most one of category_id or category_name")
+        if self.amount is not None and self.category_id is None and self.category_name is None:
+            raise ValueError("an amount needs a category to file it under")
+        if self.amount is None and (self.category_id is not None or self.category_name is not None):
+            raise ValueError("a category without an amount records nothing")
+        if self.category_name is not None:
+            trimmed = self.category_name.strip()
+            if not trimmed:
+                raise ValueError("category_name cannot be blank")
+            object.__setattr__(self, "category_name", trimmed)
+        return self
+
+
+class PurchaseOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    item_id: uuid.UUID
+    entry_id: uuid.UUID | None
+    quantity: int
+    purchased_on: dt.date
+    created_at: dt.datetime
+
+
+class PurchaseResultOut(BaseModel):
+    """Both halves of the one action, so the client needs no second request."""
+
+    item: ItemOut
+    purchase: PurchaseOut

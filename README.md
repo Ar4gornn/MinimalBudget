@@ -19,6 +19,8 @@ queries as a second user rather than by reading a policy and believing it.
 - Set a **standing monthly budget** per expense category and a **monthly target** per savings type.
 - Change your password, and generate one-time **recovery codes** so a forgotten password is not a
   trip to the operator.
+- Shop from a **list** of what is below its threshold, with an estimated cost. Ticking
+  something off restocks it and records the expense in one action.
 - Describe what **recurs** — rent, salary, the electricity bill — once. On its due date it is
   proposed for confirmation, with the amount editable; only a template you mark "add
   automatically" writes an entry on its own.

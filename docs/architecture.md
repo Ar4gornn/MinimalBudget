@@ -390,9 +390,12 @@ security-definer function
   them, no cross-module query in any service. The dashboard **page** composes modules by calling
   each module's endpoint and rendering the results side by side, and a failure in one module
   degrades that card only; the dashboard **service** aggregates the ledger only. A cross-module
-  write, when one is wanted (the v2 shopping-list tick), is a single explicit endpoint that
-  performs both writes in the one request transaction of AD-4, named for what it does, never a
-  side effect of an ordinary create.
+  write, when one is wanted, is a single explicit endpoint that performs both writes in the one
+  request transaction of AD-4, named for what it does, never a side effect of an ordinary
+  create. **Built as Epic 14:** `POST /api/inventory/items/{id}/purchase`, served by
+  `services/shopping.py` — the one declared seam. It imports the two *services*, never their
+  models, so the coupling has a single named home instead of leaking into either module, and a
+  test reads the imports to prove the boundary rather than trusting the convention.
 
 ### AD-32 — A password hash is written only by a function that checks the tenant itself
 
@@ -637,11 +640,11 @@ MinimalBudget/
   "you buy this every N days" figure needs no backfill.
 - **Push notifications.** Needs a push service, VAPID keys and a scheduler. Reminders are
   surfaced on open, on the dashboard.
-- **Ledger ↔ inventory link and the shopping list.** A purchase-history join table, requiring
-  `UNIQUE (user_id, id)` on `entries` per AD-18, and one explicit endpoint that restocks and
-  records the expense in one transaction per AD-31. Not two side effects. Auto-restock from a
-  grocery entry is rejected outright: a single entry covers many items and nothing in it says
-  which.
+- ~~**Ledger ↔ inventory link and the shopping list.**~~ **Built as Epic 14** (2026-09-05),
+  exactly as this deferral described: a purchase-history join table, the `UNIQUE (user_id, id)`
+  on `entries` that AD-18 required (added by migration 0010), and one explicit endpoint that
+  restocks and records the expense in one transaction. Auto-restock from a grocery entry stays
+  rejected: a single entry covers many items and nothing in it says which.
 - **Unit-quantified items.** Reuse the AD-29 unit list on `inventory_items` when someone needs
   `2.5 kg` rather than `3`.
 - **Photos on items.** Not planned: the first blob in the system, outside `pg_dump`, so the first

@@ -53,6 +53,8 @@ up front.
 | FR-30 | A user can define a recurring income or expense with a weekly, monthly or yearly cadence. |
 | FR-31 | A recurring entry is proposed on its due date and becomes an entry only when confirmed, unless the template opted in to automatic creation. |
 | FR-32 | A user sees on the dashboard how many recurring entries are waiting for them. |
+| FR-33 | A user can read a shopping list of everything below its threshold, with a suggested quantity and an estimated cost. |
+| FR-34 | Ticking an item off the list restocks it and records the expense in one action, and the purchase is kept as history. |
 
 ### NonFunctional Requirements
 
@@ -84,6 +86,7 @@ Sourced from the architecture spine. These bind every story that touches them.
 | AR-10 | Currency is an attribute of the account, never of an entry; changing it relabels and is refused once the ledger holds a row. | AD-5 |
 | AR-11 | A password hash is written only by `auth_set_password`, which refuses any tenant but the transaction's own; every password change revokes all sessions. | AD-32 |
 | AR-12 | Recurrence materialises on read and is idempotent; a decision is recorded, never recomputed. | AD-33 |
+| AR-13 | The ledger and the inventory touch in exactly one named service, in one transaction, never as a side effect. | AD-31 |
 
 ### UX Design Requirements
 
@@ -131,6 +134,7 @@ AD-17).
 | FR-27, AR-10 | Story 9.1 |
 | FR-28, FR-29, AR-11 | Stories 12.1, 12.2 |
 | FR-30, FR-31, FR-32, AR-12 | Stories 13.1, 13.2 |
+| FR-33, FR-34, AR-13 | Stories 14.1, 14.2 |
 
 ## Epic List
 
@@ -149,6 +153,7 @@ AD-17).
 | 11 | Inventory | A user can keep track of what they have, where, see what is running out without leaving the dashboard, and see how each item's stock moved. |
 | 12 | Password recovery | A person who forgets their password gets back in on their own, without email and without the operator. |
 | 13 | Recurring entries | The entries that repeat every month stop being typed every month, without anything being written behind the person's back. |
+| 14 | Shopping list | What is running out becomes a list, and buying it is one action that both restocks the shelf and records the spend. |
 
 Epics 8 and 9 were built on 2026-08-30 and 2026-09-01 and written up here afterwards, from the
 commits and the tests, on 2026-09-05. Each is one story because each was one commit with one
@@ -818,6 +823,53 @@ So that the electricity bill goes in at what it actually was.
 **And** the dashboard shows "N recurring entries are waiting for you", linked to Plan, listing up to three, and shows nothing when there is nothing to decide (FR-32)
 **And** a corrected amount that is not a two-place decimal is refused on the client before it reaches the server
 **And** user B sees none of user A's templates or proposals, and confirming or skipping one of A's answers `404`
+
+---
+
+## Epic 14: Shopping list
+
+The "needs restocking" filter of Epic 11 was already a shopping list without a name. This epic
+gives it one, a cost, and the action Epic 11 deliberately deferred: ticking an item off restocks
+it *and* records what it cost. That is the cross-module write AD-31 reserved — one explicit
+endpoint, one transaction, never a side effect of recording a grocery expense, because an "$80
+groceries" entry cannot say which of twenty items it covered.
+
+### Story 14.1: The list, with an estimate that does not lie
+
+As a family member about to go shopping,
+I want a list of what is low and what it will roughly cost,
+So that I can shop from my phone without opening every cupboard.
+
+**Acceptance Criteria:**
+
+**Given** items below their thresholds
+**When** they `GET /api/inventory/shopping-list`
+**Then** each row carries the item, its space, the quantity on hand, a suggested quantity, its unit cost and an estimate (FR-33)
+**And** the suggested quantity clears the threshold with one to spare — a threshold of 2 at a quantity of 0 suggests 3, because buying exactly to the threshold leaves the item still low
+**And** an item with no recorded cost has a `null` estimate, never `0.00`, which would be a price (AD-29's rule, applied here)
+**And** the list's total covers only the rows that have a cost, and `without_cost` says how many it left out, so the figure is never quietly short
+**And** an empty list totals `0.00` rather than nothing
+**And** the card renders nothing at all when there is nothing to buy, and renders nothing rather than crashing on a payload it does not recognise — it sits above the shelves on the Stock page, and must not take that page down with it
+
+### Story 14.2: Buying it, in one action
+
+As a family member at the till,
+I want ticking something off to restock it and record what I paid,
+So that the two never drift apart, and neither has to be typed twice.
+
+**Acceptance Criteria:**
+
+**Given** an item on the shopping list
+**When** they `POST /api/inventory/items/{id}/purchase` with a quantity, and optionally an amount and a category
+**Then** the item's quantity rises by that many, an expense entry is created for the amount, and a `inventory_purchases` row links the two — all in the request's single transaction (FR-34, AR-13, AD-4)
+**And** the restock counts as a real one: it appears in the item's history and stamps `restocked_at` (AD-30)
+**And** leaving out the amount still restocks and records no entry, because something free, or paid for by someone else, is still on the shelf
+**And** an amount without a category, or a category without an amount, is refused with `422` and writes neither half
+**And** a failed entry leaves the item unrestocked — proven by mutation, with the restock moved *before* the entry so that ordering alone cannot explain the result
+**And** purchases are listed newest first, and deleting the entry keeps the purchase with a null `entry_id`: the item was restocked whatever later happened to the expense record
+**And** deleting the item takes its purchases and leaves the entries, which are records of money that moved (AD-21)
+**And** the coupling lives only in `services/shopping.py`: a test reads the imports and fails if either module reaches into the other (AR-13)
+**And** user B cannot read A's list, purchase A's item, or insert a purchase row against it — the composite foreign key refuses it below the API too (AD-18)
 
 ---
 

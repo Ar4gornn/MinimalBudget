@@ -6,6 +6,7 @@ import type { ItemInput } from "../api/client";
 import type { InventoryItem, ItemChange, Restocks, Space } from "../api/types";
 import { CountBars } from "../charts/CountBars";
 import { StepChart } from "../charts/StepChart";
+import { ShoppingList } from "../components/ShoppingList";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { isNonNegativeMoney } from "../money";
@@ -319,6 +320,9 @@ export function InventoryPage() {
   return (
     <>
       <ErrorBanner message={error} />
+
+      {/* Above the spaces: what to buy is the thing you act on, the shelves are reference. */}
+      <ShoppingList onChanged={() => void load()} />
 
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 16 }}>
         <h1 style={{ fontSize: 18, margin: 0 }}>Stock</h1>

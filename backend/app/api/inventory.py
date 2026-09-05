@@ -1,3 +1,4 @@
+import datetime as dt
 import uuid
 from typing import Annotated
 
@@ -10,12 +11,16 @@ from app.schemas.inventory import (
     ItemCreate,
     ItemOut,
     ItemUpdate,
+    PurchaseCreate,
+    PurchaseOut,
+    PurchaseResultOut,
     RestocksOut,
+    ShoppingListOut,
     SpaceCreate,
     SpaceOut,
     SpaceUpdate,
 )
-from app.services import inventory
+from app.services import inventory, shopping
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
@@ -106,6 +111,46 @@ def item_history(
 ) -> Page[ItemChangeOut]:
     rows = inventory.item_history(session, user_id, item_id, days=days)
     return Page[ItemChangeOut](items=[ItemChangeOut.model_validate(r) for r in rows])
+
+
+@router.get("/shopping-list", response_model=ShoppingListOut)
+def shopping_list(user_id: CurrentUserId, session: DbSession) -> ShoppingListOut:
+    return ShoppingListOut.model_validate(shopping.shopping_list(session, user_id))
+
+
+@router.post("/items/{item_id}/purchase", response_model=PurchaseResultOut)
+def purchase(
+    item_id: uuid.UUID,
+    payload: PurchaseCreate,
+    user_id: CurrentUserId,
+    session: DbSession,
+) -> PurchaseResultOut:
+    """AD-31: the one write that crosses the module boundary, named for what it does.
+
+    Both halves happen in the request's single transaction, so a failed entry leaves the
+    item unrestocked rather than half-done.
+    """
+    item, record = shopping.purchase(
+        session,
+        user_id,
+        item_id,
+        quantity=payload.quantity,
+        amount=payload.amount,
+        occurred_on=payload.occurred_on or dt.date.today(),
+        category_id=payload.category_id,
+        category_name=payload.category_name,
+    )
+    return PurchaseResultOut(
+        item=ItemOut.model_validate(item), purchase=PurchaseOut.model_validate(record)
+    )
+
+
+@router.get("/items/{item_id}/purchases", response_model=Page[PurchaseOut])
+def item_purchases(
+    item_id: uuid.UUID, user_id: CurrentUserId, session: DbSession
+) -> Page[PurchaseOut]:
+    rows = shopping.purchases(session, user_id, item_id)
+    return Page[PurchaseOut](items=[PurchaseOut.model_validate(r) for r in rows])
 
 
 @router.get("/restocks", response_model=RestocksOut)

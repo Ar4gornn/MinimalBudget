@@ -45,6 +45,9 @@ function json(body: unknown, status = 200): Response {
 
 function mockApi() {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes("/shopping-list")) {
+      return json({ items: [], estimate: "0.00", without_cost: 0 });
+    }
     if (url.includes("/api/inventory/spaces") && init?.method === "DELETE") {
       return json({ detail: "That space still has items" }, 409);
     }

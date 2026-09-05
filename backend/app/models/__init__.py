@@ -8,6 +8,7 @@ here. The migration is the authority; these declarations keep the ORM honest abo
 from app.models.base import Base
 from app.models.inventory import InventoryItem, InventoryItemChange, Space
 from app.models.ledger import Budget, Category, Entry, EntryKind, Unit
+from app.models.purchase import InventoryPurchase
 from app.models.recurring import Cadence, OccurrenceStatus, RecurringOccurrence, RecurringTemplate
 from app.models.savings import SavingsContribution, SavingsTarget, SavingsType
 from app.models.user import User
@@ -23,6 +24,7 @@ __all__ = [
     "Entry",
     "EntryKind",
     "InventoryItem",
+    "InventoryPurchase",
     "InventoryItemChange",
     "SavingsContribution",
     "SavingsTarget",

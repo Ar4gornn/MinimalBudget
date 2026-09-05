@@ -249,3 +249,39 @@ export interface PendingEntry {
   note: string | null;
   cadence: Cadence;
 }
+
+/** One line of the shopping list: what to buy, how many, and the likely cost. */
+export interface ShoppingRow {
+  item_id: string;
+  name: string;
+  space_id: string;
+  space_name: string;
+  quantity: number;
+  restock_below: number | null;
+  unit_cost: Money | null;
+  suggested: number;
+  /** null when the item has no recorded cost — never "0.00", which would be a price. */
+  estimate: Money | null;
+}
+
+export interface ShoppingList {
+  items: ShoppingRow[];
+  /** Covers only the rows that have a cost; `without_cost` says how many it leaves out. */
+  estimate: Money;
+  without_cost: number;
+}
+
+/** One restock that was paid for. The entry is null when it cost nothing. */
+export interface Purchase {
+  id: string;
+  item_id: string;
+  entry_id: string | null;
+  quantity: number;
+  purchased_on: string;
+  created_at: string;
+}
+
+export interface PurchaseResult {
+  item: InventoryItem;
+  purchase: Purchase;
+}
