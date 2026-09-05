@@ -8,8 +8,8 @@ import { MemoryRouter } from "react-router-dom";
 import { AuthProvider } from "../auth/AuthContext";
 import { ToastProvider } from "../components/Toast";
 
-// PlanPage changes the account currency, so it reads the auth context. Rendering it inside
-// a real provider rather than stubbing the hook keeps the test honest about that wiring.
+// PlanPage formats amounts in the account's currency, so it reads the auth context. Rendering
+// it inside a real provider rather than stubbing the hook keeps the test honest about that.
 function render(ui: React.ReactElement) {
   return rtlRender(
     <MemoryRouter>

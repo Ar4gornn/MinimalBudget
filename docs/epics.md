@@ -719,7 +719,7 @@ So that I hold my own way back in and never need the operator for a routine chan
 
 **Acceptance Criteria:**
 
-**Given** a signed-in user on the Plan page
+**Given** a signed-in user on the Settings page
 **When** they confirm their current password and ask for recovery codes
 **Then** `POST /api/auth/me/recovery-codes` returns eight codes of ten characters from an alphabet without `0/O` and `1/I/l`, shown once, formatted `xxxxx-xxxxx` (FR-28)
 **And** the `recovery_codes` table, created by this story through `protect()`, stores only SHA-256 hashes; the plain text appears nowhere after the response
@@ -748,6 +748,21 @@ So that I am not locked out until the operator is awake.
 **And** repeated failures lock recovery for that email and for the source address under a limiter separate from login's, with the same thresholds, answering `429` with `Retry-After` (AD-26)
 **And** `auth_set_password` called with another user's id, or with no tenant set, raises — proven by executing it as the runtime role under user B's tenancy against user A's id, and the runtime role still cannot `UPDATE users.password_hash` directly (AR-11)
 **And** user B can see none of user A's codes, and cannot redeem one against their own email
+
+### Story 12.3: A settings page
+
+As a family member,
+I want the things about my account in one place,
+So that "change my password" is not something I go looking for beside the budgets.
+
+**Acceptance Criteria:**
+
+**Given** a signed-in user
+**When** they tap their email in the top bar (a gear and the address, one link, on desktop and phone alike)
+**Then** `/settings` shows the account (email, currency with its lock rule), password and recovery codes, and sign-out
+**And** the currency control and the security card are gone from the Plan page, which is budgets and targets again
+**And** the bottom bar keeps five tabs — a sixth would not fit a 375 px screen, which is why Settings hangs off the top bar
+**And** a currency change re-reads the profile so every symbol on every page follows, and a refused change shows the server's reason
 
 ---
 

@@ -7,6 +7,7 @@ import { EntriesPage } from "./pages/EntriesPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { PlanPage } from "./pages/PlanPage";
 import { ProjectionsPage } from "./pages/ProjectionsPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { SignInPage } from "./pages/SignInPage";
 
 const SECTIONS = [
@@ -18,7 +19,7 @@ const SECTIONS = [
 ];
 
 export function App() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -42,11 +43,16 @@ export function App() {
             </NavLink>
           ))}
         </nav>
+        {/* The email is the way into Settings: currency, password, recovery codes and
+            sign-out all live there, so the top bar carries one link instead of a button
+            for each. Six bottom tabs would not fit a phone; one link here does. */}
         <div className="identity">
-          <span>{user.email}</span>
-          <button type="button" className="quiet" onClick={signOut}>
-            Sign out
-          </button>
+          <NavLink to="/settings" aria-label="Settings" title="Settings">
+            <span className="glyph" aria-hidden="true">
+              ⚙
+            </span>
+            <span className="email">{user.email}</span>
+          </NavLink>
         </div>
       </header>
 
@@ -58,6 +64,7 @@ export function App() {
           <Route path="/plan" element={<PlanPage />} />
           <Route path="/projections" element={<ProjectionsPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

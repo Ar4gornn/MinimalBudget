@@ -1,18 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { api } from "../api/client";
-import type {
-  Budget,
-  Category,
-  Contribution,
-  Currency,
-  SavingsType,
-  Target,
-} from "../api/types";
-import { SecurityCard } from "../components/SecurityCard";
+import type { Budget, Category, Contribution, SavingsType, Target } from "../api/types";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
-import {isNonNegativeMoney, isPositiveMoney } from "../money";
-import { useAuth } from "../auth/AuthContext";
+import { isNonNegativeMoney, isPositiveMoney } from "../money";
 import { useToast } from "../components/Toast";
 import { useMoney } from "../useMoney";
 import { todayIso } from "../months";
@@ -20,7 +11,6 @@ import { todayIso } from "../months";
 /** Savings and budgets: what the user intends, and what they have actually put aside. */
 export function PlanPage() {
   const money = useMoney();
-  const { refreshUser } = useAuth();
   const toast = useToast();
   const [types, setTypes] = useState<SavingsType[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
@@ -88,14 +78,6 @@ export function PlanPage() {
     }
   }
 
-  async function changeCurrency(next: Currency) {
-    if (next === money.currency) return;
-    await guard(async () => {
-      await api.setCurrency(next);
-      await refreshUser();
-    }, "Could not change the currency.");
-  }
-
   async function addType(event: FormEvent) {
     event.preventDefault();
     if (!newType.trim()) return;
@@ -139,28 +121,6 @@ export function PlanPage() {
   return (
     <>
       <ErrorBanner message={error} />
-
-      <Card title="Currency">
-        <div className="row">
-          <label style={{ flex: "0 0 200px" }}>
-            Account currency
-            <select
-              aria-label="Account currency"
-              value={money.currency}
-              onChange={(event) => void changeCurrency(event.target.value as Currency)}
-            >
-              <option value="USD">US dollars ($)</option>
-              <option value="EUR">Euros (€)</option>
-            </select>
-          </label>
-        </div>
-        <p className="hint" style={{ marginTop: 8 }}>
-          Amounts are stored, not converted — changing this relabels them. It locks as soon as
-          the account has its first entry.
-        </p>
-      </Card>
-
-      <SecurityCard />
 
       <div className="columns">
         <div>

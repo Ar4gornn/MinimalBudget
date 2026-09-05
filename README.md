@@ -193,7 +193,7 @@ another if it is lost. Send it over something private — anyone holding it can 
 
 ### When someone forgets their password
 
-Each person can generate eight one-time **recovery codes** on the Plan page (it asks for the
+Each person can generate eight one-time **recovery codes** on the Settings page (it asks for the
 current password first) and should keep them somewhere that is not the app. "Forgot your
 password?" on the sign-in page takes their email, one unused code and a new password; the code
 is spent and every session is signed out. No email is involved.

@@ -128,6 +128,23 @@ a {
   color: var(--muted);
 }
 
+.identity a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.identity a:hover,
+.identity a[aria-current="page"] {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
 .grid {
   display: grid;
   gap: var(--gap);
@@ -572,8 +589,8 @@ tr.history td {
     margin-left: auto;
   }
 
-  .identity span {
-    max-width: 44vw;
+  .identity .email {
+    max-width: 40vw;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
