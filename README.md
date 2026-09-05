@@ -19,6 +19,9 @@ queries as a second user rather than by reading a policy and believing it.
 - Set a **standing monthly budget** per expense category and a **monthly target** per savings type.
 - Change your password, and generate one-time **recovery codes** so a forgotten password is not a
   trip to the operator.
+- Describe what **recurs** — rent, salary, the electricity bill — once. On its due date it is
+  proposed for confirmation, with the amount editable; only a template you mark "add
+  automatically" writes an entry on its own.
 - A **dashboard** for any month: income, expense, net and saved; budget versus actual per category;
   savings progress per type; and six months of trend, with a small multiple per category.
 - An expense can carry a **quantity and unit** — `$60.14` for `40.123 l` — and the app derives the

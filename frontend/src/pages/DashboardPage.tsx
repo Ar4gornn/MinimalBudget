@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api/client";
-import type { InventoryItem, Space, Summary, Trends } from "../api/types";
+import type { InventoryItem, PendingEntry, Space, Summary, Trends } from "../api/types";
 import { Sparkline } from "../charts/Sparkline";
 import { ProgressBar } from "../charts/ProgressBar";
 import { TrendChart } from "../charts/TrendChart";
@@ -25,6 +25,7 @@ export function DashboardPage() {
   // the list (AD-30). It is allowed to fail on its own: a broken inventory must not
   // blank the ledger.
   const [lowItems, setLowItems] = useState<InventoryItem[] | null>(null);
+  const [pending, setPending] = useState<PendingEntry[] | null>(null);
   const [spaces, setSpaces] = useState<Space[]>([]);
 
   const load = useCallback(async () => {
@@ -47,6 +48,23 @@ export function DashboardPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Proposals from recurring templates. Reading the list is what materialises them, so the
+  // dashboard is where a family member finds out there is something to confirm.
+  useEffect(() => {
+    let cancelled = false;
+    void api.listPending().then(
+      (rows) => {
+        if (!cancelled) setPending(rows);
+      },
+      () => {
+        if (!cancelled) setPending(null);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +157,30 @@ export function DashboardPage() {
             <Stat label="Net" value={summary.net} />
             <Stat label="Saved" value={summary.saved} />
           </div>
+
+          {pending && pending.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <Card
+                title="To confirm"
+                collapseKey="dashboard.pending"
+                summary={`${pending.length} ${pending.length === 1 ? "entry" : "entries"}`}
+              >
+                <p style={{ margin: "0 0 6px" }} data-stat="To confirm">
+                  <Link to="/plan">
+                    {pending.length} recurring{" "}
+                    {pending.length === 1 ? "entry is" : "entries are"} waiting for you
+                  </Link>
+                </p>
+                <p className="hint" style={{ margin: 0 }}>
+                  {pending
+                    .slice(0, 3)
+                    .map((row) => `${row.category_name} · ${row.due_on}`)
+                    .join(", ")}
+                  {pending.length > 3 ? ", …" : ""}
+                </p>
+              </Card>
+            </div>
+          )}
 
           {lowItems && lowItems.length > 0 && (
             <div style={{ marginTop: 16 }}>

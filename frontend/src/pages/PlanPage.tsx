@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 
 import { api } from "../api/client";
 import type { Budget, Category, Contribution, SavingsType, Target } from "../api/types";
+import { RecurringCard } from "../components/RecurringCard";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import { isNonNegativeMoney, isPositiveMoney } from "../money";
 import { useToast } from "../components/Toast";
@@ -121,6 +122,8 @@ export function PlanPage() {
   return (
     <>
       <ErrorBanner message={error} />
+
+      <RecurringCard />
 
       <div className="columns">
         <div>

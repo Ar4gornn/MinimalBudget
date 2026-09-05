@@ -38,12 +38,19 @@ const trends: Trends = {
 };
 
 function mockApi(
-  overrides: { summary?: Summary; trends?: Trends; lowItems?: unknown[] } = {},
+  overrides: {
+    summary?: Summary;
+    trends?: Trends;
+    lowItems?: unknown[];
+    pending?: unknown[];
+  } = {},
 ) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
-      const body = url.includes("/api/inventory/items")
+      const body = url.includes("/api/recurring/pending")
+        ? { items: overrides.pending ?? [] }
+        : url.includes("/api/inventory/items")
         ? { items: overrides.lowItems ?? [] }
         : url.includes("/api/inventory/spaces")
           ? { items: [{ id: "sp1", name: "Fridge", created_at: "" }] }
@@ -322,5 +329,26 @@ describe("restock reminders on the dashboard (AD-30, AD-31)", () => {
     await screen.findByText("Budget vs actual");
     expect(stat("Income")).toContain("3,000.00");
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says how many recurring entries are waiting, and links to where they are decided", async () => {
+    mockApi({
+      pending: [
+        { id: "o1", category_name: "Electricity", due_on: "2026-09-05" },
+        { id: "o2", category_name: "Rent", due_on: "2026-09-01" },
+      ],
+    });
+    render(<DashboardPage />);
+
+    const link = await screen.findByRole("link", { name: /2 recurring entries are waiting/ });
+    expect(link).toHaveAttribute("href", "/plan");
+    expect(screen.getByText(/Electricity · 2026-09-05/)).toBeInTheDocument();
+  });
+
+  it("shows no confirmation card when nothing is waiting", async () => {
+    mockApi();
+    render(<DashboardPage />);
+    await screen.findByText("Budget vs actual");
+    expect(screen.queryByText(/recurring/i)).toBeNull();
   });
 });

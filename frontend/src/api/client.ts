@@ -16,8 +16,11 @@ import type {
   InventoryItem,
   ItemChange,
   Money,
+  Cadence,
   Page,
+  PendingEntry,
   Quantity,
+  RecurringTemplate,
   Restocks,
   SavingsType,
   Space,
@@ -210,6 +213,19 @@ export interface EntryInput {
   unit?: Unit | null;
 }
 
+export interface TemplateInput {
+  kind: EntryKind;
+  amount: Money;
+  cadence: Cadence;
+  start_on: string;
+  end_on?: string | null;
+  note?: string | null;
+  auto?: boolean;
+  paused?: boolean;
+  category_id?: string;
+  category_name?: string;
+}
+
 export interface ItemInput {
   name: string;
   quantity: number;
@@ -343,6 +359,35 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ monthly_amount: monthlyAmount }),
     }),
+
+  listTemplates: () => items(request<Page<RecurringTemplate>>("/api/recurring/templates")),
+
+  createTemplate: (input: TemplateInput) =>
+    request<RecurringTemplate>("/api/recurring/templates", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  updateTemplate: (id: string, patch: Partial<Omit<TemplateInput, "category_name">>) =>
+    request<RecurringTemplate>(`/api/recurring/templates/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+
+  deleteTemplate: (id: string) =>
+    request<void>(`/api/recurring/templates/${id}`, { method: "DELETE" }),
+
+  /** Reading this is what brings the proposals up to date; it writes no entries. */
+  listPending: () => items(request<Page<PendingEntry>>("/api/recurring/pending")),
+
+  confirmPending: (id: string, amount?: Money) =>
+    request<Entry>(`/api/recurring/occurrences/${id}/confirm`, {
+      method: "POST",
+      body: JSON.stringify(amount ? { amount } : {}),
+    }),
+
+  skipPending: (id: string) =>
+    request<void>(`/api/recurring/occurrences/${id}/skip`, { method: "POST" }),
 
   summary: (month: string) => request<Summary>(`/api/dashboard/summary${query({ month })}`),
 

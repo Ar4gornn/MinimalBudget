@@ -961,3 +961,34 @@ tr.history td {
   color: var(--muted);
   white-space: nowrap;
 }
+
+/* A small inline label on a row: "auto", "paused". Not a badge — no colour, no shout. */
+.tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+tr.muted td {
+  opacity: 0.55;
+}
+
+.check {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  font-size: 13px !important;
+}
+
+.check input {
+  width: auto;
+  margin: 0;
+}

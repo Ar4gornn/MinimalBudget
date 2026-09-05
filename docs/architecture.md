@@ -414,6 +414,27 @@ security-definer function
   thresholds as login, so a code is as expensive to guess as a password. The operator command
   remains, for the person who lost the codes too.
 
+### AD-33 — Recurrence is materialised on read, idempotently, and proposes before it writes
+
+- **Binds:** recurring, entries, dashboard, client
+- **Extends:** AD-4 (only the session dependency commits) and AD-9 (derived facts are computed,
+  not duplicated)
+- **Prevents:** a background scheduler this single-container deployment has nowhere to run, and
+  the failure it brings — a missed or repeated run silently creating a month of duplicate rent.
+  Also prevents the opposite mistake, computing proposals on the fly from the cadence, which
+  cannot remember that someone said "not this month".
+- **Rule:** a template carries a cadence and a `next_due` pointer. Reading the pending list
+  materialises: it walks `next_due` forward to today, inserting one occurrence per due date, and
+  a `UNIQUE (template_id, due_on)` makes running it twice a no-op. Occurrences are the decision
+  log — `pending`, `created` or `skipped` — so a skip is remembered rather than re-proposed, and
+  a decision survives the deletion of the entry it produced (`ON DELETE SET NULL (entry_id)`;
+  the CHECK permits a created occurrence with no entry, and forbids an entry on any other
+  status). The default is to **propose**: an entry is written only when a person confirms it,
+  optionally correcting the amount without editing the template. A template may opt in to
+  automatic creation, for a genuinely fixed amount, because a wrong amount created silently is
+  worse than one not created at all. The anchor for a monthly cadence is the template's start
+  date, so the 31st clamps to a short month and then recovers rather than drifting.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -593,6 +614,8 @@ MinimalBudget/
   AD-32 and Epic 12. The operator command stays as the fallback for someone who lost the codes
   as well. **Email verification** is still deferred: on an invite-only instance the invite is the
   vouching step.
+- ~~**Recurring transactions.**~~ **Built as Epic 13** (2026-09-05), on the propose-first
+  model recorded in the 2026-08-30 direction note. Materialisation is pull-based; see AD-33.
 - **Per-month budget overrides.** AD-11 fixes the v1 meaning; the schema takes a nullable `month`
   column later without a rewrite.
 - **Connection pool sizing and read replicas.** No load justifies tuning them; defaults stand until

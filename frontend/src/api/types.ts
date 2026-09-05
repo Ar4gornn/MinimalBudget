@@ -211,3 +211,41 @@ export interface Restocks {
   months: string[];
   series: SpaceRestockSeries[];
 }
+
+export type Cadence = "weekly" | "monthly" | "yearly";
+
+export const CADENCE_LABELS: Record<Cadence, string> = {
+  weekly: "Every week",
+  monthly: "Every month",
+  yearly: "Every year",
+};
+
+/** A standing instruction: what recurs, how often, and whether it needs confirming. */
+export interface RecurringTemplate {
+  id: string;
+  kind: EntryKind;
+  category_id: string;
+  amount: Money;
+  note: string | null;
+  cadence: Cadence;
+  start_on: string;
+  end_on: string | null;
+  /** Opt-in: create the entry without asking. Off by default, deliberately. */
+  auto: boolean;
+  paused: boolean;
+  next_due: string;
+  created_at: string;
+}
+
+/** One due date of a template, waiting for a yes or a no. */
+export interface PendingEntry {
+  id: string;
+  template_id: string;
+  due_on: string;
+  kind: EntryKind;
+  category_id: string;
+  category_name: string;
+  amount: Money;
+  note: string | null;
+  cadence: Cadence;
+}

@@ -50,6 +50,9 @@ up front.
 | FR-27 | An account has one currency, USD or EUR, chosen at sign-up, and every amount is shown in it. |
 | FR-28 | A signed-in user can generate recovery codes and change their password. |
 | FR-29 | A user who forgot their password can set a new one with their email and one recovery code, without the operator. |
+| FR-30 | A user can define a recurring income or expense with a weekly, monthly or yearly cadence. |
+| FR-31 | A recurring entry is proposed on its due date and becomes an entry only when confirmed, unless the template opted in to automatic creation. |
+| FR-32 | A user sees on the dashboard how many recurring entries are waiting for them. |
 
 ### NonFunctional Requirements
 
@@ -80,6 +83,7 @@ Sourced from the architecture spine. These bind every story that touches them.
 | AR-9 | The service worker never caches `/api` or `/health`; hashed assets are cache-first only because Vite content-hashes filenames. | AD-14, AD-27 |
 | AR-10 | Currency is an attribute of the account, never of an entry; changing it relabels and is refused once the ledger holds a row. | AD-5 |
 | AR-11 | A password hash is written only by `auth_set_password`, which refuses any tenant but the transaction's own; every password change revokes all sessions. | AD-32 |
+| AR-12 | Recurrence materialises on read and is idempotent; a decision is recorded, never recomputed. | AD-33 |
 
 ### UX Design Requirements
 
@@ -126,6 +130,7 @@ AD-17).
 | FR-26, AR-9 | Story 8.1 |
 | FR-27, AR-10 | Story 9.1 |
 | FR-28, FR-29, AR-11 | Stories 12.1, 12.2 |
+| FR-30, FR-31, FR-32, AR-12 | Stories 13.1, 13.2 |
 
 ## Epic List
 
@@ -143,6 +148,7 @@ AD-17).
 | 10 | Unit-priced entries | An expense can say how much of what was bought, and the per-unit price can be watched over time. |
 | 11 | Inventory | A user can keep track of what they have, where, see what is running out without leaving the dashboard, and see how each item's stock moved. |
 | 12 | Password recovery | A person who forgets their password gets back in on their own, without email and without the operator. |
+| 13 | Recurring entries | The entries that repeat every month stop being typed every month, without anything being written behind the person's back. |
 
 Epics 8 and 9 were built on 2026-08-30 and 2026-09-01 and written up here afterwards, from the
 commits and the tests, on 2026-09-05. Each is one story because each was one commit with one
@@ -766,6 +772,55 @@ So that "change my password" is not something I go looking for beside the budget
 
 ---
 
+## Epic 13: Recurring entries
+
+Rent, salary and the electricity bill are typed by hand every month. Direction was settled on
+2026-08-30 — a template with a cadence, plus a materialisation step, proposing by default — and
+never specced. This is that epic. The one hard rule from the note stands: *a wrong amount
+created silently is worse than one not created at all*, so automatic creation is opt-in per
+template and everything else waits for a yes.
+
+### Story 13.1: Templates and pull-based materialisation
+
+As a family member,
+I want to describe the things that repeat once,
+So that they stop costing me the same typing every month.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user
+**When** they `POST /api/recurring/templates` with a kind, an amount, a cadence of `weekly`, `monthly` or `yearly`, a first due date, and exactly one of `category_id` or `category_name`
+**Then** the template is created, creating the category by name if needed (AD-12), and `next_due` starts at the first due date (FR-30)
+**And** the `recurring_templates` and `recurring_occurrences` tables, created by this story through `protect()`, carry composite foreign keys including `user_id` — the template to its category with the kind pinned as on entries (AD-7, AD-18), the occurrence to its template — and `entries` gains `UNIQUE (user_id, id)` so an occurrence can reference the entry it became
+**And** `GET /api/recurring/pending` materialises: it walks each active template's `next_due` up to today, inserting one occurrence per due date, and calling it twice proposes the same dates once, because `UNIQUE (template_id, due_on)` refuses a duplicate (AR-12, AD-33)
+**And** a monthly template anchored on the 31st is due on the 28th of February and on the 31st of March — the anchor is the start date, so a short month does not permanently move the day
+**And** a template can be paused, amended and deleted; a paused one proposes nothing and resumes where it left off, and an ended one stops at `end_on`
+**And** an `end_on` before `start_on` is refused by validation and by a database `CHECK`
+**And** deleting a template removes its occurrences and leaves the entries already created from them, which are records of money that moved (AD-21)
+**And** a template pointing at another user's category is refused by the composite foreign key and answers `404` (AD-8, AD-18)
+
+### Story 13.2: Confirming, skipping, and seeing it on the dashboard
+
+As a family member,
+I want to be asked before a recurring entry lands in my ledger,
+So that the electricity bill goes in at what it actually was.
+
+**Acceptance Criteria:**
+
+**Given** a template that has produced proposals
+**When** the person opens Plan
+**Then** each proposal shows its due date, category and the template's amount in an editable field, above the list of templates (FR-31)
+**And** confirming creates the entry on the due date; confirming with a corrected amount uses the correction and leaves the template's own figure alone
+**And** confirming twice answers `409` and creates one entry, because the status change is guarded
+**And** skipping records the decision, and the date is not proposed again — nor can a decided proposal be confirmed afterwards
+**And** a template with `auto` set creates its entries during materialisation without proposing anything, and reading the list again does not double them
+**And** deleting an entry that came from a proposal leaves the occurrence as `created` with a null `entry_id`, so the date is not proposed a second time (AD-33)
+**And** the dashboard shows "N recurring entries are waiting for you", linked to Plan, listing up to three, and shows nothing when there is nothing to decide (FR-32)
+**And** a corrected amount that is not a two-place decimal is refused on the client before it reaches the server
+**And** user B sees none of user A's templates or proposals, and confirming or skipping one of A's answers `404`
+
+---
+
 ## Decided, not yet specced
 
 Direction settled on 2026-08-30. Recorded here so it is not re-litigated; none of it is built,
@@ -774,10 +829,9 @@ and each needs its own epic before any code.
 - **Host: a Raspberry Pi 4.** All four images are multi-arch and include `arm64/v8`, verified
   against the registry, so the stack runs unchanged on 64-bit Pi OS. The open questions are
   network and storage, not architecture — see `release-checklist.md`.
-- **Recurring entries** (income, expense and savings alike). A template with a cadence, plus a
-  materialisation step. Default is to *propose* the entry for confirmation rather than create it
-  silently, with per-template opt-in to automatic creation for genuinely fixed amounts like rent.
-  A wrong amount created silently is worse than one not created at all.
+- ~~**Recurring entries.**~~ **Built as Epic 13** on 2026-09-05, exactly as described here:
+  propose by default, opt-in automatic creation, materialisation on read. Savings contributions
+  are still out — the template targets a category, and a contribution targets a savings type.
 - **A native app, not a PWA**, because the intent is to grow past budgeting — gym plans, todos,
   other trackers. That makes this a personal-tracking platform with a budget module, and the name
   and the API shape both need to follow. The v2 Expo plan stands; the API's module boundaries are
