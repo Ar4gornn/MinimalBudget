@@ -42,16 +42,21 @@ export function CategoryPage() {
     setLoading(true);
     setError(null);
     try {
-      const [categories, rows, nextTrends, nextUnitPrices] = await Promise.all([
+      // The unit-price series is an addition to this page, not its reason to exist: if
+      // that one request fails the entries and the spend chart still render.
+      const [categories, rows, nextTrends, unitPricesResult] = await Promise.all([
         api.listCategories(),
         api.listEntries({ category_id: categoryId, month }),
         api.trends(TREND_MONTHS, month),
-        api.unitPrices(TREND_MONTHS, month),
+        api.unitPrices(TREND_MONTHS, month).then(
+          (value) => value,
+          () => null,
+        ),
       ]);
       setCategory(categories.find((c) => c.id === categoryId) ?? null);
       setEntries(rows);
       setTrends(nextTrends);
-      setUnitPrices(nextUnitPrices);
+      setUnitPrices(unitPricesResult);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not load this category.");
     } finally {

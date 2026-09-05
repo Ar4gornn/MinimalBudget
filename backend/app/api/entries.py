@@ -63,7 +63,8 @@ def update_entry(
         category_id=payload.category_id,
         quantity=payload.quantity,
         unit=payload.unit.value if payload.unit is not None else None,
-        quantity_given=payload.quantity_given,
+        # The validator has already refused a lone half; either key present means the pair.
+        quantity_given="quantity" in payload.model_fields_set,
     )
     return EntryOut.model_validate(entry)
 

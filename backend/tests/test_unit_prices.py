@@ -6,9 +6,13 @@ average of the two per-entry rates (1.6000 and 1.4000) would be 1.5000, and that
 wrong number this file exists to catch.
 """
 
+import re
+
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
+
+from app.models.ledger import UNIT_VALUES, Unit
 
 
 def _category(client, user, name, kind="expense"):
@@ -158,6 +162,30 @@ def test_the_list_carries_the_rate_on_every_row(client, user_a):
     _entry(client, user_a, category_id=fuel["id"])
     rows = client.get("/api/entries", headers=user_a["headers"]).json()["items"]
     assert sorted(r["unit_price"] or "" for r in rows) == ["", "1.5000"]
+
+
+def test_the_database_and_the_enum_agree_on_the_unit_list(owner_engine):
+    """AD-29: the closed list lives in the migration, the ORM, the enum and the client. The
+    migration is frozen by design, so this holds the database's constraint to the enum; the
+    client's copy is held by its own test against the same literal list."""
+    with owner_engine.connect() as conn:
+        definition = conn.execute(
+            text(
+                "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                "WHERE conname = 'entries_unit_supported'"
+            )
+        ).scalar_one()
+    # Postgres renders the list back as ARRAY['l'::character varying, ...]; the quoted
+    # tokens, in order, are what must match.
+    assert tuple(re.findall(r"'([a-z0-9]+)'", definition)) == UNIT_VALUES, definition
+    assert tuple(u.value for u in Unit) == UNIT_VALUES
+
+
+def test_every_unit_in_the_enum_is_accepted(client, user_a):
+    fuel = _category(client, user_a, "Fuel")
+    for unit in Unit:
+        response = _entry(client, user_a, category_id=fuel["id"], quantity="1", unit=unit.value)
+        assert response.status_code == 201, (unit, response.text)
 
 
 # ------------------------------------------------------------- Story 10.2 / 10.4

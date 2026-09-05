@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -62,6 +62,13 @@ export function InventoryPage() {
     space_id: string;
   } | null>(null);
   const [history, setHistory] = useState<{ id: string; changes: ItemChange[] } | null>(null);
+  // Items with a PATCH in flight. The stepper sends an absolute value computed from what is
+  // on screen, so a second click before the first lands would resend the same number and
+  // lose a click; the buttons are disabled until the list has reloaded.
+  const [pending, setPending] = useState<Set<string>>(new Set());
+  // The ref is the guard, the state is the disabled attribute: two clicks in one tick see the
+  // same closure state, so state alone would let both through.
+  const inFlight = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,11 +120,6 @@ export function InventoryPage() {
     return groups;
   }, [visible]);
 
-  const spaceName_ = useMemo(() => {
-    const lookup = new Map(spaces.map((space) => [space.id, space.name]));
-    return (id: string) => lookup.get(id) ?? "—";
-  }, [spaces]);
-
   async function run(action: () => Promise<void>, fallback: string) {
     setError(null);
     try {
@@ -164,24 +166,35 @@ export function InventoryPage() {
     setSaving(false);
   }
 
+  // Reload the list, and the unfolded history with it, so the chart keeps up with the row.
+  async function reload(changedId?: string) {
+    await load();
+    if (changedId && history?.id === changedId) {
+      setHistory({ id: changedId, changes: await api.itemHistory(changedId) });
+    }
+  }
+
   async function setQty(item: InventoryItem, next: number) {
-    if (next < 0) return;
-    await run(async () => {
-      await api.updateItem(item.id, { quantity: next });
-      await load();
-    }, "Could not change the quantity.");
+    if (next < 0 || inFlight.current.has(item.id)) return;
+    inFlight.current.add(item.id);
+    setPending(new Set(inFlight.current));
+    try {
+      await run(async () => {
+        await api.updateItem(item.id, { quantity: next });
+        await reload(item.id);
+      }, "Could not change the quantity.");
+    } finally {
+      inFlight.current.delete(item.id);
+      setPending(new Set(inFlight.current));
+    }
   }
 
   async function runningLow(item: InventoryItem) {
-    // Story 11.4: a manual "running low" is a degenerate threshold, not a flag. With a
-    // threshold, drop the quantity to it; without one, create the smallest threshold and
-    // empty the item, in one PATCH.
-    const patch: Partial<ItemInput> =
-      item.restock_below !== null
-        ? { quantity: item.restock_below }
-        : { restock_below: 1, quantity: 0 };
+    // Story 11.4: a manual "running low" is a threshold, not a flag — and not a quantity.
+    // Raising the threshold to the current quantity trips the AD-30 predicate without
+    // inventing a stock change the person never reported, so the log stays honest.
     await run(async () => {
-      await api.updateItem(item.id, patch);
+      await api.updateItem(item.id, { restock_below: item.quantity });
       await load();
     }, "Could not mark the item.");
   }
@@ -200,6 +213,10 @@ export function InventoryPage() {
 
   async function saveEdit(item: InventoryItem) {
     if (!draft) return;
+    if (!draft.name.trim()) {
+      setError("An item needs a name.");
+      return;
+    }
     const qty = Number(draft.quantity);
     if (!Number.isInteger(qty) || qty < 0) {
       setError("Quantity must be a whole number, zero or more.");
@@ -229,7 +246,7 @@ export function InventoryPage() {
     await run(async () => {
       await api.updateItem(item.id, patch);
       setEditing(null);
-      await load();
+      await reload(item.id);
       toast.show("Item updated");
     }, "Could not save that change.");
   }
@@ -571,7 +588,7 @@ export function InventoryPage() {
                                   type="button"
                                   className="quiet"
                                   aria-label={`One less ${item.name}`}
-                                  disabled={item.quantity === 0}
+                                  disabled={item.quantity === 0 || pending.has(item.id)}
                                   onClick={() => void setQty(item, item.quantity - 1)}
                                 >
                                   −
@@ -581,6 +598,7 @@ export function InventoryPage() {
                                   type="button"
                                   className="quiet"
                                   aria-label={`One more ${item.name}`}
+                                  disabled={pending.has(item.id)}
                                   onClick={() => void setQty(item, item.quantity + 1)}
                                 >
                                   +
@@ -679,7 +697,7 @@ export function InventoryPage() {
         </form>
         {spaces.length > 0 && (
           <p className="hint" style={{ marginTop: 8 }}>
-            {spaces.map((space) => spaceName_(space.id)).join(" · ")}
+            {spaces.map((space) => space.name).join(" · ")}
           </p>
         )}
       </Card>

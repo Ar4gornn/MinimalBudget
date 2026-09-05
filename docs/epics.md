@@ -875,7 +875,7 @@ So that I never have to remember which room I filed something under.
 **When** they open the fifth bottom-nav tab (label `Stock`, route `/inventory`)
 **Then** every space is shown on one page, each as a card listing its items, with a "needs restocking" badge on low items and a filter row offering *all*, *needs restocking*, and one chip per space (FR-24)
 **And** quantity can be changed with `−` and `+` controls on the row, each an absolute `PATCH` of the new value, and an item at zero cannot go below it
-**And** a *Running low* action on an item sets `quantity` to `restock_below`, or sets `restock_below` to `1` and `quantity` to `0` when no threshold exists, in one `PATCH`
+**And** a *Running low* action on an item raises `restock_below` to the current `quantity` in one `PATCH` — a threshold, never a fabricated quantity change, so the log records only what happened
 **And** the add-item form takes a name, a quantity, a space chosen from existing ones or typed as a new name, and the optional cost, threshold and note, mirroring the entry form's category-by-name path
 **And** a space can be added and renamed inline, and a delete blocked by items shows the `409` as an explanation ("Fridge still has 12 items"), not a generic failure
 **And** an account with no spaces sees a short empty state explaining what a space is, with the add form ready
@@ -915,4 +915,6 @@ So that "we seem to buy a lot of milk" is a chart rather than an impression.
 **And** the table is created through `protect()` with a composite foreign key `(user_id, item_id)` → `inventory_items (user_id, id)` `ON DELETE CASCADE`, and the runtime role holds `SELECT, INSERT` and nothing else on it — an `UPDATE` or `DELETE` as the runtime role is refused by the grant, and a deleted item takes its log with it under the owner's cascade (AD-21, AD-30)
 **And** `GET /api/inventory/items/{id}/history?days=N` returns the item's changes in the window, oldest first, enveloped (AD-20), and `404` for another user's item (AD-8)
 **And** `GET /api/inventory/restocks?months=N` returns, per space, the number of quantity increases per month — driven from the spaces so one with no restocks appears at zeroes, over a `generate_series` so no month is missing (AD-9)
+**And** creating an item logs a level (`quantity → quantity`), not a change from zero, so a new item is never counted as a restock and `restocked_at` stays null until a real increase
+**And** restocks are bucketed by month in UTC explicitly, the stated limitation being that a change at 00:30 local east of UTC lands in the previous UTC day
 **And** on the inventory page, *History* on an item unfolds a step chart of its quantity over time as inline SVG, with the restock threshold as a dashed rule, and the page shows restocks per space per month as small multiples (Consistency Conventions)

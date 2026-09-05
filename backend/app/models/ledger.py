@@ -20,6 +20,7 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampedMixin
+from app.schemas.common import quantise_rate
 
 
 class EntryKind(enum.StrEnum):
@@ -45,6 +46,9 @@ class Unit(enum.StrEnum):
 
 
 UNIT_VALUES = tuple(u.value for u in Unit)
+# The ORM's copy of the CHECK is built from the enum, so the two cannot drift; a test holds
+# the database's own constraint (frozen in migration 0007) to the same list.
+_UNIT_CHECK = "unit IS NULL OR unit IN (" + ", ".join(f"'{u}'" for u in UNIT_VALUES) + ")"
 
 _kind = Enum(EntryKind, name="entry_kind", values_callable=lambda e: [m.value for m in e])
 
@@ -83,10 +87,7 @@ class Entry(TimestampedMixin, Base):
         CheckConstraint(
             "kind = 'expense' OR quantity IS NULL", name="entries_quantity_expense_only"
         ),
-        CheckConstraint(
-            "unit IS NULL OR unit IN ('l', 'gal', 'kg', 'lb', 'kwh', 'm3', 'unit')",
-            name="entries_unit_supported",
-        ),
+        CheckConstraint(_UNIT_CHECK, name="entries_unit_supported"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -112,8 +113,6 @@ class Entry(TimestampedMixin, Base):
         """
         if self.quantity is None:
             return None
-        from app.schemas.common import quantise_rate
-
         return quantise_rate(decimal.Decimal(self.amount) / decimal.Decimal(self.quantity))
 
 

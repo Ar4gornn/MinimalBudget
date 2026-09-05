@@ -50,7 +50,14 @@ export function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([api.listItems({ needs_restock: true }), api.listSpaces()])
+    // Spaces only decorate the names; their request failing must not hide the count.
+    void Promise.all([
+      api.listItems({ needs_restock: true }),
+      api.listSpaces().then(
+        (value) => value,
+        () => [] as Space[],
+      ),
+    ])
       .then(([items, nextSpaces]) => {
         if (cancelled) return;
         setLowItems(items);

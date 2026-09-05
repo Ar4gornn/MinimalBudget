@@ -218,8 +218,9 @@ def test_every_quantity_change_is_logged_and_only_quantity_changes(client, user_
     client.patch(url, json={"quantity": 6}, headers=headers)
 
     history = client.get(f"{url}/history", headers=headers).json()["items"]
+    # Creation is a level (2 -> 2), not a change from nothing: it must not read as a restock.
     assert [(h["quantity_before"], h["quantity_after"]) for h in history] == [
-        (0, 2),
+        (2, 2),
         (2, 0),
         (0, 6),
     ]
@@ -257,10 +258,12 @@ def test_the_log_goes_with_its_item(client, user_a, owner_engine):
 def test_restocks_per_space_per_month_are_zero_filled(client, user_a):
     fridge = _space(client, user_a, "Fridge")
     _space(client, user_a, "Garage")  # no items at all: still appears, at zeroes
-    item = _item(client, user_a, quantity=0, space_id=fridge["id"]).json()
+    # Created with stock: creation itself must not count as a restock.
+    item = _item(client, user_a, quantity=5, space_id=fridge["id"]).json()
+    assert item["restocked_at"] is None
     url = f"/api/inventory/items/{item['id']}"
-    client.patch(url, json={"quantity": 3}, headers=user_a["headers"])  # up: a restock
     client.patch(url, json={"quantity": 1}, headers=user_a["headers"])  # down: not one
+    client.patch(url, json={"quantity": 3}, headers=user_a["headers"])  # up: a restock
     client.patch(url, json={"quantity": 4}, headers=user_a["headers"])  # up
 
     body = client.get("/api/inventory/restocks?months=3", headers=user_a["headers"]).json()

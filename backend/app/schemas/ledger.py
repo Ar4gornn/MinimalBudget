@@ -83,10 +83,6 @@ class EntryUpdate(BaseModel):
     quantity: Quantity | None = None
     unit: Unit | None = None
 
-    @property
-    def quantity_given(self) -> bool:
-        return "quantity" in self.model_fields_set or "unit" in self.model_fields_set
-
     @model_validator(mode="after")
     def _quantity_pair(self) -> "EntryUpdate":
         given = {"quantity", "unit"} & self.model_fields_set

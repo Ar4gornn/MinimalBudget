@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, NotFound
-from app.core.months import add_months, parse_month
+from app.core.months import add_months, format_month, parse_month
 from app.models.inventory import InventoryItem, InventoryItemChange, Space
 
 # ------------------------------------------------------------------- spaces
@@ -159,8 +159,10 @@ def create_item(
     )
     session.add(item)
     session.flush()
-    # The log starts at creation, so the chart has a first point.
-    _log_change(session, item, 0, quantity)
+    # The log starts at creation so the chart has a first point — as a level, not a change.
+    # Logging it as 0 -> quantity would count every new item as a restock and stamp
+    # restocked_at on a thing that was merely written down.
+    _log_change(session, item, quantity, quantity)
     session.flush()
     session.refresh(item)
     return item
@@ -227,6 +229,12 @@ def item_history(
 
 # AD-9: restocks per space per month, driven from the spaces so one with no restocks still
 # appears at zero, over a generate_series so no month is missing.
+#
+# changed_at is a timestamptz, and which month it falls in depends on a time zone. AD-10's
+# DATE columns carry a calendar day the user chose; a log stamp does not, so the day is
+# fixed here to UTC explicitly rather than left to whatever TimeZone the session happens
+# to have. Stated limitation: a restock at 00:30 local east of UTC lands in the previous
+# UTC day. A per-user time zone is the fix, if it is ever wanted, and it is one expression.
 _RESTOCKS = text(
     """
     WITH months AS (
@@ -237,12 +245,13 @@ _RESTOCKS = text(
     ),
     restocks AS (
         SELECT i.space_id,
-               CAST(date_trunc('month', c.changed_at) AS date) AS m,
+               CAST(date_trunc('month', c.changed_at AT TIME ZONE 'UTC') AS date) AS m,
                count(*) AS n
         FROM inventory_item_changes c
         JOIN inventory_items i ON i.user_id = c.user_id AND i.id = c.item_id
         WHERE c.user_id = :uid AND c.quantity_after > c.quantity_before
-          AND c.changed_at >= :start AND c.changed_at < :end
+          AND (c.changed_at AT TIME ZONE 'UTC') >= CAST(:start AS timestamp)
+          AND (c.changed_at AT TIME ZONE 'UTC') < CAST(:end AS timestamp)
         GROUP BY 1, 2
     )
     SELECT s.id AS space_id,
@@ -269,17 +278,11 @@ def restocks(
         "last": last_month,
         "end": add_months(last_month, 1),
     }
-    labels: list[str] = []
+    labels = [format_month(add_months(first, i)) for i in range(months)]
     by_space: dict[uuid.UUID, dict] = {}
     for row in session.execute(_RESTOCKS, window):
         series = by_space.setdefault(
             row.space_id, {"space_id": row.space_id, "space_name": row.space_name, "values": []}
         )
         series["values"].append(row.n)
-        if len(labels) < months:
-            labels.append(row.month)
-    if not labels:
-        labels = [
-            f"{m.year:04d}-{m.month:02d}" for m in (add_months(first, i) for i in range(months))
-        ]
     return {"months": labels, "series": list(by_space.values())}

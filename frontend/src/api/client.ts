@@ -355,7 +355,8 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
-  updateItem: (id: string, patch: Partial<ItemInput>) =>
+  // space_name is a create-time convenience only; a move names the space by id.
+  updateItem: (id: string, patch: Partial<Omit<ItemInput, "space_name">>) =>
     request<InventoryItem>(`/api/inventory/items/${id}`, {
       method: "PATCH",
       body: JSON.stringify(patch),

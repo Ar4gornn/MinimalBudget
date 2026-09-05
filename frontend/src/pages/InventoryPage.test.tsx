@@ -1,4 +1,4 @@
-import { render as rtlRender, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -129,20 +129,36 @@ describe("InventoryPage", () => {
     expect(screen.getByRole("button", { name: "One less Milk" })).toBeDisabled();
   });
 
-  it("marks an item as running low by setting the threshold pair in one PATCH", async () => {
+  it("marks an item as running low by raising the threshold, never the quantity", async () => {
     const fetchMock = mockApi();
     const user = userEvent.setup();
     render(<InventoryPage />);
     await screen.findByRole("table", { name: "Garage items" });
 
-    // Engine oil has no threshold: running low means "threshold 1, quantity 0".
+    // Engine oil is at 1: the threshold becomes 1, the quantity is untouched, so the
+    // append-only log records no change that did not happen.
     await user.click(screen.getByRole("button", { name: "Engine oil is running low" }));
     await waitFor(() =>
       expect(patches(fetchMock)[0]).toEqual({
         url: expect.stringContaining("/items/oil"),
-        body: { restock_below: 1, quantity: 0 },
+        body: { restock_below: 1 },
       }),
     );
+  });
+
+  it("ignores a second stepper click while the first is in flight", async () => {
+    const fetchMock = mockApi();
+    render(<InventoryPage />);
+    await screen.findByRole("table", { name: "Fridge items" });
+
+    // Two clicks in the same tick: with only state as the guard both would send 7, and the
+    // second click would be silently lost once the list reloaded.
+    const more = screen.getByRole("button", { name: "One more Eggs" });
+    fireEvent.click(more);
+    fireEvent.click(more);
+    await waitFor(() => expect(patches(fetchMock).length).toBeGreaterThan(0));
+    await waitFor(() => expect(more).not.toBeDisabled());
+    expect(patches(fetchMock).map((p) => p.body.quantity)).toEqual([7]);
   });
 
   it("creates an item into a space by name", async () => {

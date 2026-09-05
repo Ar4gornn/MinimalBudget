@@ -20,7 +20,7 @@ from decimal import Decimal
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.months import add_months, month_range, parse_month
+from app.core.months import add_months, format_month, month_range, parse_month
 
 _TOTALS = text(
     """
@@ -264,9 +264,7 @@ def _window_ending_at(user_id: uuid.UUID, last_month: dt.date, months: int) -> d
     }
 
 
-def trends(
-    session: Session, user_id: uuid.UUID, *, months: int, ending: str | None = None
-) -> dict:
+def trends(session: Session, user_id: uuid.UUID, *, months: int, ending: str | None = None) -> dict:
     last_month = parse_month(ending) if ending else dt.date.today().replace(day=1)
     window = _window_ending_at(user_id, last_month, months)
 
@@ -301,7 +299,7 @@ def unit_prices(
     last_month = parse_month(ending) if ending else dt.date.today().replace(day=1)
     window = _window_ending_at(user_id, last_month, months)
 
-    labels = [row.month for row in session.execute(_TRENDS, window)]
+    labels = [format_month(add_months(window["start"], i)) for i in range(months)]
 
     by_key: dict[tuple[uuid.UUID, str], dict] = {}
     for row in session.execute(_UNIT_PRICES, window):

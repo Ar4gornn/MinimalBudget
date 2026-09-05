@@ -17,6 +17,7 @@ import {
   solveAmount,
   solveQuantity,
   solveRate,
+  toMilli,
   unitLabel,
 } from "../quantity";
 import { useMoney } from "../useMoney";
@@ -50,6 +51,9 @@ export function EntriesPage() {
   const [unit, setUnit] = useState<Unit | "">("");
   const [rate, setRate] = useState("");
   const [showQuantity, setShowQuantity] = useState(false);
+  // Set by the × button and cleared on submit: a remembered unit must not reopen a section
+  // the person just closed, however many more characters they type into the category.
+  const [unitDismissed, setUnitDismissed] = useState(false);
 
   // Inline editing rather than a modal: the rows already become cards on a phone, so the
   // same markup turns into a sensible form without needing focus trapping, escape
@@ -129,9 +133,9 @@ export function EntriesPage() {
 
   function onCategoryNameChange(value: string) {
     setCategoryName(value);
-    // Pre-fill the unit this category was last quantified in. Only when the section is
-    // untouched: a unit the person just chose must not be overwritten by a memory.
-    if (!unit && !quantity) {
+    // Pre-fill the unit this category was last quantified in. Only for an expense, only
+    // when the section is untouched, and never after it was dismissed for this entry.
+    if (kind === "expense" && !unitDismissed && !unit && !quantity) {
       const remembered = recallUnit(value);
       if (remembered) {
         setUnit(remembered);
@@ -178,6 +182,7 @@ export function EntriesPage() {
       setAmount("");
       setNote("");
       clearQuantity();
+      setUnitDismissed(false);
       await load();
       toast.show("Entry added");
     } catch (caught) {
@@ -227,10 +232,13 @@ export function EntriesPage() {
     }
     // The pair travels together (AD-29): both values, or both null to clear.
     const wasQuantified = Boolean(entry.quantity);
+    // Compared as milli-units, not as text: "40" and "40.000" are the same quantity, and
+    // re-sending an unchanged pair would overwrite an edit made elsewhere.
     const pairChanged =
       draftQuantified !== wasQuantified ||
       (draftQuantified &&
-        (draft.quantity.trim() !== entry.quantity || draft.unit !== entry.unit));
+        (toMilli(draft.quantity) !== toMilli(entry.quantity ?? "0") ||
+          draft.unit !== entry.unit));
     if (pairChanged) {
       if (draftQuantified && draft.unit) {
         patch.quantity = draft.quantity.trim();
@@ -423,6 +431,7 @@ export function EntriesPage() {
                 onClick={() => {
                   clearQuantity();
                   setShowQuantity(false);
+                  setUnitDismissed(true);
                 }}
                 aria-label="Remove quantity"
               >

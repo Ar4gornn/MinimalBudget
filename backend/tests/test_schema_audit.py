@@ -16,9 +16,13 @@ EXEMPT = {"alembic_version", "invites"}
 
 
 def _tables(conn) -> list[str]:
-    rows = conn.execute(
-        text("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")
-    ).scalars().all()
+    rows = (
+        conn.execute(
+            text("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")
+        )
+        .scalars()
+        .all()
+    )
     return [t for t in rows if t not in EXEMPT]
 
 
@@ -50,12 +54,16 @@ def test_every_table_has_rls_enabled_and_forced(owner_engine):
 def test_every_table_has_a_policy_for_the_runtime_role(owner_engine):
     with owner_engine.connect() as conn:
         tables = _tables(conn)
-        policed = conn.execute(
-            text(
-                "SELECT DISTINCT tablename FROM pg_policies "
-                "WHERE schemaname = 'public' AND 'minimalbudget_app' = ANY(roles)"
+        policed = (
+            conn.execute(
+                text(
+                    "SELECT DISTINCT tablename FROM pg_policies "
+                    "WHERE schemaname = 'public' AND 'minimalbudget_app' = ANY(roles)"
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
     missing = sorted(set(tables) - set(policed))
     assert missing == [], f"tables with no policy for the runtime role: {missing}"
@@ -82,13 +90,17 @@ def test_runtime_role_cannot_bypass_rls_and_owns_nothing(owner_engine):
 def test_runtime_role_cannot_read_password_hashes(owner_engine):
     """AD-19: write-only column. The grant, not a convention, is what enforces it."""
     with owner_engine.connect() as conn:
-        privileges = conn.execute(
-            text(
-                "SELECT privilege_type FROM information_schema.column_privileges "
-                "WHERE grantee = 'minimalbudget_app' AND table_name = 'users' "
-                "AND column_name = 'password_hash'"
+        privileges = (
+            conn.execute(
+                text(
+                    "SELECT privilege_type FROM information_schema.column_privileges "
+                    "WHERE grantee = 'minimalbudget_app' AND table_name = 'users' "
+                    "AND column_name = 'password_hash'"
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
     assert "SELECT" not in privileges
     assert "INSERT" in privileges, "registration still has to be able to write the hash"
@@ -142,3 +154,19 @@ def test_no_other_table_is_exempt(owner_engine):
     assert EXEMPT == {"alembic_version", "invites"}, (
         "the exemption list changed; every entry needs a test justifying why it cannot follow AD-1"
     )
+
+
+def test_the_quantity_log_is_append_only_by_grant(owner_engine):
+    """AD-30: history is a record of facts. The runtime role may add to it and read it, never
+    rewrite or erase it. Asserted here, in the audit, so a later blanket GRANT cannot quietly
+    undo it with every behaviour test still green."""
+    with owner_engine.connect() as conn:
+        privileges = set(
+            conn.execute(
+                text(
+                    "SELECT privilege_type FROM information_schema.table_privileges "
+                    "WHERE grantee = 'minimalbudget_app' AND table_name = 'inventory_item_changes'"
+                )
+            ).scalars()
+        )
+    assert privileges == {"SELECT", "INSERT"}, privileges
