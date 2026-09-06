@@ -13,6 +13,10 @@ function render(ui: React.ReactElement) {
 
 const summary: Summary = {
   month: "2026-08",
+  period: "month",
+  label: "2026-08",
+  start: "2026-08-01",
+  end: "2026-08-31",
   income: "3000.00",
   expense: "845.50",
   net: "2154.50",
@@ -152,6 +156,10 @@ describe("DashboardPage", () => {
     mockApi({
       summary: {
         month: "2020-01",
+        period: "month",
+        label: "2020-01",
+        start: "2020-01-01",
+        end: "2020-01-31",
         income: "0.00",
         expense: "0.00",
         net: "0.00",
@@ -372,5 +380,67 @@ describe("restock reminders on the dashboard (AD-30, AD-31)", () => {
       "aria-pressed",
       "true",
     );
+  });
+
+  it("asks the server for a year, and names the window from what it answers", async () => {
+    const fetchMock = mockApi({
+      summary: {
+        month: "2026-08",
+        period: "year",
+        label: "2026",
+        start: "2025-12-26",
+        end: "2026-12-25",
+        income: "36000.00",
+        expense: "12000.00",
+        net: "24000.00",
+        saved: "4800.00",
+        budgets: [],
+        savings: [],
+      },
+    });
+    const user = userEvent.setup();
+    render(<DashboardPage />);
+    await screen.findByText("Budget vs actual");
+
+    await user.click(screen.getByRole("button", { name: "Year" }));
+
+    await waitFor(() => {
+      const asked = fetchMock.mock.calls
+        .map((call) => String(call[0]))
+        .filter((url: string) => url.includes("/summary"));
+      expect(asked.at(-1)).toContain("period=year");
+    });
+    // The heading and the range come from the server, not reconstructed on the client.
+    expect(await screen.findByRole("heading", { name: "2026" })).toBeInTheDocument();
+    expect(screen.getByText(/2025-12-26 to 2026-12-25/)).toBeInTheDocument();
+    expect(stat("Income")).toBe("$36,000.00");
+  });
+
+  it("hides the monthly comparisons for a wider period, and says why", async () => {
+    mockApi({
+      summary: {
+        month: "2026-08",
+        period: "all",
+        label: "All time",
+        start: null,
+        end: null,
+        income: "1.00",
+        expense: "0.00",
+        net: "1.00",
+        saved: "0.00",
+        budgets: [],
+        savings: [],
+      },
+    });
+    const user = userEvent.setup();
+    render(<DashboardPage />);
+    await screen.findByText("Budget vs actual");
+
+    await user.click(screen.getByRole("button", { name: "All time" }));
+
+    // AD-11: a budget is a standing monthly amount, so it has no meaning over all time.
+    expect(await screen.findByText(/Budgets and savings targets are monthly amounts/)).toBeInTheDocument();
+    // And the month picker is gone, because picking one would change nothing.
+    expect(screen.queryByRole("button", { name: "Previous month" })).toBeNull();
   });
 });

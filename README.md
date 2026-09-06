@@ -19,6 +19,7 @@ queries as a second user rather than by reading a policy and believing it.
 - Set a **standing monthly budget** per expense category and a **monthly target** per savings type.
 - Change your password, and generate one-time **recovery codes** so a forgotten password is not a
   trip to the operator.
+- Read income, expense, net and saved for a **month, a year, or all time**.
 - Set the day your **budget month** starts, so "September" is the pay packet that arrived
   on the 26th of August rather than a calendar page.
 - Train from reusable **routines** and log a workout set by set, with a chart of whether the

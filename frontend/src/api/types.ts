@@ -139,8 +139,18 @@ export interface TargetVsActual {
   actual: Money;
 }
 
+/** How wide a window the headline figures cover. */
+export type Period = "month" | "year" | "all";
+
 export interface Summary {
+  /** The anchor that was asked for, echoed back. */
   month: string;
+  period: Period;
+  /** What to call the window: "2026-09", "2026", or "All time". */
+  label: string;
+  /** Inclusive at both ends. Null on both for all-time, which has no bounds. */
+  start: string | null;
+  end: string | null;
   income: Money;
   expense: Money;
   net: Money;

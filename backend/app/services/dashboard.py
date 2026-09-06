@@ -22,11 +22,13 @@ from sqlalchemy.orm import Session
 
 from app.core.months import (
     DEFAULT_START_DAY,
+    Period,
     add_months,
     bucket_params,
     format_month,
     month_range,
     parse_month,
+    period_window,
 )
 from app.schemas.common import quantise_rate
 
@@ -36,7 +38,9 @@ _TOTALS = text(
         COALESCE(SUM(amount) FILTER (WHERE kind = 'expense'), 0) AS expense,
         COALESCE(SUM(amount) FILTER (WHERE kind = 'income'), 0)  AS income
     FROM entries
-    WHERE user_id = :uid AND occurred_on >= :start AND occurred_on < :end
+    WHERE user_id = :uid
+      AND (CAST(:start AS date) IS NULL OR occurred_on >= CAST(:start AS date))
+      AND (CAST(:end AS date) IS NULL OR occurred_on < CAST(:end AS date))
     """
 )
 
@@ -44,7 +48,9 @@ _SAVED = text(
     """
     SELECT COALESCE(SUM(amount), 0) AS saved
     FROM savings_contributions
-    WHERE user_id = :uid AND occurred_on >= :start AND occurred_on < :end
+    WHERE user_id = :uid
+      AND (CAST(:start AS date) IS NULL OR occurred_on >= CAST(:start AS date))
+      AND (CAST(:end AS date) IS NULL OR occurred_on < CAST(:end AS date))
     """
 )
 
@@ -252,8 +258,18 @@ class Summary:
         saved: Decimal,
         budgets: list[dict],
         savings: list[dict],
+        period: Period = Period.month,
+        label: str = "",
+        start: dt.date | None = None,
+        end: dt.date | None = None,
     ) -> None:
         self.month = month
+        self.period = period
+        self.label = label or month
+        self.start = start
+        # Reported inclusive: `end` is exclusive internally, but "to 25 September" is what a
+        # person reads, and off-by-one in a *displayed* range is its own kind of wrong.
+        self.end = end - dt.timedelta(days=1) if end is not None else None
         self.income = income
         self.expense = expense
         self.net = income - expense
@@ -263,13 +279,30 @@ class Summary:
 
 
 def summary(
-    session: Session, user_id: uuid.UUID, month: str, start_day: int = DEFAULT_START_DAY
+    session: Session,
+    user_id: uuid.UUID,
+    month: str,
+    start_day: int = DEFAULT_START_DAY,
+    period: Period = Period.month,
 ) -> Summary:
-    start, end = month_range(month, start_day)
+    """The four headline figures, over a month, a year, or everything.
+
+    Budget-vs-actual and target-vs-actual are computed for a **month only**. A budget is a
+    standing monthly amount (AD-11), so comparing a year of spending against it would mean
+    inventing a multiplier — twelve, or fewer for a young account, or fewer still for a
+    category budgeted halfway through. Reporting nothing is honest; reporting a number
+    nobody chose is not.
+    """
+    start, end, label = period_window(period, month, start_day)
     window = {"uid": str(user_id), "start": start, "end": end}
 
     totals = session.execute(_TOTALS, window).one()
     saved = session.execute(_SAVED, window).scalar_one()
+
+    if period is not Period.month:
+        return Summary(
+            month, totals.income, totals.expense, saved, [], [], period, label, start, end
+        )
 
     budgets = [
         {
@@ -290,7 +323,9 @@ def summary(
         for row in session.execute(_TARGET_VS_ACTUAL, window)
     ]
 
-    return Summary(month, totals.income, totals.expense, saved, budgets, savings)
+    return Summary(
+        month, totals.income, totals.expense, saved, budgets, savings, period, label, start, end
+    )
 
 
 def vendor_prices(

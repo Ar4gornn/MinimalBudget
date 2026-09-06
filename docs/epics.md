@@ -64,6 +64,7 @@ up front.
 | FR-41 | A user can define reusable routines: a named list of exercises with target sets and reps. |
 | FR-42 | A user can log a workout set by set, with reps and an optional weight, and see whether a lift is going up. |
 | FR-43 | A user can set the day their budget month starts on, and every month-based view follows it. |
+| FR-44 | A user can read income, expense, net and saved for a month, for a year, or for all time. |
 
 ### NonFunctional Requirements
 
@@ -100,6 +101,7 @@ Sourced from the architecture spine. These bind every story that touches them.
 | AR-15 | A plan and a record are separate rows; deleting the plan leaves the record, via the column-list `SET NULL`. | AD-35 |
 | AR-16 | A scaling unit belongs to the account and locks once anything depends on it. | AD-36 |
 | AR-17 | The month boundary is the account's, applied identically by every view and by the SQL that buckets trends. | AD-10 |
+| AR-18 | A year is exactly twelve budget months, so the monthly figures sum to the yearly one; all time has no bounds. | AD-10, AD-11 |
 
 ### UX Design Requirements
 
@@ -154,6 +156,7 @@ AD-17).
 | FR-40, AR-14 | Stories 18.1, 18.2 |
 | FR-41, FR-42, AR-15, AR-16 | Stories 19.1, 19.2 |
 | FR-43, AR-17 | Story 20.1 |
+| FR-44, AR-18 | Story 21.1 |
 
 ## Epic List
 
@@ -179,6 +182,7 @@ AD-17).
 | 18 | Notifications | The reminders reach a phone that is not open on the app, without a scheduler this deployment cannot host. |
 | 19 | Gym | The first module that is not about money: routines to train from, and a log honest enough to answer whether the lift is going up. |
 | 20 | The month that matters | The budget month starts on the day you are paid, not on the 1st. |
+| 21 | Month, year, all time | The four figures that answer "how am I doing" answer it over any of the three windows. |
 
 Epics 8 and 9 were built on 2026-08-30 and 2026-09-01 and written up here afterwards, from the
 commits and the tests, on 2026-09-05. Each is one story because each was one commit with one
@@ -1121,6 +1125,41 @@ So that "September" is the money I was actually paid for September.
 **And** the SQL that buckets trends into months shifts `date_trunc` by bound parameters, never by interpolating the day into the statement (AD-3), and removing that shift turns the trend test red
 **And** the client mirrors the arithmetic, opens each page on the period today falls in rather than the calendar month, and spells the range out — "26 Aug – 25 Sep" — wherever a month is named, because nobody should have to infer what "September" covers from a total
 **And** one account's boundary never moves another account's figures
+
+---
+
+## Epic 21: Month, year, all time
+
+Income, expense, net and saved are the four figures this product exists to report, and they
+were only ever reported for one month. A year and an all-time total are the same aggregates
+over a wider window.
+
+The one judgement call, made rather than asked: **budget-versus-actual stays monthly**. A
+budget is a standing monthly amount (AD-11), so comparing a year of spending against it needs
+a multiplier that nobody chose. The wider periods show the four figures and say plainly that
+the comparisons are monthly, rather than showing a number that would be wrong.
+
+### Story 21.1: The four figures over any window
+
+As someone who wants to know how the year went, not just the month,
+I want the headline figures over a year and over everything,
+So that "how am I doing" is a question I can ask at more than one scale.
+
+**Acceptance Criteria:**
+
+**Given** the dashboard
+**When** the period is switched between Month, Year and All time
+**Then** `GET /api/dashboard/summary?month=&period=` returns income, expense, net and saved for that window, with `month` remaining the anchor for all three — a year takes its year part, and all time ignores it (FR-44)
+**And** a **year is exactly twelve budget months**, derived from the January and December windows rather than from 1 January, so with a start day of 26 the year 2026 runs 26 December 2025 to 25 December 2026 — and a test asserts the twelve monthly figures sum to the yearly one, to the penny (AR-18)
+**And** the yearly figures sum to the all-time one, likewise asserted
+**And** **all time has no bounds at all**: the SQL receives `NULL` rather than a sentinel date, because a guessed lower bound silently drops a row
+**And** an empty account reports `0.00` for every figure in every period, never `null` (AD-22)
+**And** the response carries the period, a label — `2026-09`, `2026`, `All time` — and the real inclusive bounds, so the client never reconstructs what a window means
+**And** budget-versus-actual and target-versus-actual are returned **for a month only**, empty otherwise, and the dashboard says why rather than hiding it silently (AD-11)
+**And** the month picker is hidden for all time, where choosing a month would change nothing, and steps a year at a time when the period is a year
+**And** an unrecognised period answers `422`
+**And** the choice is remembered per device, like the trend window and the collapsed sections
+**And** one account's totals never include another's, in any period
 
 ---
 

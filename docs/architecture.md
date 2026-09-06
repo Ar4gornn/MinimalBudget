@@ -165,7 +165,20 @@ router; nothing below the HTTP layer knows a request exists.
   - It is **not locked**, unlike the currency and the weight unit (AD-36): it re-groups rows and
     never relabels a stored number, so there is nothing to protect against.
 
+  **A year is exactly twelve of those months** (Epic 21). It is derived from the January and
+  December windows rather than from 1 January, so the twelve monthly figures add up to the
+  yearly one — a year that did not tile its own months would make every figure suspect. **All
+  time has no bounds at all**: `NULL`, not a sentinel date, because a guessed lower bound
+  quietly drops a row and never says so.
+
 ### AD-11 — Budgets and targets are standing monthly amounts, not per-month rows
+
+**Consequence, made explicit by Epic 21:** because a budget is *monthly*, budget-versus-actual
+and target-versus-actual are computed for a month and for nothing else. Comparing a year of
+spending against a standing monthly figure would mean inventing a multiplier — twelve, or fewer
+for an account opened in June, or fewer still for a category budgeted halfway through. The
+wider periods therefore report the four headline figures and omit those comparisons entirely.
+Reporting nothing is honest; reporting a number nobody chose is not.
 
 - **Binds:** budgets, savings_targets, dashboard
 - **Prevents:** half the system treating a budget as "the budget for March" and the other half as

@@ -3,7 +3,14 @@ import { Link } from "react-router-dom";
 
 import { api } from "../api/client";
 import { useOptionalAuth } from "../auth/AuthContext";
-import type { InventoryItem, PendingEntry, Space, Summary, Trends } from "../api/types";
+import type {
+  InventoryItem,
+  PendingEntry,
+  Period,
+  Space,
+  Summary,
+  Trends,
+} from "../api/types";
 import { Sparkline } from "../charts/Sparkline";
 import { ProgressBar } from "../charts/ProgressBar";
 import { TrendChart } from "../charts/TrendChart";
@@ -11,6 +18,22 @@ import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
 import {progress, subtractMoney, toChartNumber, toCents } from "../money";
 import { useMoney } from "../useMoney";
 import { budgetMonth, monthLabel, monthRangeLabel, shiftMonth } from "../months";
+
+const PERIODS: { value: Period; label: string }[] = [
+  { value: "month", label: "Month" },
+  { value: "year", label: "Year" },
+  { value: "all", label: "All time" },
+];
+const PERIOD_KEY = "minimalbudget.period";
+
+function readPeriod(): Period {
+  try {
+    const stored = window.localStorage.getItem(PERIOD_KEY);
+    return PERIODS.some((p) => p.value === stored) ? (stored as Period) : "month";
+  } catch {
+    return "month";
+  }
+}
 
 const TREND_WINDOWS = [6, 12] as const;
 const TREND_KEY = "minimalbudget.trendMonths";
@@ -32,6 +55,8 @@ export function DashboardPage() {
   // whole page for want of context is worse than falling back to the calendar month.
   const startDay = useOptionalAuth()?.user?.budget_start_day ?? 1;
   const [month, setMonth] = useState(() => budgetMonth(startDay));
+  // Month, year or everything. Remembered per device, like the trend window.
+  const [period, setPeriod] = useState<Period>(readPeriod);
   const [trendMonths, setTrendMonths] = useState(readTrendMonths);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [trends, setTrends] = useState<Trends | null>(null);
@@ -50,7 +75,7 @@ export function DashboardPage() {
     setError(null);
     try {
       const [nextSummary, nextTrends] = await Promise.all([
-        api.summary(month),
+        api.summary(month, period),
         api.trends(trendMonths, month),
       ]);
       setSummary(nextSummary);
@@ -60,7 +85,7 @@ export function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [month, trendMonths]);
+  }, [month, period, trendMonths]);
 
   useEffect(() => {
     void load();
@@ -131,19 +156,52 @@ export function DashboardPage() {
     <>
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontSize: 18, margin: 0 }}>{monthLabel(month)}</h1>
+          <h1 style={{ fontSize: 18, margin: 0 }}>
+            {period === "month" ? monthLabel(month) : (summary?.label ?? "…")}
+          </h1>
           {/* Spelled out, because "September" meaning 26 Aug - 25 Sep is exactly the sort
-              of thing a person should never have to infer from a total. */}
-          {monthRangeLabel(month, startDay) && (
-            <p className="hint" style={{ margin: 0 }}>{monthRangeLabel(month, startDay)}</p>
-          )}
+              of thing a person should never have to infer from a total. The server sends
+              the real bounds, so the client never has to reconstruct them. */}
+          {period === "month" ? (
+            monthRangeLabel(month, startDay) && (
+              <p className="hint" style={{ margin: 0 }}>{monthRangeLabel(month, startDay)}</p>
+            )
+          ) : summary?.start && summary?.end ? (
+            <p className="hint" style={{ margin: 0 }}>
+              {summary.start} to {summary.end}
+            </p>
+          ) : null}
         </div>
+        <div className="row" style={{ gap: 8, alignItems: "center" }}>
+          <div className="chips" role="group" aria-label="Period">
+            {PERIODS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`chip ${period === option.value ? "on" : ""}`}
+                aria-pressed={period === option.value}
+                onClick={() => {
+                  setPeriod(option.value);
+                  try {
+                    window.localStorage.setItem(PERIOD_KEY, option.value);
+                  } catch {
+                    /* a forgotten preference is not worth a crash */
+                  }
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {/* Hidden for all-time, where picking a month would change nothing — a control
+              that does nothing is worse than no control. */}
+          {period !== "all" && (
         <div className="month-nav">
           <button
             type="button"
             className="quiet"
             aria-label="Previous month"
-            onClick={() => setMonth(shiftMonth(month, -1))}
+            onClick={() => setMonth(shiftMonth(month, period === "year" ? -12 : -1))}
           >
             ←
           </button>
@@ -162,10 +220,12 @@ export function DashboardPage() {
             type="button"
             className="quiet"
             aria-label="Next month"
-            onClick={() => setMonth(shiftMonth(month, 1))}
+            onClick={() => setMonth(shiftMonth(month, period === "year" ? 12 : 1))}
           >
             →
           </button>
+        </div>
+          )}
         </div>
       </div>
 
@@ -233,7 +293,14 @@ export function DashboardPage() {
             </div>
           )}
 
-          <div className="columns" style={{ marginTop: 16 }}>
+          {period !== "month" && (
+            <p className="hint" style={{ marginTop: 16 }}>
+              Budgets and savings targets are monthly amounts, so they are shown for a month
+              only. The figures above cover {summary.label.toLowerCase()}.
+            </p>
+          )}
+
+          <div className="columns" style={{ marginTop: 16, display: period === "month" ? undefined : "none" }}>
             <Card
               title="Budget vs actual"
               collapseKey="dashboard.budgets"

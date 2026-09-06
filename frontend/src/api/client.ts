@@ -21,6 +21,7 @@ import type {
   Cadence,
   Page,
   PendingEntry,
+  Period,
   PushStatus,
   Purchase,
   PurchaseResult,
@@ -585,7 +586,10 @@ export const api = {
   exportCsv: (kind: "entries" | "savings" | "inventory") =>
     download(`/api/export/${kind}.csv`, `minimalbudget-${kind}.csv`),
 
-  summary: (month: string) => request<Summary>(`/api/dashboard/summary${query({ month })}`),
+  summary: (month: string, period: Period = "month") =>
+    request<Summary>(
+      `/api/dashboard/summary${query({ month, period: period === "month" ? undefined : period })}`,
+    ),
 
   trends: (months: number, ending?: string) =>
     request<Trends>(`/api/dashboard/trends${query({ months: String(months), ending })}`),

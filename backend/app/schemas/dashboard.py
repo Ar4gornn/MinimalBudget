@@ -1,7 +1,9 @@
+import datetime as dt
 import uuid
 
 from pydantic import BaseModel, ConfigDict
 
+from app.core.months import Period
 from app.models.ledger import Unit
 from app.schemas.common import NonNegativeMoney, NonNegativeQuantity, Rate, SignedMoney
 
@@ -28,7 +30,15 @@ class TargetVsActual(BaseModel):
 class SummaryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    # The anchor that was asked for, echoed back.
     month: str
+    period: Period
+    # What to call the window: "2026-09", "2026", or "All time".
+    label: str
+    # The real dates it covers, inclusive at both ends, so the client never has to guess
+    # what a label means. Null on both for all-time, which has no bounds.
+    start: dt.date | None
+    end: dt.date | None
     income: NonNegativeMoney
     expense: NonNegativeMoney
     # The one figure that can go below zero: the month you spent more than you earned.
