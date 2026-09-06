@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api/client";
+import { useOptionalAuth } from "../auth/AuthContext";
 import type { InventoryItem, PendingEntry, Space, Summary, Trends } from "../api/types";
 import { Sparkline } from "../charts/Sparkline";
 import { ProgressBar } from "../charts/ProgressBar";
@@ -9,7 +10,7 @@ import { TrendChart } from "../charts/TrendChart";
 import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
 import {progress, subtractMoney, toChartNumber, toCents } from "../money";
 import { useMoney } from "../useMoney";
-import { currentMonth, monthLabel, shiftMonth } from "../months";
+import { budgetMonth, monthLabel, monthRangeLabel, shiftMonth } from "../months";
 
 const TREND_WINDOWS = [6, 12] as const;
 const TREND_KEY = "minimalbudget.trendMonths";
@@ -26,7 +27,11 @@ function readTrendMonths(): number {
 
 export function DashboardPage() {
   const money = useMoney();
-  const [month, setMonth] = useState(currentMonth());
+  // The account's month need not be the calendar one (AD-10).
+  // Optional, like useMoney: a month boundary has an obvious default, and crashing a
+  // whole page for want of context is worse than falling back to the calendar month.
+  const startDay = useOptionalAuth()?.user?.budget_start_day ?? 1;
+  const [month, setMonth] = useState(() => budgetMonth(startDay));
   const [trendMonths, setTrendMonths] = useState(readTrendMonths);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [trends, setTrends] = useState<Trends | null>(null);
@@ -125,7 +130,14 @@ export function DashboardPage() {
   return (
     <>
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 16 }}>
-        <h1 style={{ fontSize: 18, margin: 0 }}>{monthLabel(month)}</h1>
+        <div>
+          <h1 style={{ fontSize: 18, margin: 0 }}>{monthLabel(month)}</h1>
+          {/* Spelled out, because "September" meaning 26 Aug - 25 Sep is exactly the sort
+              of thing a person should never have to infer from a total. */}
+          {monthRangeLabel(month, startDay) && (
+            <p className="hint" style={{ margin: 0 }}>{monthRangeLabel(month, startDay)}</p>
+          )}
+        </div>
         <div className="month-nav">
           <button
             type="button"
@@ -143,7 +155,7 @@ export function DashboardPage() {
               type="month"
               aria-label="Month"
               value={month}
-              onChange={(event) => setMonth(event.target.value || currentMonth())}
+              onChange={(event) => setMonth(event.target.value || budgetMonth(startDay))}
             />
           </label>
           <button

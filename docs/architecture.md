@@ -136,14 +136,34 @@ router; nothing below the HTTP layer knows a request exists.
   series is generated from a `generate_series` of months left-joined to the data, so a month with
   no rows is returned as zero rather than omitted.
 
-### AD-10 — Month filtering is a half-open range on a `DATE` column
+### AD-10 — Month filtering is a half-open range on a `DATE` column, and the month is the account's
 
-- **Binds:** entries, savings_contributions, dashboard
+- **Binds:** entries, savings_contributions, dashboard, inventory, gym, client
 - **Prevents:** the `BETWEEN` off-by-one that double-counts or drops the last day, and timezone
-  drift from storing an instant where a calendar date was meant.
-- **Rule:** `occurred_on` is `DATE`, not `TIMESTAMP`, is required on write, and has no server-side
-  default. A `YYYY-MM` filter becomes `occurred_on >= <first of month> AND occurred_on < <first of
-  next month>`.
+  drift from storing an instant where a calendar date was meant. Since Epic 20 it also prevents
+  the app answering for a calendar month when the person is paid on the 26th — and, worse, two
+  views disagreeing about where the boundary is.
+- **Rule:** `occurred_on` is `DATE`, not `TIMESTAMP`, is required on write, and has no
+  server-side default. A `YYYY-MM` filter becomes a half-open range, always.
+
+  **The month need not be the calendar one** (amended 2026-09-06):
+
+  - The account carries `budget_start_day`, **1-28**. 1 is the calendar month, the default, and
+    what every existing account has.
+  - **The label is the month the period ends in.** With a start day of 26, `2026-09` means
+    26 August to 25 September. Both readings were defensible; this is the one chosen.
+  - **The 1-28 ceiling is load-bearing**, not timidity. The 29th, 30th and 31st are missing from
+    some months, so such a boundary would need clamping — and a clamped boundary breaks the
+    arithmetic that maps a date back to its period, silently, in February. "Paid on the 31st"
+    means the last banking day: a rule, not a day, and a different feature.
+  - Every month-based view uses it — entries, savings, the dashboard summary and trends, the
+    unit-price and vendor-price series, the restock chart, the gym session filter — so a total
+    and the list beneath it agree to the day.
+  - SQL buckets rows with a shifted `date_trunc`, written once in `core/months.py`, with the
+    shift passed as **bound parameters**: AD-3's rule about not building SQL out of user data
+    does not stop applying because the value is an integer.
+  - It is **not locked**, unlike the currency and the weight unit (AD-36): it re-groups rows and
+    never relabels a stored number, so there is nothing to protect against.
 
 ### AD-11 — Budgets and targets are standing monthly amounts, not per-month rows
 

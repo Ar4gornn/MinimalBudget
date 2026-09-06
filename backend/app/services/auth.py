@@ -40,20 +40,27 @@ class UserRow:
         email: str,
         currency: str,
         weight_unit: str,
+        budget_start_day: int,
         created_at: datetime,
     ) -> None:
         self.id = id
         self.email = email
         self.currency = currency
         self.weight_unit = weight_unit
+        self.budget_start_day = budget_start_day
         self.created_at = created_at
 
 
 def _read_user(session: Session, user_id: uuid.UUID) -> UserRow | None:
     row = session.execute(
-        select(User.id, User.email, User.currency, User.weight_unit, User.created_at).where(
-            User.id == user_id
-        )
+        select(
+            User.id,
+            User.email,
+            User.currency,
+            User.weight_unit,
+            User.budget_start_day,
+            User.created_at,
+        ).where(User.id == user_id)
     ).one_or_none()
     return None if row is None else UserRow(*row)
 
@@ -126,6 +133,25 @@ def authenticate(session: Session, *, email: str, password: str) -> uuid.UUID | 
 
 # A real Argon2 hash of a value nobody can supply, used only to equalise timing above.
 _DUMMY_HASH = hash_password(uuid.uuid4().hex)
+
+
+def set_budget_start_day(session: Session, user_id: uuid.UUID, day: int) -> UserRow:
+    """Change which day the budget month starts on.
+
+    Deliberately **not** locked, unlike the currency and the weight unit. Those relabel a
+    stored number — 100 kg does not become 100 lb — so changing them once data exists
+    corrupts it. This only re-groups: an entry dated 27 August is still dated 27 August,
+    and only the period it is counted in moves. Nothing to protect against, so no lock.
+    """
+    current = _read_user(session, user_id)
+    if current is None:
+        raise NotFound("No such account")
+    session.execute(update(User).where(User.id == user_id).values(budget_start_day=day))
+    session.flush()
+    updated = _read_user(session, user_id)
+    if updated is None:  # pragma: no cover
+        raise NotFound("No such account")
+    return updated
 
 
 class WeightUnitLocked(Exception):

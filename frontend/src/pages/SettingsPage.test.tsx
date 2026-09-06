@@ -1,4 +1,4 @@
-import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,7 +22,14 @@ function json(body: unknown, status = 200): Response {
 }
 
 const CSV_BODY = "date,kind,category";
-const me = { id: "u1", email: "sam@example.com", currency: "USD", created_at: "" };
+const me = {
+  id: "u1",
+  email: "sam@example.com",
+  currency: "USD",
+  weight_unit: "kg",
+  budget_start_day: 1,
+  created_at: "",
+};
 
 function mockApi(overrides: { currencyStatus?: number; currencyDetail?: string } = {}) {
   window.localStorage.setItem("minimalbudget.token", "test-token");
@@ -33,6 +40,9 @@ function mockApi(overrides: { currencyStatus?: number; currencyDetail?: string }
         return json({ detail: overrides.currencyDetail }, overrides.currencyStatus);
       }
       return json({ ...me, currency: JSON.parse(String(init?.body)).currency });
+    }
+    if (url.includes("/api/auth/me/budget-start-day")) {
+      return json({ ...me, budget_start_day: JSON.parse(String(init?.body)).budget_start_day });
     }
     if (url.includes("/api/auth/me/recovery-codes") && method === "GET") {
       return json({ unused: 3, total: 8 });
@@ -136,5 +146,37 @@ describe("SettingsPage", () => {
       "Bearer test-token",
     );
     click.mockRestore();
+  });
+
+  it("sets the budget month start, and spells out what it covers", async () => {
+    const fetchMock = mockApi();
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+    await screen.findByText("Budget month");
+
+    await user.selectOptions(screen.getByLabelText("Budget month starts on day"), "26");
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find((c) =>
+        String(c[0]).includes("/api/auth/me/budget-start-day"),
+      );
+      expect(call).toBeDefined();
+      expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({
+        budget_start_day: 26,
+      });
+    });
+  });
+
+  it("offers no day that is missing from some month", async () => {
+    mockApi();
+    render(<SettingsPage />);
+    await screen.findByText("Budget month");
+
+    const options = within(screen.getByLabelText("Budget month starts on day")).getAllByRole(
+      "option",
+    );
+    // 29, 30 and 31 do not exist in February, and a clamped boundary breaks the arithmetic.
+    expect(options).toHaveLength(28);
+    expect(options.at(-1)).toHaveValue("28");
   });
 });

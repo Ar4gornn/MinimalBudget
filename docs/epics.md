@@ -63,6 +63,7 @@ up front.
 | FR-40 | A user can turn on notifications for a device and receive at most one daily reminder of what needs doing. |
 | FR-41 | A user can define reusable routines: a named list of exercises with target sets and reps. |
 | FR-42 | A user can log a workout set by set, with reps and an optional weight, and see whether a lift is going up. |
+| FR-43 | A user can set the day their budget month starts on, and every month-based view follows it. |
 
 ### NonFunctional Requirements
 
@@ -98,6 +99,7 @@ Sourced from the architecture spine. These bind every story that touches them.
 | AR-14 | Scheduled work runs from cron as the runtime role, under RLS, and never writes domain data. | AD-34 |
 | AR-15 | A plan and a record are separate rows; deleting the plan leaves the record, via the column-list `SET NULL`. | AD-35 |
 | AR-16 | A scaling unit belongs to the account and locks once anything depends on it. | AD-36 |
+| AR-17 | The month boundary is the account's, applied identically by every view and by the SQL that buckets trends. | AD-10 |
 
 ### UX Design Requirements
 
@@ -151,6 +153,7 @@ AD-17).
 | FR-38, FR-39 | Story 17.1 |
 | FR-40, AR-14 | Stories 18.1, 18.2 |
 | FR-41, FR-42, AR-15, AR-16 | Stories 19.1, 19.2 |
+| FR-43, AR-17 | Story 20.1 |
 
 ## Epic List
 
@@ -175,6 +178,7 @@ AD-17).
 | 17 | Vendors | "Is Shell dearer than Total?" becomes a number rather than an impression. |
 | 18 | Notifications | The reminders reach a phone that is not open on the app, without a scheduler this deployment cannot host. |
 | 19 | Gym | The first module that is not about money: routines to train from, and a log honest enough to answer whether the lift is going up. |
+| 20 | The month that matters | The budget month starts on the day you are paid, not on the 1st. |
 
 Epics 8 and 9 were built on 2026-08-30 and 2026-09-01 and written up here afterwards, from the
 commits and the tests, on 2026-09-05. Each is one story because each was one commit with one
@@ -1082,6 +1086,41 @@ So that the answer is a line on a chart rather than a feeling.
 **And** the account's weight unit is `kg` or `lb`, defaults to `kg`, and locks once a set exists, because changing it relabels rather than converts (AR-16, AD-36)
 **And** Gym is the fifth bottom tab and Grow moves to the top bar, which stays visible on a phone — hiding it there would strand it
 **And** user B sees none of user A's exercises, routines, sessions or history, and cannot log a set against A's session or exercise
+
+---
+
+## Epic 20: The month that matters
+
+A salary that lands on the 26th makes the 26th the start of the month that matters, and every
+total in this app was answering for the calendar one instead. The person who is paid on the
+26th and looks at "September" wants the money that arrived on 26 August and what became of it
+by 25 September — not a figure that cuts their pay packet in half.
+
+Two things were settled before any code, because guessing either would silently mislabel every
+figure. **The label is the month the period ends in**, so with a start day of 26, "September"
+is 26 August to 25 September. And **every month-based view follows it**, including the Stock
+restock chart and the Gym session filter, rather than money alone — one rule across the app.
+
+### Story 20.1: A budget month that starts on the day you are paid
+
+As someone paid on the 26th,
+I want the app's months to run from the 26th,
+So that "September" is the money I was actually paid for September.
+
+**Acceptance Criteria:**
+
+**Given** Settings
+**When** the budget month start is set to a day between 1 and 28
+**Then** it is stored on the account, defaults to 1, and 1 keeps the calendar month exactly as before (FR-43, AD-10)
+**And** a day of 29, 30 or 31 is refused by the API and by a database `CHECK` — those days are missing from some months, a clamped boundary breaks the arithmetic that maps a date back to its period, and "paid on the 31st" is a rule about banking days rather than a day
+**And** it is **not** locked once data exists, unlike the currency and the weight unit: it re-groups rows and never relabels a stored number, and a test proves every entry keeps its id, date and amount across a change (AR-17)
+**And** the period labelled `YYYY-MM` runs from `start_day` of the previous month to the day before `start_day` of that month, so its last day always falls in the month it is named after
+**And** consecutive periods are contiguous and never overlap, for every start day, across a whole year including February
+**And** `month_of(date)` is the exact inverse of `month_range(label)`, checked on both sides of a boundary
+**And** the entries list, the dashboard summary, the trends, the unit-price and vendor-price series, the savings list, the restock chart and the gym session filter all use the same boundary — the dashboard total and the list beneath it agree to the day, and a test asserts exactly that
+**And** the SQL that buckets trends into months shifts `date_trunc` by bound parameters, never by interpolating the day into the statement (AD-3), and removing that shift turns the trend test red
+**And** the client mirrors the arithmetic, opens each page on the period today falls in rather than the calendar month, and spells the range out — "26 Aug – 25 Sep" — wherever a month is named, because nobody should have to infer what "September" covers from a total
+**And** one account's boundary never moves another account's figures
 
 ---
 

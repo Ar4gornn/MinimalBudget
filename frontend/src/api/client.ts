@@ -360,6 +360,12 @@ export const api = {
   deleteCategory: (id: string) =>
     request<void>(`/api/categories/${id}`, { method: "DELETE" }),
 
+  setBudgetStartDay: (day: number) =>
+    request<User>("/api/auth/me/budget-start-day", {
+      method: "PATCH",
+      body: JSON.stringify({ budget_start_day: day }),
+    }),
+
   setWeightUnit: (weightUnit: WeightUnit) =>
     request<User>("/api/auth/me/weight-unit", {
       method: "PATCH",

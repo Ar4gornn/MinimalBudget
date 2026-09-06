@@ -15,7 +15,14 @@ from sqlalchemy.orm import Session
 
 from app.core import search
 from app.core.errors import Conflict, NotFound
-from app.core.months import add_months, format_month, parse_month
+from app.core.months import (
+    DEFAULT_START_DAY,
+    add_months,
+    bucket_params,
+    format_month,
+    month_range,
+    parse_month,
+)
 from app.models.inventory import InventoryItem, InventoryItemChange, Space
 
 # ------------------------------------------------------------------- spaces
@@ -247,13 +254,15 @@ _RESTOCKS = text(
     """
     WITH months AS (
         SELECT CAST(
-            generate_series(CAST(:start AS date), CAST(:last AS date), interval '1 month')
+            generate_series(CAST(:series_start AS date), CAST(:last AS date), interval '1 month')
             AS date
         ) AS m
     ),
     restocks AS (
         SELECT i.space_id,
-               CAST(date_trunc('month', c.changed_at AT TIME ZONE 'UTC') AS date) AS m,
+               CAST((date_trunc('month', (c.changed_at AT TIME ZONE 'UTC')
+                     - make_interval(days => :bucket_shift))
+                     + make_interval(months => :bucket_bump)) AS date) AS m,
                count(*) AS n
         FROM inventory_item_changes c
         JOIN inventory_items i ON i.user_id = c.user_id AND i.id = c.item_id
@@ -276,15 +285,24 @@ _RESTOCKS = text(
 
 
 def restocks(
-    session: Session, user_id: uuid.UUID, *, months: int, ending: str | None = None
+    session: Session,
+    user_id: uuid.UUID,
+    *,
+    months: int,
+    ending: str | None = None,
+    start_day: int = DEFAULT_START_DAY,
 ) -> dict:
     last_month = parse_month(ending) if ending else dt.date.today().replace(day=1)
     first = add_months(last_month, -(months - 1))
+    window_start, _ = month_range(format_month(first), start_day)
+    _, window_end = month_range(format_month(last_month), start_day)
     window = {
         "uid": str(user_id),
-        "start": first,
+        "start": window_start,
         "last": last_month,
-        "end": add_months(last_month, 1),
+        "end": window_end,
+        "series_start": first,
+        **bucket_params(start_day),
     }
     labels = [format_month(add_months(first, i)) for i in range(months)]
     by_space: dict[uuid.UUID, dict] = {}

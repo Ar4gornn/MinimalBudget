@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, status
 
-from app.core.deps import CurrentUserId, DbSession
+from app.core.deps import CurrentUserId, DbSession, StartDay
 from app.schemas.common import Page
 from app.schemas.gym import (
     ExerciseCreate,
@@ -183,8 +183,9 @@ def list_workouts(
     session: DbSession,
     month: Annotated[str | None, Query(description="YYYY-MM")] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 30,
+    start_day: StartDay = 1,
 ) -> Page[WorkoutOut]:
-    rows = gym.list_workouts(session, user_id, limit=limit, month=month)
+    rows = gym.list_workouts(session, user_id, limit=limit, month=month, start_day=start_day)
     return Page[WorkoutOut](items=[WorkoutOut.model_validate(r) for r in rows])
 
 

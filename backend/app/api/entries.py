@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, status
 
-from app.core.deps import CurrentUserId, DbSession
+from app.core.deps import CurrentUserId, DbSession, StartDay
 from app.models.ledger import EntryKind
 from app.schemas.common import Page
 from app.schemas.ledger import EntryCreate, EntryOut, EntryUpdate
@@ -20,9 +20,16 @@ def list_entries(
     month: Annotated[str | None, Query(description="YYYY-MM")] = None,
     category_id: uuid.UUID | None = None,
     q: Annotated[str | None, Query(max_length=80, description="matches note or category")] = None,
+    start_day: StartDay = 1,
 ) -> Page[EntryOut]:
     rows = ledger.list_entries(
-        session, user_id, kind=kind, month=month, category_id=category_id, q=q
+        session,
+        user_id,
+        kind=kind,
+        month=month,
+        category_id=category_id,
+        q=q,
+        start_day=start_day,
     )
     return Page[EntryOut](items=[EntryOut.model_validate(r) for r in rows])
 

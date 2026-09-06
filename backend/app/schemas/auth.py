@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.core.months import MAX_START_DAY
+
 Currency = Literal["USD", "EUR"]
 WeightUnit = Literal["kg", "lb"]
 
@@ -40,6 +42,8 @@ class UserOut(BaseModel):
     email: str
     currency: Currency
     weight_unit: WeightUnit
+    # AD-10: 1 is the calendar month. See MAX_START_DAY for why 28 is the ceiling.
+    budget_start_day: int
     created_at: datetime
 
 
@@ -62,6 +66,10 @@ class CurrencyUpdate(BaseModel):
 
 class WeightUnitUpdate(BaseModel):
     weight_unit: WeightUnit
+
+
+class BudgetStartDayUpdate(BaseModel):
+    budget_start_day: int = Field(ge=1, le=MAX_START_DAY)
 
 
 _PASSWORD = Field(min_length=10, max_length=200)

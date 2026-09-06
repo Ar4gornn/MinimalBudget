@@ -20,7 +20,14 @@ from decimal import Decimal
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.months import add_months, format_month, month_range, parse_month
+from app.core.months import (
+    DEFAULT_START_DAY,
+    add_months,
+    bucket_params,
+    format_month,
+    month_range,
+    parse_month,
+)
 from app.schemas.common import quantise_rate
 
 _TOTALS = text(
@@ -92,12 +99,13 @@ _TRENDS = text(
     """
     WITH months AS (
         SELECT CAST(
-            generate_series(CAST(:start AS date), CAST(:last AS date), interval '1 month')
+            generate_series(CAST(:series_start AS date), CAST(:last AS date), interval '1 month')
             AS date
         ) AS m
     ),
     entry_totals AS (
-        SELECT CAST(date_trunc('month', occurred_on) AS date) AS m,
+        SELECT CAST((date_trunc('month', occurred_on - make_interval(days => :bucket_shift))
+                     + make_interval(months => :bucket_bump)) AS date) AS m,
                COALESCE(SUM(amount) FILTER (WHERE kind = 'income'), 0)  AS income,
                COALESCE(SUM(amount) FILTER (WHERE kind = 'expense'), 0) AS expense
         FROM entries
@@ -105,7 +113,8 @@ _TRENDS = text(
         GROUP BY 1
     ),
     savings_totals AS (
-        SELECT CAST(date_trunc('month', occurred_on) AS date) AS m,
+        SELECT CAST((date_trunc('month', occurred_on - make_interval(days => :bucket_shift))
+                     + make_interval(months => :bucket_bump)) AS date) AS m,
                COALESCE(SUM(amount), 0) AS saved
         FROM savings_contributions
         WHERE user_id = :uid AND occurred_on >= :start AND occurred_on < :end
@@ -128,13 +137,14 @@ _EXPENSE_SERIES = text(
     """
     WITH months AS (
         SELECT CAST(
-            generate_series(CAST(:start AS date), CAST(:last AS date), interval '1 month')
+            generate_series(CAST(:series_start AS date), CAST(:last AS date), interval '1 month')
             AS date
         ) AS m
     ),
     spent AS (
         SELECT category_id,
-               CAST(date_trunc('month', occurred_on) AS date) AS m,
+               CAST((date_trunc('month', occurred_on - make_interval(days => :bucket_shift))
+                     + make_interval(months => :bucket_bump)) AS date) AS m,
                SUM(amount) AS total
         FROM entries
         WHERE user_id = :uid AND kind = 'expense'
@@ -169,14 +179,15 @@ _UNIT_PRICES = text(
     """
     WITH months AS (
         SELECT CAST(
-            generate_series(CAST(:start AS date), CAST(:last AS date), interval '1 month')
+            generate_series(CAST(:series_start AS date), CAST(:last AS date), interval '1 month')
             AS date
         ) AS m
     ),
     quantified AS (
         SELECT category_id,
                unit,
-               CAST(date_trunc('month', occurred_on) AS date) AS m,
+               CAST((date_trunc('month', occurred_on - make_interval(days => :bucket_shift))
+                     + make_interval(months => :bucket_bump)) AS date) AS m,
                SUM(amount)   AS spent,
                SUM(quantity) AS qty
         FROM entries
@@ -251,8 +262,10 @@ class Summary:
         self.savings = savings
 
 
-def summary(session: Session, user_id: uuid.UUID, month: str) -> Summary:
-    start, end = month_range(month)
+def summary(
+    session: Session, user_id: uuid.UUID, month: str, start_day: int = DEFAULT_START_DAY
+) -> Summary:
+    start, end = month_range(month, start_day)
     window = {"uid": str(user_id), "start": start, "end": end}
 
     totals = session.execute(_TOTALS, window).one()
@@ -287,15 +300,18 @@ def vendor_prices(
     category_id: uuid.UUID,
     months: int,
     ending: str | None = None,
+    start_day: int = DEFAULT_START_DAY,
 ) -> dict:
     """Per-vendor spend and unit price for one category over the window."""
     last_month = parse_month(ending) if ending else dt.date.today().replace(day=1)
     first = add_months(last_month, -(months - 1))
+    window_start, _ = month_range(format_month(first), start_day)
+    _, window_end = month_range(format_month(last_month), start_day)
     window = {
         "uid": str(user_id),
         "category_id": str(category_id),
-        "start": first,
-        "end": add_months(last_month, 1),
+        "start": window_start,
+        "end": window_end,
     }
 
     rows = []
@@ -322,19 +338,38 @@ def vendor_prices(
     }
 
 
-def _window_ending_at(user_id: uuid.UUID, last_month: dt.date, months: int) -> dict:
+def _window_ending_at(
+    user_id: uuid.UUID, last_month: dt.date, months: int, start_day: int = DEFAULT_START_DAY
+) -> dict:
+    """The date range covering ``months`` labelled periods, ending with ``last_month``.
+
+    ``start`` and ``end`` are real dates and follow the account's month (AD-10); ``first``
+    and ``last`` stay first-of-calendar-month because they are *labels*, which is what the
+    generate_series produces and what the client shows.
+    """
     first = add_months(last_month, -(months - 1))
+    window_start, _ = month_range(format_month(first), start_day)
+    _, window_end = month_range(format_month(last_month), start_day)
     return {
         "uid": str(user_id),
-        "start": first,
+        "start": window_start,
         "last": last_month,
-        "end": add_months(last_month, 1),
+        "end": window_end,
+        "series_start": first,
+        **bucket_params(start_day),
     }
 
 
-def trends(session: Session, user_id: uuid.UUID, *, months: int, ending: str | None = None) -> dict:
+def trends(
+    session: Session,
+    user_id: uuid.UUID,
+    *,
+    months: int,
+    ending: str | None = None,
+    start_day: int = DEFAULT_START_DAY,
+) -> dict:
     last_month = parse_month(ending) if ending else dt.date.today().replace(day=1)
-    window = _window_ending_at(user_id, last_month, months)
+    window = _window_ending_at(user_id, last_month, months, start_day)
 
     rows = session.execute(_TRENDS, window).all()
     series = {
@@ -362,10 +397,15 @@ def trends(session: Session, user_id: uuid.UUID, *, months: int, ending: str | N
 
 
 def unit_prices(
-    session: Session, user_id: uuid.UUID, *, months: int, ending: str | None = None
+    session: Session,
+    user_id: uuid.UUID,
+    *,
+    months: int,
+    ending: str | None = None,
+    start_day: int = DEFAULT_START_DAY,
 ) -> dict:
     last_month = parse_month(ending) if ending else dt.date.today().replace(day=1)
-    window = _window_ending_at(user_id, last_month, months)
+    window = _window_ending_at(user_id, last_month, months, start_day)
 
     labels = [format_month(add_months(window["start"], i)) for i in range(months)]
 

@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, status
 
-from app.core.deps import CurrentUserId, DbSession
+from app.core.deps import CurrentUserId, DbSession, StartDay
 from app.schemas.common import Page
 from app.schemas.savings import (
     AmountIn,
@@ -45,9 +45,10 @@ def list_contributions(
     session: DbSession,
     month: Annotated[str | None, Query(description="YYYY-MM")] = None,
     savings_type_id: uuid.UUID | None = None,
+    start_day: StartDay = 1,
 ) -> Page[ContributionOut]:
     rows = savings.list_contributions(
-        session, user_id, month=month, savings_type_id=savings_type_id
+        session, user_id, month=month, savings_type_id=savings_type_id, start_day=start_day
     )
     return Page[ContributionOut](items=[ContributionOut.model_validate(r) for r in rows])
 

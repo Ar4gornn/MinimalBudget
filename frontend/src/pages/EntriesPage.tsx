@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { Link, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
+import { useOptionalAuth } from "../auth/AuthContext";
 import type { EntryInput } from "../api/client";
 import {
   UNITS,
@@ -28,10 +29,13 @@ import {
   unitLabel,
 } from "../quantity";
 import { useMoney } from "../useMoney";
-import { currentMonth, todayIso } from "../months";
+import { budgetMonth, monthRangeLabel, todayIso } from "../months";
 
 export function EntriesPage() {
   const money = useMoney();
+  // Optional, like useMoney: a month boundary has an obvious default, and crashing a
+  // whole page for want of context is worse than falling back to the calendar month.
+  const startDay = useOptionalAuth()?.user?.budget_start_day ?? 1;
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const amountRef = useRef<HTMLInputElement>(null);
@@ -42,7 +46,7 @@ export function EntriesPage() {
   const [loading, setLoading] = useState(true);
 
   const [kindFilter, setKindFilter] = useState<EntryKind | "">("");
-  const [monthFilter, setMonthFilter] = useState(currentMonth());
+  const [monthFilter, setMonthFilter] = useState(() => budgetMonth(startDay));
   const [categoryFilter, setCategoryFilter] = useState("");
   // Searched on the server, so it looks past the month on screen rather than filtering the
   // rows already fetched — which would quietly answer a different question.
@@ -506,6 +510,10 @@ export function EntriesPage() {
                 value={monthFilter}
                 onChange={(event) => setMonthFilter(event.target.value)}
               />
+              {/* What "September" actually covers, when it is not the calendar month. */}
+              {monthRangeLabel(monthFilter, startDay) && (
+                <span className="hint">{monthRangeLabel(monthFilter, startDay)}</span>
+              )}
             </label>
             <label style={{ flex: "1 1 160px" }}>
               Search

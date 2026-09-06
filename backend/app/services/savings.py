@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, NotFound
-from app.core.months import month_range
+from app.core.months import DEFAULT_START_DAY, month_range
 from app.models.ledger import Budget, Category, EntryKind
 from app.models.savings import SavingsContribution, SavingsTarget, SavingsType
 
@@ -95,12 +95,13 @@ def list_contributions(
     *,
     month: str | None = None,
     savings_type_id: uuid.UUID | None = None,
+    start_day: int = DEFAULT_START_DAY,
 ) -> list[SavingsContribution]:
     query = select(SavingsContribution).where(SavingsContribution.user_id == user_id)
     if savings_type_id is not None:
         query = query.where(SavingsContribution.savings_type_id == savings_type_id)
     if month is not None:
-        start, end = month_range(month)
+        start, end = month_range(month, start_day)
         query = query.where(
             SavingsContribution.occurred_on >= start, SavingsContribution.occurred_on < end
         )

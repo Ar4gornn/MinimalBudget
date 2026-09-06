@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
+import { useOptionalAuth } from "../auth/AuthContext";
 import type { Category, Entry, Trends, UnitPrices, VendorPrices } from "../api/types";
 import { RateChart } from "../charts/RateChart";
 import { Sparkline } from "../charts/Sparkline";
 import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
-import { addMonths, currentMonth, monthLabel } from "../months";
+import { addMonths, budgetMonth, monthLabel } from "../months";
 import { toChartNumber } from "../money";
 import { formatQuantity, formatRate, unitSingular } from "../quantity";
 import { useMoney } from "../useMoney";
@@ -28,6 +29,9 @@ const TREND_MONTHS = 6;
 export function CategoryPage() {
   const { categoryId = "" } = useParams();
   const money = useMoney();
+  // Optional, like useMoney: a month boundary has an obvious default, and crashing a
+  // whole page for want of context is worse than falling back to the calendar month.
+  const startDay = useOptionalAuth()?.user?.budget_start_day ?? 1;
   const toast = useToast();
 
   const [category, setCategory] = useState<Category | null>(null);
@@ -35,7 +39,7 @@ export function CategoryPage() {
   const [trends, setTrends] = useState<Trends | null>(null);
   const [unitPrices, setUnitPrices] = useState<UnitPrices | null>(null);
   const [vendorPrices, setVendorPrices] = useState<VendorPrices | null>(null);
-  const [month, setMonth] = useState(currentMonth());
+  const [month, setMonth] = useState(() => budgetMonth(startDay));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -126,7 +130,7 @@ export function CategoryPage() {
             type="month"
             aria-label="Month"
             value={month}
-            onChange={(event) => setMonth(event.target.value || currentMonth())}
+            onChange={(event) => setMonth(event.target.value || budgetMonth(startDay))}
           />
         </label>
       </div>

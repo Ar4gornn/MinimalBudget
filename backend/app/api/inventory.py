@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, status
 
-from app.core.deps import CurrentUserId, DbSession
+from app.core.deps import CurrentUserId, DbSession, StartDay
 from app.schemas.common import Page
 from app.schemas.inventory import (
     ItemChangeOut,
@@ -162,7 +162,8 @@ def restocks(
     session: DbSession,
     months: Annotated[int, Query(ge=1, le=36)] = 6,
     ending: Annotated[str | None, Query(description="YYYY-MM, defaults to this month")] = None,
+    start_day: StartDay = 1,
 ) -> RestocksOut:
     return RestocksOut.model_validate(
-        inventory.restocks(session, user_id, months=months, ending=ending)
+        inventory.restocks(session, user_id, months=months, ending=ending, start_day=start_day)
     )

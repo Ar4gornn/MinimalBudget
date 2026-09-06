@@ -25,6 +25,8 @@ export interface User {
   email: string;
   /** kg or lb. Like the currency, changing it relabels rather than converts. */
   weight_unit: WeightUnit;
+  /** Which day the budget month starts on, 1-28. 1 is the calendar month (AD-10). */
+  budget_start_day: number;
   /** Scoped to the account: one ledger, one currency, so totals need no conversion. */
   currency: Currency;
   created_at: string;

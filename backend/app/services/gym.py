@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Invalid, NotFound
+from app.core.months import DEFAULT_START_DAY, month_range
 from app.models.gym import Exercise, Routine, RoutineExercise, Workout, WorkoutSet
 
 # Where a form-check video may point. https only, and no credentials in the URL: the link is
@@ -230,13 +231,16 @@ def remove_routine_line(session: Session, user_id: uuid.UUID, line_id: uuid.UUID
 
 
 def list_workouts(
-    session: Session, user_id: uuid.UUID, *, limit: int = 30, month: str | None = None
+    session: Session,
+    user_id: uuid.UUID,
+    *,
+    limit: int = 30,
+    month: str | None = None,
+    start_day: int = DEFAULT_START_DAY,
 ) -> list[Workout]:
     query = select(Workout).where(Workout.user_id == user_id)
     if month is not None:
-        from app.core.months import month_range
-
-        start, end = month_range(month)
+        start, end = month_range(month, start_day)
         query = query.where(Workout.performed_on >= start, Workout.performed_on < end)
     query = query.order_by(
         Workout.performed_on.desc(), Workout.created_at.desc(), Workout.id

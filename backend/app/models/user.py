@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import String
+from sqlalchemy import Integer, String
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,4 +20,8 @@ class User(TimestampedMixin, Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default="USD")
     weight_unit: Mapped[str] = mapped_column(
         String(2), nullable=False, server_default="kg"
+    )
+    # Which day the budget month starts on. 1 is the calendar month (AD-10).
+    budget_start_day: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="1"
     )

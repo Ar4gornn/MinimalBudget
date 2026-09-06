@@ -9,6 +9,7 @@ from app.core.deps import AnonSession, CurrentUserId, DbSession
 from app.core.ratelimit import LoginLimiter, email_key, source_key
 from app.core.security import create_access_token
 from app.schemas.auth import (
+    BudgetStartDayUpdate,
     Credentials,
     CurrencyUpdate,
     PasswordChange,
@@ -296,6 +297,14 @@ def set_weight_unit(
                 "rather than convert them, so it is locked."
             ),
         ) from None
+
+
+@router.patch("/me/budget-start-day", response_model=UserOut)
+def set_budget_start_day(
+    payload: BudgetStartDayUpdate, user_id: CurrentUserId, session: DbSession
+) -> auth_service.UserRow:
+    """No 409 here, unlike the currency: this re-groups rows, it never relabels one."""
+    return auth_service.set_budget_start_day(session, user_id, payload.budget_start_day)
 
 
 @router.get("/me", response_model=UserOut)

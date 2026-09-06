@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core import search
 from app.core.errors import Conflict, Invalid, NotFound
-from app.core.months import month_range
+from app.core.months import DEFAULT_START_DAY, month_range
 from app.models.ledger import Category, Entry, EntryKind, Vendor
 
 # ---------------------------------------------------------------- categories
@@ -194,6 +194,7 @@ def list_entries(
     month: str | None = None,
     category_id: uuid.UUID | None = None,
     q: str | None = None,
+    start_day: int = DEFAULT_START_DAY,
 ) -> list[Entry]:
     query = _entry_query(user_id)
     if q:
@@ -214,8 +215,9 @@ def list_entries(
     if category_id is not None:
         query = query.where(Entry.category_id == category_id)
     if month is not None:
-        # AD-10: half-open, never BETWEEN.
-        start, end = month_range(month)
+        # AD-10: half-open, never BETWEEN — and the month is the account's, which need
+        # not start on the 1st.
+        start, end = month_range(month, start_day)
         query = query.where(Entry.occurred_on >= start, Entry.occurred_on < end)
     query = query.order_by(Entry.occurred_on.desc(), Entry.created_at.desc(), Entry.id)
     return list(session.execute(query).scalars())

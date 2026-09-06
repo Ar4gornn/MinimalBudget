@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
+import { MAX_START_DAY, budgetMonth, monthLabel, monthRangeLabel } from "../months";
 import { disablePush, enablePush, pushSupported } from "../push";
 import type { Currency } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
@@ -25,6 +26,8 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
+  const startDay = user?.budget_start_day ?? 1;
+  const thisMonth = budgetMonth(startDay);
   const [push, setPush] = useState<{ enabled: boolean; devices: number } | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
 
@@ -68,6 +71,20 @@ export function SettingsPage() {
       setError(caught instanceof Error ? caught.message : "Could not change that.");
     } finally {
       setPushBusy(false);
+    }
+  }
+
+  async function changeStartDay(day: number) {
+    setError(null);
+    setChanging(true);
+    try {
+      await api.setBudgetStartDay(day);
+      // Every month picker in the app reads this, so re-read the profile rather than guess.
+      await refreshProfile();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not change the month start.");
+    } finally {
+      setChanging(false);
     }
   }
 
@@ -125,6 +142,33 @@ export function SettingsPage() {
         <p className="hint" style={{ marginTop: 8 }}>
           Amounts are stored, not converted — changing this relabels them. It locks as soon as
           the account has its first entry.
+        </p>
+      </Card>
+
+      <Card title="Budget month">
+        <div className="row">
+          <label style={{ flex: "0 0 200px" }}>
+            Starts on day
+            <select
+              aria-label="Budget month starts on day"
+              value={startDay}
+              disabled={changing}
+              onChange={(event) => void changeStartDay(Number(event.target.value))}
+            >
+              {Array.from({ length: MAX_START_DAY }, (_, index) => index + 1).map((day) => (
+                <option key={day} value={day}>
+                  {day === 1 ? "1 (calendar month)" : day}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="hint" style={{ marginTop: 8 }}>
+          {startDay === 1
+            ? "Months run from the 1st, as on a calendar."
+            : `Months run from the ${startDay}th to the ${startDay - 1}th, and are named after the month they end in — so ${monthLabel(thisMonth)} is ${monthRangeLabel(thisMonth, startDay)}.`}{" "}
+          Set this to the day you are paid. Changing it only re-groups what you have already
+          recorded; no amount or date is altered, so you can change it as often as you like.
         </p>
       </Card>
 
