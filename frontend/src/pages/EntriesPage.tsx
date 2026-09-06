@@ -29,7 +29,7 @@ import {
   unitLabel,
 } from "../quantity";
 import { useMoney } from "../useMoney";
-import { budgetMonth, monthRangeLabel, todayIso } from "../months";
+import { budgetMonth, monthLabel, monthRangeLabel, todayIso } from "../months";
 
 export function EntriesPage() {
   const money = useMoney();
@@ -486,63 +486,66 @@ export function EntriesPage() {
         </p>
       </Card>
 
-      <Card
-        title="Entries"
-        actions={
-          <div className="row">
-            <label style={{ flex: "0 0 120px" }}>
-              Kind
-              <select
-                aria-label="Filter by kind"
-                value={kindFilter}
-                onChange={(event) => setKindFilter(event.target.value as EntryKind | "")}
-              >
-                <option value="">All</option>
-                <option value="expense">Expense</option>
-                <option value="income">Income</option>
-              </select>
-            </label>
-            <label style={{ flex: "0 0 150px" }}>
-              Month
-              <input
-                type="month"
-                aria-label="Filter by month"
-                value={monthFilter}
-                onChange={(event) => setMonthFilter(event.target.value)}
-              />
-              {/* What "September" actually covers, when it is not the calendar month. */}
-              {monthRangeLabel(monthFilter, startDay) && (
-                <span className="hint">{monthRangeLabel(monthFilter, startDay)}</span>
-              )}
-            </label>
-            <label style={{ flex: "1 1 160px" }}>
-              Search
-              <input
-                type="search"
-                aria-label="Search entries"
-                placeholder="note or category"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
-            <label style={{ flex: "0 0 170px" }}>
-              Category
-              <select
-                aria-label="Filter by category"
-                value={categoryFilter}
-                onChange={(event) => setCategoryFilter(event.target.value)}
-              >
-                <option value="">All</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        }
-      >
+      <Card title="Entries">
+        {/* A filter bar, not a header action: four controls and a note do not belong on the
+            same baseline as a card title, which is what wrapped them into two ragged rows.
+            A grid rather than flex bases, so it reflows on its own instead of being tuned. */}
+        <div className="filters">
+          <label>
+            Kind
+            <select
+              aria-label="Filter by kind"
+              value={kindFilter}
+              onChange={(event) => setKindFilter(event.target.value as EntryKind | "")}
+            >
+              <option value="">All</option>
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+          </label>
+          <label>
+            Month
+            <input
+              type="month"
+              aria-label="Filter by month"
+              value={monthFilter}
+              onChange={(event) => setMonthFilter(event.target.value)}
+            />
+          </label>
+          <label>
+            Category
+            <select
+              aria-label="Filter by category"
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value)}
+            >
+              <option value="">All</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Search
+            <input
+              type="search"
+              aria-label="Search entries"
+              placeholder="note or category"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          {/* Its own full-width line: inside the Month label it made that one control taller
+              than the other three and broke the row's alignment. */}
+          {monthRangeLabel(monthFilter, startDay) && (
+            <p className="filter-note hint">
+              {monthLabel(monthFilter)} runs {monthRangeLabel(monthFilter, startDay)}
+            </p>
+          )}
+        </div>
+
         {loading ? (
           <p className="empty">Loading…</p>
         ) : entries.length === 0 ? (

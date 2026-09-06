@@ -313,6 +313,18 @@ select {
   padding: 7px 9px;
   min-width: 0;
   width: 100%;
+  /* One height for both. A date input carries a native picker glyph that makes it a couple
+     of pixels taller than a select, which is invisible on its own and obvious the moment
+     the two sit side by side in a filter row. */
+  box-sizing: border-box;
+  height: 36px;
+  line-height: 1.2;
+}
+
+/* A textarea-like control would fight a fixed height; none exist yet, but the rule above
+   should not silently break the first one that does. */
+input[type="checkbox"] {
+  height: auto;
 }
 
 input:focus-visible,
@@ -1012,4 +1024,21 @@ tr.muted td {
 .check input {
   width: auto;
   margin: 0;
+}
+
+/* A filter bar above a table. Equal columns that reflow on their own — four controls tuned
+   with flex bases wrapped into two ragged rows at the widths nobody tests. */
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+/* Full width, on its own line: a note inside one label makes that control taller than its
+   neighbours and takes the whole row out of alignment. */
+.filters .filter-note {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
 }
