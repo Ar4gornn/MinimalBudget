@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useT } from "../i18n";
+import { errorMessage } from "../i18n/errors";
 import { Card, ErrorBanner } from "./ui";
 import { useToast } from "./Toast";
 
@@ -15,6 +17,7 @@ import { useToast } from "./Toast";
  */
 export function SecurityCard() {
   const { user, signIn } = useAuth();
+  const t = useT();
   const toast = useToast();
   const [error, setError] = useState<string | null>(null);
 
@@ -46,7 +49,7 @@ export function SecurityCard() {
   async function changePassword(event: FormEvent) {
     event.preventDefault();
     if (newPassword.length < 10) {
-      setError("The new password needs at least 10 characters.");
+      setError(t("security.tooShort"));
       return;
     }
     setError(null);
@@ -57,9 +60,9 @@ export function SecurityCard() {
       if (user) await signIn(user.email, newPassword);
       setCurrentPassword("");
       setNewPassword("");
-      toast.show("Password changed. Other devices were signed out.");
+      toast.show(t("security.changed"));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not change the password.");
+      setError(errorMessage(t, caught, "security.couldNotChange"));
     } finally {
       setChanging(false);
     }
@@ -75,19 +78,19 @@ export function SecurityCard() {
       setConfirmPassword("");
       await loadStatus();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not generate codes.");
+      setError(errorMessage(t, caught, "security.couldNotGenerate"));
     } finally {
       setGenerating(false);
     }
   }
 
   return (
-    <Card title="Password and recovery">
+    <Card title={t("security.title")}>
       <ErrorBanner message={error} />
 
-      <form className="stack" onSubmit={changePassword} aria-label="Change password">
+      <form className="stack" onSubmit={changePassword} aria-label={t("security.changePassword")}>
         <label>
-          Current password
+          {t("security.currentPassword")}
           <input
             type="password"
             autoComplete="current-password"
@@ -97,7 +100,7 @@ export function SecurityCard() {
           />
         </label>
         <label>
-          New password
+          {t("security.newPassword")}
           <div className="password-field">
             <input
               type={showNew ? "text" : "password"}
@@ -112,61 +115,62 @@ export function SecurityCard() {
               className="quiet"
               onClick={() => setShowNew((was) => !was)}
               aria-pressed={showNew}
-              aria-label={showNew ? "Hide new password" : "Show new password"}
+              aria-label={
+                showNew ? t("security.hideNewPassword") : t("security.showNewPassword")
+              }
             >
-              {showNew ? "Hide" : "Show"}
+              {showNew ? t("signin.hide") : t("signin.show")}
             </button>
           </div>
         </label>
         <button type="submit" disabled={changing}>
-          {changing ? "Changing…" : "Change password"}
+          {changing ? t("security.changing") : t("security.changePassword")}
         </button>
       </form>
 
       <hr className="rule" />
 
-      <h3>Recovery codes</h3>
+      <h3>{t("security.codes")}</h3>
       <p className="hint">
-        If you forget your password, one of these codes plus your email lets you set a new
-        one. Each works once. Keep them somewhere that is not this app.
+        {t("security.codesHint")}
         {status && status.total > 0
-          ? ` ${status.unused} of ${status.total} unused.`
-          : " None generated yet."}
+          ? t("security.codesUnused", { unused: status.unused, total: status.total })
+          : t("security.codesNone")}
       </p>
 
       {codes ? (
         <>
-          <ul className="codes" aria-label="Recovery codes">
+          <ul className="codes" aria-label={t("security.codes")}>
             {codes.map((code) => (
               <li key={code}>{code}</li>
             ))}
           </ul>
           <p className="hint">
-            Shown once. Any codes you had before no longer work.{" "}
+            {t("security.codesShownOnce")}{" "}
             <button type="button" className="link" onClick={() => setCodes(null)}>
-              I have saved them
+              {t("security.codesSaved")}
             </button>
           </p>
         </>
       ) : (
-        <form className="row" onSubmit={generate} aria-label="Generate recovery codes">
+        <form className="row" onSubmit={generate} aria-label={t("security.generate")}>
           <label style={{ flex: "1 1 200px" }}>
-            Confirm password
+            {t("security.confirmPassword")}
             <input
               type="password"
               autoComplete="current-password"
               required
-              aria-label="Confirm password"
+              aria-label={t("security.confirmPassword")}
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
             />
           </label>
           <button type="submit" className="quiet" disabled={generating}>
             {generating
-              ? "Generating…"
+              ? t("security.generating")
               : status && status.total > 0
-                ? "Generate new codes"
-                : "Generate codes"}
+                ? t("security.generateNew")
+                : t("security.generate")}
           </button>
         </form>
       )}

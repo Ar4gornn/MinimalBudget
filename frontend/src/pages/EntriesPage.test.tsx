@@ -58,6 +58,39 @@ describe("EntriesPage", () => {
     vi.restoreAllMocks();
   });
 
+  it("prefills the date the calendar handed it, and clears the parameters", async () => {
+    // The only path in Epic 22 that had no test: "Add on this day" navigates here with
+    // ?add=1&date=YYYY-MM-DD, and without this the entry would silently be dated today —
+    // which is the wrong day, on the one screen where the day is the whole point.
+    mockApi();
+    rtlRender(
+      <MemoryRouter initialEntries={["/entries?add=1&date=2026-08-15"]}>
+        <EntriesPage />
+      </MemoryRouter>,
+    );
+
+    const form = await screen.findByRole("form", { name: "Record an entry" });
+    await waitFor(() => {
+      expect(within(form).getByLabelText("Date")).toHaveValue("2026-08-15");
+    });
+  });
+
+  it("ignores a date parameter that is not a date", async () => {
+    mockApi();
+    rtlRender(
+      <MemoryRouter initialEntries={["/entries?add=1&date=yesterday"]}>
+        <EntriesPage />
+      </MemoryRouter>,
+    );
+
+    const form = await screen.findByRole("form", { name: "Record an entry" });
+    // Falls back to today rather than blanking the field or writing junk into it.
+    expect(within(form).getByLabelText("Date")).not.toHaveValue("yesterday");
+    expect((within(form).getByLabelText("Date") as HTMLInputElement).value).toMatch(
+      /^\d{4}-\d{2}-\d{2}$/,
+    );
+  });
+
   it("lists entries with the category name rather than its id", async () => {
     mockApi();
     render(<EntriesPage />);

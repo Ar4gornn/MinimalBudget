@@ -7,6 +7,7 @@
  */
 
 import type { ItemChange } from "../api/types";
+import { useT } from "../i18n";
 
 const WIDTH = 240;
 const HEIGHT = 56;
@@ -24,6 +25,7 @@ export function StepChart({
   /** Injected so a test can pin the right edge of the time axis. */
   now?: Date;
 }) {
+  const t = useT();
   if (changes.length === 0) return null;
 
   const times = changes.map((change) => new Date(change.changed_at).getTime());
@@ -57,7 +59,7 @@ export function StepChart({
       style={{ maxWidth: WIDTH * 2, height: "auto", display: "block" }}
       preserveAspectRatio="xMinYMid meet"
       role="img"
-      aria-label={`${label} quantity over time`}
+      aria-label={t("chart.quantityAria", { label })}
     >
       {threshold !== null && (
         <line

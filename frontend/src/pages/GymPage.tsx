@@ -14,6 +14,9 @@ import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { StrengthChart } from "../charts/StrengthChart";
 import { todayIso } from "../months";
+import { useT } from "../i18n";
+import type { MessageKey } from "../i18n/catalogue";
+import { errorMessage } from "../i18n/errors";
 
 /**
  * Routines and the workout log (Epic 19).
@@ -24,6 +27,7 @@ import { todayIso } from "../months";
  */
 export function GymPage() {
   const { user } = useAuth();
+  const t = useT();
   const toast = useToast();
   const unit = user?.weight_unit ?? "kg";
 
@@ -62,23 +66,23 @@ export function GymPage() {
       setWorkouts(nextWorkouts);
       setExercises(nextExercises);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not load the gym.");
+      setError(errorMessage(t, caught, "gym.couldNotLoad"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  async function run(action: () => Promise<unknown>, fallback: string) {
+  async function run(action: () => Promise<unknown>, fallback: MessageKey) {
     setBusy(true);
     setError(null);
     try {
       await action();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : fallback);
+      setError(errorMessage(t, caught, fallback));
     } finally {
       setBusy(false);
     }
@@ -99,7 +103,7 @@ export function GymPage() {
       setRoutineName("");
       await load();
       setRoutine(await api.readRoutine(created.id));
-    }, "Could not create that routine.");
+    }, "gym.couldNotCreateRoutine");
   }
 
   async function addLine(event: FormEvent) {
@@ -116,7 +120,7 @@ export function GymPage() {
       setLineReps("");
       setRoutine(await api.readRoutine(routine.id));
       setExercises(await api.listExercises());
-    }, "Could not add that exercise.");
+    }, "gym.couldNotAddExercise");
   }
 
   // ------------------------------------------------------------- workouts
@@ -136,7 +140,7 @@ export function GymPage() {
         setSetExercise(plan.lines[0]?.exercise_name ?? "");
       }
       await load();
-    }, "Could not start that session.");
+    }, "gym.couldNotStart");
   }
 
   async function logSet(event: FormEvent) {
@@ -144,12 +148,12 @@ export function GymPage() {
     if (!current) return;
     const reps = Number(setReps);
     if (!Number.isInteger(reps) || reps < 1) {
-      setError("How many reps? A whole number, at least one.");
+      setError(t("gym.badReps"));
       return;
     }
     const weight = setWeight.trim();
     if (weight && !/^\d{1,5}(\.\d{1,2})?$/.test(weight)) {
-      setError(`Enter a weight in ${unit}, with at most two decimal places.`);
+      setError(t("gym.badWeight", { unit }));
       return;
     }
     await run(async () => {
@@ -161,44 +165,44 @@ export function GymPage() {
       setSetReps("");
       setCurrent(await api.readWorkout(current.id));
       setExercises(await api.listExercises());
-      toast.show("Set logged");
-    }, "Could not log that set.");
+      toast.show(t("gym.setLogged"));
+    }, "gym.couldNotLogSet");
   }
 
   if (loading && routines.length === 0 && workouts.length === 0) {
-    return <p className="empty">Loading…</p>;
+    return <p className="empty">{t("state.loading")}</p>;
   }
 
   return (
     <>
-      <h1 style={{ fontSize: 18, margin: "0 0 16px" }}>Gym</h1>
+      <h1 style={{ fontSize: 18, margin: "0 0 16px" }}>{t("gym.title")}</h1>
       <ErrorBanner message={error} />
 
       {current ? (
         <Card
-          title={`Session · ${current.performed_on}`}
+          title={t("gym.session", { date: current.performed_on })}
           actions={
             <button type="button" className="quiet" onClick={() => setCurrent(null)}>
-              Done
+              {t("gym.done")}
             </button>
           }
         >
           {current.routine_id && (
             <p className="hint" style={{ margin: "0 0 8px" }}>
-              From {routineName_(current.routine_id)}
+              {t("gym.fromRoutine", { name: routineName_(current.routine_id) })}
               {routine?.lines.length
                 ? ` · ${routine.lines.map((line) => line.exercise_name).join(", ")}`
                 : ""}
             </p>
           )}
 
-          <form className="row" onSubmit={logSet} aria-label="Log a set">
+          <form className="row" onSubmit={logSet} aria-label={t("gym.logASet")}>
             <label style={{ flex: "1 1 160px" }}>
-              Exercise
+              {t("gym.exercise")}
               <input
                 list="exercise-names"
-                aria-label="Exercise"
-                placeholder="Bench press"
+                aria-label={t("gym.exercise")}
+                placeholder={t("gym.exercisePlaceholder")}
                 required
                 value={setExercise}
                 onChange={(event) => setSetExercise(event.target.value)}
@@ -210,72 +214,72 @@ export function GymPage() {
               ))}
             </datalist>
             <label style={{ flex: "0 0 90px" }}>
-              Reps
+              {t("gym.reps")}
               <input
                 className="num"
                 inputMode="numeric"
-                aria-label="Reps"
+                aria-label={t("gym.reps")}
                 required
                 value={setReps}
                 onChange={(event) => setSetReps(event.target.value)}
               />
             </label>
             <label style={{ flex: "0 0 110px" }}>
-              Weight ({unit})
+              {t("gym.weight", { unit })}
               <input
                 className="num"
                 inputMode="decimal"
-                aria-label={`Weight in ${unit}`}
+                aria-label={t("gym.weightAria", { unit })}
                 placeholder="—"
                 value={setWeight}
                 onChange={(event) => setSetWeight(event.target.value)}
               />
             </label>
             <button type="submit" disabled={busy}>
-              Log set
+              {t("gym.logSet")}
             </button>
           </form>
           <p className="hint" style={{ marginTop: 8 }}>
-            Leave the weight blank for a bodyweight set.
+            {t("gym.bodyweightHint")}
           </p>
 
           {current.sets.length === 0 ? (
-            <Empty>No sets yet.</Empty>
+            <Empty>{t("gym.noSets")}</Empty>
           ) : (
             <TableWrap>
-              <table className="stacked" aria-label="Sets">
+              <table className="stacked" aria-label={t("gym.sets")}>
                 <thead>
                   <tr>
-                    <th>Exercise</th>
-                    <th className="num">Reps</th>
-                    <th className="num">Weight ({unit})</th>
+                    <th>{t("gym.exercise")}</th>
+                    <th className="num">{t("gym.reps")}</th>
+                    <th className="num">{t("gym.weight", { unit })}</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
                   {current.sets.map((row) => (
                     <tr key={row.id}>
-                      <td data-label="Exercise">{row.exercise_name}</td>
-                      <td className="num" data-label="Reps">
+                      <td data-label={t("gym.exercise")}>{row.exercise_name}</td>
+                      <td className="num" data-label={t("gym.reps")}>
                         {row.reps}
                       </td>
-                      <td className="num" data-label="Weight">
-                        {row.weight ?? <span className="hint">bodyweight</span>}
+                      <td className="num" data-label={t("gym.weightShort")}>
+                        {row.weight ?? <span className="hint">{t("gym.bodyweight")}</span>}
                       </td>
                       <td>
                         <button
                           type="button"
                           className="quiet"
                           disabled={busy}
-                          aria-label={`Delete set of ${row.exercise_name}`}
+                          aria-label={t("gym.deleteSet", { name: row.exercise_name })}
                           onClick={() =>
                             void run(async () => {
                               await api.deleteSet(row.id);
                               setCurrent(await api.readWorkout(current.id));
-                            }, "Could not delete that set.")
+                            }, "gym.couldNotDeleteSet")
                           }
                         >
-                          Delete
+                          {t("action.delete")}
                         </button>
                       </td>
                     </tr>
@@ -286,10 +290,10 @@ export function GymPage() {
           )}
         </Card>
       ) : (
-        <Card title="Start a session">
+        <Card title={t("gym.startSession")}>
           <div className="row">
             <button type="button" disabled={busy} onClick={() => void startSession()}>
-              Start empty
+              {t("gym.startEmpty")}
             </button>
             {routines.map((entry) => (
               <button
@@ -299,7 +303,7 @@ export function GymPage() {
                 disabled={busy}
                 // Named for the action: the Routines card below has a chip with the same
                 // text that opens the routine for editing instead.
-                aria-label={`Start ${entry.name}`}
+                aria-label={t("gym.startNamed", { name: entry.name })}
                 onClick={() => void startSession(entry.id)}
               >
                 {entry.name}
@@ -308,27 +312,30 @@ export function GymPage() {
           </div>
           {routines.length === 0 && (
             <p className="hint" style={{ marginTop: 8 }}>
-              No routines yet. A routine is a named list of exercises you start a session
-              from; you can also just start empty.
+              {t("gym.noRoutinesHint")}
             </p>
           )}
         </Card>
       )}
 
-      <Card title="Routines" collapseKey="gym.routines" summary={`${routines.length}`}>
-        <form className="row" onSubmit={addRoutine} aria-label="Add a routine">
+      <Card
+        title={t("gym.routines")}
+        collapseKey="gym.routines"
+        summary={`${routines.length}`}
+      >
+        <form className="row" onSubmit={addRoutine} aria-label={t("gym.addRoutine")}>
           <label style={{ flex: "1 1 160px" }}>
-            Name
+            {t("field.name")}
             <input
-              aria-label="Routine name"
-              placeholder="Push day"
+              aria-label={t("gym.routineName")}
+              placeholder={t("gym.routinePlaceholder")}
               required
               value={routineName}
               onChange={(event) => setRoutineName(event.target.value)}
             />
           </label>
           <button type="submit" disabled={busy}>
-            Add
+            {t("action.add")}
           </button>
         </form>
 
@@ -340,13 +347,13 @@ export function GymPage() {
                 type="button"
                 className={`chip ${routine?.id === entry.id ? "on" : ""}`}
                 aria-pressed={routine?.id === entry.id}
-                aria-label={`Edit ${entry.name}`}
+                aria-label={t("gym.editNamed", { name: entry.name })}
                 onClick={() =>
                   void run(async () => {
                     setRoutine(
                       routine?.id === entry.id ? null : await api.readRoutine(entry.id),
                     );
-                  }, "Could not open that routine.")
+                  }, "gym.couldNotOpenRoutine")
                 }
               >
                 {entry.name}
@@ -357,61 +364,68 @@ export function GymPage() {
 
         {routine && (
           <>
-            <form className="row" onSubmit={addLine} aria-label="Add an exercise to the routine">
+            <form
+              className="row"
+              onSubmit={addLine}
+              aria-label={t("gym.addExerciseTo")}
+            >
               <label style={{ flex: "1 1 160px" }}>
                 {/* Not just "Exercise": the session form above uses that, and two fields
                     with the same visible label on one screen is a question, not a label. */}
-                Add exercise
+                {t("gym.addExercise")}
                 <input
                   list="exercise-names"
-                  aria-label="Routine exercise"
-                  placeholder="Bench press"
+                  aria-label={t("gym.routineExercise")}
+                  placeholder={t("gym.exercisePlaceholder")}
                   required
                   value={lineName}
                   onChange={(event) => setLineName(event.target.value)}
                 />
               </label>
               <label style={{ flex: "0 0 80px" }}>
-                Sets
+                {t("gym.setsShort")}
                 <input
                   className="num"
                   inputMode="numeric"
-                  aria-label="Target sets"
+                  aria-label={t("gym.targetSets")}
                   value={lineSets}
                   onChange={(event) => setLineSets(event.target.value)}
                 />
               </label>
               <label style={{ flex: "0 0 80px" }}>
-                Reps
+                {t("gym.reps")}
                 <input
                   className="num"
                   inputMode="numeric"
-                  aria-label="Target reps"
+                  aria-label={t("gym.targetReps")}
                   value={lineReps}
                   onChange={(event) => setLineReps(event.target.value)}
                 />
               </label>
               <button type="submit" disabled={busy}>
-                Add
+                {t("action.add")}
               </button>
             </form>
 
             {routine.lines.length === 0 ? (
-              <Empty>Nothing in {routine.name} yet.</Empty>
+              <Empty>{t("gym.emptyRoutine", { name: routine.name })}</Empty>
             ) : (
               <TableWrap>
-                <table className="stacked" aria-label={`${routine.name} exercises`}>
+                <table
+                  className="stacked"
+                  aria-label={t("gym.routineExercises", { name: routine.name })}
+                >
                   <thead>
                     <tr>
-                      <th>Exercise</th>
-                      <th className="num">Target</th>
+                      <th>{t("gym.exercise")}</th>
+                      <th className="num">{t("gym.colTarget")}</th>
                       <th />
                     </tr>
                   </thead>
                   <tbody>
                     {routine.lines.map((line) => (
                       <tr key={line.id}>
-                        <td data-label="Exercise">
+                        <td data-label={t("gym.exercise")}>
                           {line.exercise_name}
                           {line.video_url && (
                             <>
@@ -423,12 +437,12 @@ export function GymPage() {
                                 // window.opener; noreferrer so it is not told where from.
                                 rel="noopener noreferrer"
                               >
-                                video
+                                {t("gym.video")}
                               </a>
                             </>
                           )}
                         </td>
-                        <td className="num" data-label="Target">
+                        <td className="num" data-label={t("gym.colTarget")}>
                           {line.target_sets && line.target_reps
                             ? `${line.target_sets}×${line.target_reps}`
                             : (line.target_sets ?? line.target_reps ?? "—")}
@@ -438,15 +452,18 @@ export function GymPage() {
                             type="button"
                             className="quiet"
                             disabled={busy}
-                            aria-label={`Remove ${line.exercise_name} from ${routine.name}`}
+                            aria-label={t("gym.removeFrom", {
+                              exercise: line.exercise_name,
+                              routine: routine.name,
+                            })}
                             onClick={() =>
                               void run(async () => {
                                 await api.removeRoutineLine(line.id);
                                 setRoutine(await api.readRoutine(routine.id));
-                              }, "Could not remove that.")
+                              }, "gym.couldNotRemove")
                             }
                           >
-                            Remove
+                            {t("action.remove")}
                           </button>
                         </td>
                       </tr>
@@ -460,12 +477,12 @@ export function GymPage() {
       </Card>
 
       <Card
-        title="Progress"
+        title={t("gym.progress")}
         collapseKey="gym.progress"
-        summary={`${exercises.length} exercises`}
+        summary={t("gym.exerciseCount", { count: exercises.length })}
       >
         {exercises.length === 0 ? (
-          <Empty>Log a set and the history appears here.</Empty>
+          <Empty>{t("gym.logToSee")}</Empty>
         ) : (
           <>
             <div className="row">
@@ -481,7 +498,7 @@ export function GymPage() {
                           ? null
                           : await api.exerciseHistory(exercise.id),
                       );
-                    }, "Could not load that history.")
+                    }, "gym.couldNotLoadHistory")
                   }
                 >
                   {exercise.name}
@@ -490,7 +507,7 @@ export function GymPage() {
             </div>
             {history &&
               (history.points.length === 0 ? (
-                <Empty>Nothing logged for {history.exercise_name} yet.</Empty>
+                <Empty>{t("gym.nothingLoggedFor", { name: history.exercise_name })}</Empty>
               ) : (
                 <div style={{ marginTop: 12 }}>
                   <StrengthChart points={history.points} label={history.exercise_name} unit={unit} />
@@ -500,24 +517,28 @@ export function GymPage() {
         )}
       </Card>
 
-      <Card title="Recent sessions" collapseKey="gym.recent" summary={`${workouts.length}`}>
+      <Card
+        title={t("gym.recent")}
+        collapseKey="gym.recent"
+        summary={`${workouts.length}`}
+      >
         {workouts.length === 0 ? (
-          <Empty>Nothing logged yet.</Empty>
+          <Empty>{t("gym.nothingLogged")}</Empty>
         ) : (
           <TableWrap>
-            <table className="stacked" aria-label="Recent sessions">
+            <table className="stacked" aria-label={t("gym.recent")}>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Routine</th>
+                  <th>{t("field.date")}</th>
+                  <th>{t("gym.colRoutine")}</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {workouts.map((entry) => (
                   <tr key={entry.id}>
-                    <td data-label="Date">{entry.performed_on}</td>
-                    <td data-label="Routine">
+                    <td data-label={t("field.date")}>{entry.performed_on}</td>
+                    <td data-label={t("gym.colRoutine")}>
                       {entry.routine_id ? routineName_(entry.routine_id) : <span className="hint">—</span>}
                     </td>
                     <td>
@@ -525,28 +546,28 @@ export function GymPage() {
                         <button
                           type="button"
                           className="quiet"
-                          aria-label={`Open session of ${entry.performed_on}`}
+                          aria-label={t("gym.openSession", { date: entry.performed_on })}
                           onClick={() =>
                             void run(async () => {
                               setCurrent(await api.readWorkout(entry.id));
-                            }, "Could not open that session.")
+                            }, "gym.couldNotOpenSession")
                           }
                         >
-                          Open
+                          {t("gym.open")}
                         </button>
                         <button
                           type="button"
                           className="quiet"
-                          aria-label={`Delete session of ${entry.performed_on}`}
+                          aria-label={t("gym.deleteSession", { date: entry.performed_on })}
                           onClick={() =>
                             void run(async () => {
                               await api.deleteWorkout(entry.id);
                               if (current?.id === entry.id) setCurrent(null);
                               await load();
-                            }, "Could not delete that session.")
+                            }, "gym.couldNotDeleteSession")
                           }
                         >
-                          Delete
+                          {t("action.delete")}
                         </button>
                       </div>
                     </td>

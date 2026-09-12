@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   budgetMonth,
   currentMonth,
+  dayLabel,
   monthBounds,
   monthLabel,
   monthOf,
@@ -81,5 +82,24 @@ describe("months", () => {
         }
       }
     });
+  });
+});
+
+describe("dayLabel", () => {
+  it("names the weekday and the month in English, whatever the machine locale", () => {
+    // Pinned rather than Intl-derived: the locale here is French, and a heading that
+    // changed language with the machine would make this test unreproducible.
+    expect(dayLabel("2026-09-02")).toBe("Wed 2 September");
+    expect(dayLabel("2026-08-26")).toBe("Wed 26 August");
+    expect(dayLabel("2026-01-01")).toBe("Thu 1 January");
+  });
+
+  it("parses at local midnight, so the day never slips west of UTC", () => {
+    // `new Date("2026-09-02")` is UTC by spec and renders as the 1st in the Americas.
+    expect(dayLabel("2026-09-02")).toContain("2 September");
+  });
+
+  it("hands back anything it cannot parse rather than rendering NaN", () => {
+    expect(dayLabel("not-a-date")).toBe("not-a-date");
   });
 });

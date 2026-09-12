@@ -65,6 +65,16 @@ up front.
 | FR-42 | A user can log a workout set by set, with reps and an optional weight, and see whether a lift is going up. |
 | FR-43 | A user can set the day their budget month starts on, and every month-based view follows it. |
 | FR-44 | A user can read income, expense, net and saved for a month, for a year, or for all time. |
+| FR-45 | A user can read every item's stock movements for a month, across all their spaces. |
+| FR-46 | A user can see which recurring entries are still to fall due later in the month, without any of them being created. |
+| FR-47 | A user can see a month as a calendar grid covering their own budget period, with what happened on each day. |
+| FR-48 | A user can open a day and see every record on it, and reach the record itself. |
+| FR-49 | A user can define a habit with a period and a target, check it in for today or a past day, and archive or delete it. |
+| FR-50 | A user can see how far through the current period each habit is, its streak, and a heat-map of recent weeks. |
+| FR-51 | A user can reach Habits from the bottom bar and the calendar from the Dashboard section, on a 375px phone. |
+| FR-52 | A user can opt one habit at a time into the daily reminder. |
+| FR-53 | A user can record, for a day, how they felt on a five-point scale and whether the day was any good, change either answer later, and clear the day entirely. |
+| FR-54 | A user can see their recent days' answers and a tally of each on the Habits tab, and the day's face on the calendar. |
 
 ### NonFunctional Requirements
 
@@ -102,6 +112,12 @@ Sourced from the architecture spine. These bind every story that touches them.
 | AR-16 | A scaling unit belongs to the account and locks once anything depends on it. | AD-36 |
 | AR-17 | The month boundary is the account's, applied identically by every view and by the SQL that buckets trends. | AD-10 |
 | AR-18 | A year is exactly twelve budget months, so the monthly figures sum to the yearly one; all time has no bounds. | AD-10, AD-11 |
+| AR-19 | A view spanning modules calls each module's own endpoint and merges at the edge; only a cross-module write earns a service. | AD-37 |
+| AR-20 | A calendar grid covers the account's period, and a stored instant is placed by UTC day and said so. | AD-38, AD-10 |
+| AR-21 | A projection is computed, never written, never actionable, and never speaks for a date that already carries a decision. | AD-39, AD-33 |
+| AR-22 | A target re-judges rather than relabels, so it changes freely; its figures are derived, and the open period is never a miss. | AD-40, AD-36, AD-9 |
+| AR-23 | A subjective record is one re-answerable row per day; a later answer overwrites, clearing deletes the row, and every figure over it is a count whose denominator is days answered. | AD-41 |
+| AR-24 | A graded answer is stored as its value and drawn as local inline SVG; no emoji codepoint is an interface, and no glyph ships without the word that names it. | AD-42 |
 
 ### UX Design Requirements
 
@@ -157,6 +173,15 @@ AD-17).
 | FR-41, FR-42, AR-15, AR-16 | Stories 19.1, 19.2 |
 | FR-43, AR-17 | Story 20.1 |
 | FR-44, AR-18 | Story 21.1 |
+| FR-45, FR-46, AR-19, AR-21 | Story 22.1 |
+| FR-47, AR-20 | Story 22.2 |
+| FR-48 | Story 22.3 |
+| FR-49, AR-5 (Epic 23) | Story 23.1 |
+| FR-50, AR-22 | Story 23.2 |
+| FR-51, FR-52 | Story 23.3 |
+| FR-53, AR-23, AR-5 (Epic 24) | Story 24.1 |
+| AR-24 | Stories 24.2, 24.3 |
+| FR-54, AR-19 (second application) | Story 24.3 |
 
 ## Epic List
 
@@ -183,6 +208,9 @@ AD-17).
 | 19 | Gym | The first module that is not about money: routines to train from, and a log honest enough to answer whether the lift is going up. |
 | 20 | The month that matters | The budget month starts on the day you are paid, not on the 1st. |
 | 21 | Month, year, all time | The four figures that answer "how am I doing" answer it over any of the three windows. |
+| 22 | The calendar | Every module's dated records on one grid, over the month the account actually keeps. |
+| 23 | Habits | A thing you mean to do repeatedly, the evidence that you did, and a streak that does not lie about today. |
+| 24 | Mood | Two questions a day — how it felt, and whether it was any good — answered in two taps and counted rather than averaged. |
 
 Epics 8 and 9 were built on 2026-08-30 and 2026-09-01 and written up here afterwards, from the
 commits and the tests, on 2026-09-05. Each is one story because each was one commit with one
@@ -1163,6 +1191,363 @@ So that "how am I doing" is a question I can ask at more than one scale.
 
 ---
 
+## Epic 22: The calendar
+
+Every module in this app records a date, and until now each one showed its dates only to
+itself: the entries list knows what was spent on Tuesday, the gym log knows there was a
+session, and nothing put the two on the same page. A calendar is the one shape that does —
+not another total, but the same records laid out on the days they happened.
+
+Two things were settled before any code, because either one guessed wrong would be wrong
+quietly. **It is a window, not a workbench**: everything on it is read, and the two ways out
+of it are navigation — a record links to its module, and "add on this day" hands the entry
+form a date. The rejected reading, recording from inside a day cell, would have meant a
+second implementation of rules that already have one each — the kind match of AD-7, the
+quantity-and-unit pair of AD-29, create-by-name of AD-12, propose-before-write of AD-33 —
+and a lesser form silently missing fields. What that costs is a tap: recording against a day
+is two screens rather than one.
+
+And **the grid is the account's month**. For an account paid on the 26th, "September" runs 26
+August to 25 September, and every other view in the app already answers for that window
+(AD-10). A calendar-month grid would have made this the one screen disagreeing with the total
+above it, which is exactly the failure Epic 20 existed to end. The price is ragged edges: the
+first and last rows carry days from the neighbouring periods, drawn muted, and tapping one
+moves to the period it belongs to rather than pretending nothing happened on it. For a start
+day of 1 — the default, and every existing account — the grid is the plain calendar month.
+
+The data comes from each module's own endpoint, merged in the page, the way the dashboard
+composes its cards (AD-31, AD-37). Two questions had no endpoint at all and were answered
+**inside the module that owns the rows** rather than by a new service that would have had to
+reach across all of them.
+
+### Story 22.1: The two reads the calendar needed, each in its own module
+
+As someone who wants one view of the month,
+I want the stock cupboard and the recurring bills to answer for a window,
+So that the calendar can be assembled from what each module already knows.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user
+**When** `GET /api/inventory/changes?month=` is called
+**Then** it returns every item's quantity changes inside that **budget** month, oldest first, each naming its item so the calendar needs no second request to caption a row (FR-45, AD-10, AD-20)
+**And** it lives in `api/inventory.py` and is served by `services/inventory.py`, because "what moved this month" is a question about stock — a `services/calendar.py` importing five modules' models would break AD-31, and one importing five modules' services would create a second cross-module seam beside `services/shopping.py` for a read that needs no transaction (AD-37)
+**And** the window is applied in **UTC**, because `changed_at` is an instant rather than a day anybody chose — the same choice the restocks chart already makes, with the same stated limitation (AD-38)
+**And** a missing or malformed `month` answers `422`, and one account's log never appears in another's window
+**And** `GET /api/recurring/expected?month=` returns the dates a template will fall due inside that month, computed from the cadence and **written nowhere**: reading it advances no `next_due` and creates no occurrence, asserted by comparing the template before and after (FR-46, AD-39)
+**And** it reports only dates **strictly after today**, so it can never speak for a date that already carries a decision — a skipped occurrence stays skipped rather than being re-proposed by arithmetic (AD-33)
+**And** each row carries **no id**, because there is no row: nothing returned here can be confirmed or skipped
+**And** a paused template projects nothing, and a template projects nothing past its `end_on`
+
+### Story 22.2: The month grid, on the account's period
+
+As someone whose month starts on the 26th,
+I want the calendar to cover the month my totals cover,
+So that the grid and the figure above it are talking about the same days.
+
+**Acceptance Criteria:**
+
+**Given** an account with `budget_start_day = 26`
+**When** the calendar shows `2026-09`
+**Then** the grid runs 26 August to 25 September, laid out as whole weeks beginning on Monday, and the range is spelled out in the header — "26 Aug – 25 Sep" (FR-47, AD-10, AD-38)
+**And** the days of the neighbouring periods that fall in the first and last rows are drawn as **outside** and move the calendar to the period they belong to when tapped, rather than reading as days on which nothing happened
+**And** for `budget_start_day = 1` — the default, and every existing account — the grid is exactly the calendar month, unchanged
+**And** every layer asks its module for the **same `month`**, so the server applies one boundary and the client's arithmetic decides layout only
+**And** a day cell shows the day, the day's **net** money rounded to whole units, and one dot per other kind of thing on it, capped at four with a `+n` — a cell is 43px wide at 375px and two decimals do not fit; the page says the cell figures are rounded and the exact amounts are one tap away
+**And** what is **due** is drawn as an outline rather than a fill, so a forecast never reads as a record at a glance
+**And** layers can be turned off, and which are on is remembered per device like the collapsed sections and the trend window
+**And** one module failing costs that layer only: the rest of the month still renders and the page names what could not be loaded (AD-31)
+**And** the calendar is a **second view of the Dashboard section** at `/calendar`, not a sixth bottom tab — see Story 23.3 for the whole navigation answer
+
+### Story 22.3: The day, in detail, and the way back to the record
+
+As someone who has found the day something happened on,
+I want to see exactly what it was and get to it,
+So that the calendar answers a question instead of raising one.
+
+**Acceptance Criteria:**
+
+**Given** a day inside the period
+**When** it is tapped
+**Then** a panel lists everything on it, grouped by module: entries with their category and exact amount, savings contributions, stock movements, workouts, habit check-ins, and what is due (FR-48)
+**And** each row links to where that record lives, so the calendar is a way in rather than a dead end
+**And** a stock row shows `before → after`, except where they are equal, which is the level written when an item is first added rather than a movement
+**And** a **pending** proposal and an **expected** one are distinguishable in words, not only in colour: one is "proposed, not yet recorded" and the other "will be proposed" or "will be recorded automatically", and the expected one carries no control, because there is nothing yet to act on (AD-39)
+**And** "add on this day" opens the entry form with that date already filled in, and the form is the one that already enforces every rule about an entry
+**And** a day with nothing on it, in the layers that are on, says so
+
+---
+
+## Epic 23: Habits
+
+The second module with nothing to do with money, and the one that finally makes the bottom
+bar choose. A habit is a thing you intend to do repeatedly; a check-in is evidence you did
+it. They are separate rows and neither writes the other (AD-35), so changing "three times a
+week" to "daily" never touches a day you recorded.
+
+The crux was **what a period is**, and it forks hard. The model here is the smallest one that
+answers "did I do it enough this week": a period of `day` or `week`, and a count within it.
+Daily is `(day, 1)`, three times a week is `(week, 3)`, twice a day is `(day, 2)`. `Every N
+days` was left out because it needs an anchor and a rolling window, at which point "on track"
+stops being a calendar question; `specific weekdays` because it needs a weekday mask and a
+different completion rule; `month` because a monthly habit's "on track" figure is noise at
+the scale anyone reviews it. Each arrives later as one column and one CHECK, without
+rewriting what is built here.
+
+A check-in is **one row per habit per day, carrying a count** — not one row per tap. A row per
+tap makes an accidental double-tap indistinguishable from a genuine second session and makes
+undo ambiguous about which row to remove. The count is a fact rather than an aggregate, so it
+does not offend AD-9; everything actually derived — completion, streaks, "still to do" — is
+computed in SQL and stored nowhere (AD-40).
+
+### Story 23.1: Habits, check-ins, and the isolation proof
+
+As someone trying to do something regularly,
+I want to write the habit down and tick it off,
+So that "am I actually doing this" has an answer that is not a feeling.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user
+**When** they create a habit with a name, a period of `day` or `week`, and a target count
+**Then** it is stored with a `started_on` that defaults to today, a duplicate name answers `409`, and an unsupported period is refused by the API **and** by a database `CHECK` (FR-49, AD-12's spirit — though a habit is created deliberately, not by name like reference data)
+**And** a habit cannot start in the future, because a habit with no period to judge would render as a permanent zero rather than as a plan
+**And** checking in **increments that day's row** rather than inserting a second, guaranteed by `UNIQUE (user_id, habit_id, done_on)`; undoing decrements, and removes the row at zero, so "no row" is the only way the data says "did not do it"
+**And** a check-in may be recorded for a past day back to `started_on`, and **never for the future** — a check-in is evidence, and there is no evidence of tomorrow. Neither rule can be a CHECK constraint: `current_date` is not IMMUTABLE and `started_on` lives in another table, so both are enforced in the service and the reasons are written down where the constraint would have been
+**And** a check-in may carry a note for the day
+**And** `habits` and `habit_checkins` are created by this story through `protect()`, and the check-in's foreign key is **composite, including `user_id`** (AD-18) — proven by executing an insert as user B against user A's habit, not by reading the constraint
+**And** the foreign key is `ON DELETE CASCADE`, decided in the schema (AD-21): a check-in has no meaning without its habit, so `RESTRICT` would make deleting impossible in practice and keeping the rows would preserve nothing readable
+**And** **archiving** is the reversible alternative and is what the client offers first: an archived habit leaves the list and stops counting toward anything outstanding, and every check-in survives
+**And** user B sees none of user A's habits, check-ins, progress or heat-map, and another user's id answers `404` on every route, never `403` (AD-8, AD-24)
+
+### Story 23.2: Am I on track — completion and streaks, computed
+
+As someone who wants to know whether it is working,
+I want the figures to be honest about the week I am in,
+So that a number I look at every day is not one I have learned to discount.
+
+**Acceptance Criteria:**
+
+**Given** habits with check-ins
+**When** progress is read
+**Then** each live habit reports the inclusive bounds of the period **currently open**, how many times it has been done in it, whether the target is met, and the streak — all computed on read, nothing stored (FR-50, AD-9, AD-30, AD-40)
+**And** a week starts on **Monday**, stated rather than inferred: it is not `budget_start_day`, which is 1–28 and cannot express a weekday, and a habit week is not a pay cycle. The Python arithmetic and the SQL `date_trunc('week', ...)` agree by construction, and a test holds them equal across a fortnight
+**And** the streak counts consecutive met periods backwards, and **the period in progress is never a miss**: it is dropped from the scan while unmet and extends the run once met — counting it as a miss shows every streak as zero every morning, and counting it as met claims a day that has not happened
+**And** periods before `started_on` are not misses: a habit written down today has not failed every day since the year 2000
+**And** changing the period or the target **is allowed at any time** and re-judges history: a test asserts that every check-in keeps its id, its date and its count across the change, and that the streak moves. That is the line against AD-36 — a unit locks because it changes what a stored number *means*, a target does not because it changes only a judgement about it (AD-40)
+**And** a heat-map of the last N whole weeks is available per habit, Monday-aligned, with its own half-open bounds — a heat-map is "the last twelve weeks", deliberately not a budget month, so it carries its own window rather than borrowing AD-10's
+**And** the heat-map is hand-rolled inline SVG, like every other chart here
+**And** every figure asserted in the tests is worked out by hand in a comment first, and the streak rule was made to fail on purpose — letting the open period count as a miss turns three of these tests red
+
+### Story 23.3: The Habits tab, the navigation answer, and the digest
+
+As someone holding a phone,
+I want the thing I tap several times a day within thumb reach,
+So that checking in costs one tap rather than a hunt.
+
+**Acceptance Criteria:**
+
+**Given** the bottom bar holds five items at 375px, measured
+**When** two new sections arrive
+**Then** **Habits takes a bottom tab and Plan moves to the top bar**: ranking the sections by how often each is opened puts a check-in third and a standing monthly budget (AD-11) eighth, so Plan is the one that goes up beside Grow (FR-51)
+**And** **the calendar takes no tab at all** — it is the Dashboard section's second view, since the dashboard already answers "what happened and what is due" in totals and the calendar answers it day by day; `/calendar` stays a real route, and the Dashboard tab is lit while it is open, so five tabs still describe where you are
+**And** rejected, with reasons: a sixth tab (labels wrap and the targets fall below 44px); a "More" overflow tab (spends a slot to hide two sections and demotes Gym, which Epic 19 deliberately promoted); merging Habits into Gym (one page with two unrelated jobs, contradicting the interview that scoped Gym)
+**And** the top bar stays **one row** at 375px with four items on it: the identity pill is given a zero flex basis so it shrinks into what is left rather than wrapping onto a second row — flex line-breaking uses an item's base size, not its minimum, which is why `min-width: 0` alone was not enough
+**And** all of the above is **verified in a browser at 375px**, not asserted, and a test pins the five tabs and the two top-bar links so a sixth cannot be added without something failing
+**Given** the Habits page
+**When** it is opened
+**Then** each live habit is a row with a minus, the count, and a plus — 40px targets, because this is the action the page exists for — and the row shows "n of m this week" and the streak, all from the server (AD-30)
+**And** the habit's name opens its heat-map; archived habits are behind a toggle; deleting says how many recorded days go with it and offers archiving instead
+**Given** the daily digest
+**When** a habit has `remind` set and its current period is unmet
+**Then** it is named in the one notification a day that already reports low stock and waiting proposals (FR-52, AD-34)
+**And** `remind` is **off by default**: today the digest fires only when something is exceptional, and a daily habit would make it arrive every evening — which is the notification people switch off entirely, taking the stock and recurring reminders with it. Opting in per habit keeps the digest's meaning, at the cost of one more thing to find
+**And** the digest reads the habits **service** rather than restating its predicate in SQL, so the screen and the notification cannot disagree (AD-30, AD-37), stays read-only with respect to domain data, and one account's habits never reach another's digest
+**And** the calendar gains a habits layer, since a check-in is exactly the kind of dated fact the calendar exists to show
+
+---
+
+## Epic 24: Mood
+
+The first **subjective** record in the system. Everything else here has a referent outside the
+row — a receipt, a quantity on a shelf, a set that was lifted, a day you either ran or did not.
+This holds what a person *said* about a day, and most of the decisions below follow from that
+one difference.
+
+Two questions, and they are two questions rather than one asked twice. A **mood** is a state on
+one ordered axis, five points, worst to best. A **verdict** is a judgement about what the day
+contained, and it is a boolean. They are orthogonal, and the proof is that both off-diagonal
+evenings are real: tired but productive, cheerful but wasted. If they could not be separated,
+one of them should not exist.
+
+**A mood is not a habit.** It gets its own table and its own module, and has no target, no
+period and no notion of "enough" — so there is nothing here to keep a streak of, and a streak
+over a feeling is rejected outright rather than deferred (see the spine's Deferred section). Its
+history lives on the Habits tab even though its model does not, which makes that page the
+**second application of AD-37**: the page composes the mood module's endpoint, exactly as the
+dashboard composes the inventory's, and a mood failure costs the mood card and nothing else.
+
+**The emoji is presentation and the faces are drawn here.** The column holds the point; the
+face is inline SVG in this repository and always carries its word, because the same codepoint is
+a different drawing on every platform in this household (AD-42).
+
+**And it is not a popup**, in the sense the request meant. There is no modal anywhere in this
+application, so a dialog would be new machinery — a focus trap, scroll locking, `aria-modal`,
+and a fork between a centred dialog and a bottom sheet at 375px. What ships is an anchored
+popover: `aria-expanded`, Escape, tap-outside, focus restored. What that costs is written down
+in `MoodCheckin.tsx` rather than glossed.
+
+### Story 24.1: The day's two answers, and the isolation proof
+
+As someone who wants to know what a month actually felt like,
+I want to answer two small questions about a day,
+So that "was that a bad week or just a bad Tuesday" has something behind it.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user
+**When** they record an answer for a day
+**Then** it is stored as **one row per `(user, day)`**, carrying a five-point `mood` and a
+nullable `day_ok`, with a `CHECK` that at least one of them is present so a row always says
+something (FR-53, AD-41)
+**And** answering again **replaces** the day rather than adding a point: a second answer is not a
+correction toward a receipt, it is a different answer from a person who now remembers the day
+differently, so the latest is kept and `created_at` versus `updated_at` is the only trace that
+anything was revised
+**And** the write is a `PUT` carrying the whole day, because absent and null mean the same thing
+on this resource — no answer to that question — and a partial update would need a third state on
+the wire to tell "leave it" from "clear it" (the upsert shape of AD-11)
+**And** clearing both answers **deletes the row**, so "no row" is the only way the data says *did
+not say*, exactly as a habit check-in is deleted at zero rather than left at nought; a note with
+nothing to annotate is therefore not an answer and does not create a row
+**And** a day that has not happened is refused with a sentence, enforced in the service because
+`CHECK (on_day <= current_date)` is not IMMUTABLE — the wall `habit_checkins` already hit — while
+a *past* day is a legitimate backfill with no lower bound at an account's creation, since a mood
+has no plan behind it to start from
+**And** an unanswered day is read as a **200 with nulls, not a 404**: it is the answer to "what
+did they say about the 3rd", and 404 stays reserved for another user's row or a route that is
+absent (AD-8). There are no ids on this resource at all — a day is addressed by its date
+**And** the window read for the calendar is the **account's** budget month, not the calendar one,
+so the list and the grid drawn over it cover the same days (AD-10, AD-20)
+**And** the counts are computed in SQL, zero-filled from the **points** side so a value nobody
+chose comes back at 0 rather than vanishing (AD-22), and `days_ok` / `days_not_ok` are `FILTER`
+predicates that exclude a null verdict — "did not say" must never be counted as "no"
+**And** `mood_days` is created by this story through `protect()`, and user B sees none of user
+A's rows on read, is refused on write, cannot stamp a row with A's `user_id`, and — since the
+unique key is `(user_id, on_day)` and not `(on_day)` — writing the same date writes B's own row
+rather than colliding with A's, which would be both a broken feature and an oracle (AD-24, AD-1)
+**And** the answers **export as CSV** like everything else, on Epic 16's existing streaming and
+formula-neutralising path: this is the most personal file in the system, which is an argument for
+the person having a copy of it rather than against. The scale is named in the header
+(`mood_1_to_5`) rather than repeating the words, which belong to the one place that draws them
+**And** every figure asserted in the tests is hand-computed in a comment first, and each rule was
+made to fail on purpose — writing the `FILTER` as `day_ok IS NOT TRUE` turned the three-state
+test red, counting with `GROUP BY mood` instead of joining from the points side turned both
+zero-fill tests red, merging instead of replacing turned the PUT test red, making the clear a
+no-op turned two tests red, and reducing the unique key to `(on_day)` turned the two-user write
+test red
+
+### Story 24.2: The icon on the dashboard, and the popover that is not a modal
+
+As someone who notices how the day went while looking at what it cost,
+I want to answer in two taps from where I already am,
+So that recording it never becomes a thing I have to remember to go and do.
+
+**Acceptance Criteria:**
+
+**Given** the dashboard header already carries the Summary/Calendar switch, the Month/Year/All
+time chips and the month navigator — the half of it that wraps at 375px
+**When** the mood control is added
+**Then** it goes on the **left, at the start of the title line**, where there is one line of text
+and room beside it at every width, and the cluster on the right is untouched: measured at 375px,
+the control adds 16px of height to the left block and causes **no new wrapping**, because that
+cluster was already on its own row before this feature existed
+**And** it sits **before** the heading rather than after it, which is a measurement and not a
+preference: the popover is anchored to the button, and a heading reading "September 2026" in one
+month and "2026" in another moves that anchor by about 115px — with the button after the title
+the panel hung 98px off the right edge of a 375px screen and put a horizontal scrollbar on the
+page. First in the row, the anchor is the shell's left padding whatever the month is called
+**And** the trigger is a 40px round target carrying `aria-expanded`, `aria-controls` and an
+`aria-label` that names both the question and the answer currently stored, since the face itself
+is `aria-hidden`
+**Given** the popover
+**When** it opens
+**Then** it is a **disclosure, not a dialog**: no `role="dialog"`, no `aria-modal`, no focus
+trap, no scroll lock, nothing made inert — it sits immediately after its trigger in document
+order, so a keyboard or screen-reader user reaches it by carrying on. Escape closes it, a tap
+outside closes it, and focus returns to the button either way
+**And** what that costs is stated rather than glossed: the page behind stays scrollable, so the
+panel can be scrolled off screen; nothing announces "you are inside a thing you must leave"; and
+at 375px it is the same panel as on a desktop rather than a bottom sheet, so it wins no
+thumb-reach a sheet would — the trade for one behaviour at every width instead of a breakpoint
+between two. If a real dialog is ever wanted, that is a decision with a focus trap attached, and
+the test asserting there is no `dialog` role is the one to rewrite rather than delete
+**And** the panel is capped at the shell's content width, so it never pushes a horizontal
+scrollbar: measured at 375px it runs 20px to 340px, the five faces are 56x57 targets and the
+verdict chips are 40px tall, matching the habit stepper Epic 23 settled on
+**Given** the two questions
+**When** they are drawn
+**Then** they are drawn **differently**, because they are different shapes: five faces for the
+graded one, two chips for the boolean. Each face carries its word — `Bad`, `Low`, `Fine`, `Good`,
+`Great` — and the word is the accessible name, so a drawing is never the only label (AD-42)
+**And** tapping the face already chosen **takes it back**, which is how a mis-tap is undone
+without a second control per question
+**And** an unanswered verdict leaves **both** chips unpressed. Three states, never two: rendering
+"No" as pressed because nobody said "Yes" would be the page inventing an answer
+**And** the verdict question is **not rendered at all before 18:00 local** — no control, so no
+early answer can exist. At nine in the morning "how do you feel" has an answer and "was today any
+good" does not, and mixing the two would make every stored verdict ambiguous with nothing in the
+row to tell a judgement from a forecast. This is a rule of the **interface**, not of the API,
+deliberately: an hour rule in the service would need a per-account time zone this system does not
+have (AD-38) and would refuse a legitimate late-night answer from a family member in another
+country
+**And** a note is optional, is disabled until one of the questions is answered, and is not itself
+an answer
+
+### Story 24.3: The history on the Habits tab, and the day on the calendar
+
+As someone looking back over a month,
+I want to see the shape of it rather than a number somebody averaged,
+So that what I read is what I actually said.
+
+**Acceptance Criteria:**
+
+**Given** the Habits tab
+**When** it is opened
+**Then** the mood card is **last, under its own heading, and says in words that it is not a
+habit** — "no target here, nothing to be enough of, and nothing to keep a streak of" — because a
+chart dropped between things that have targets and streaks will be read as one of them (FR-54)
+**And** it is fetched **separately** from the habits, not beside them in one `Promise.all`: this
+page now composes two modules, and a failure in one must cost its own card only (AD-31, AD-37).
+A test proves it — joining the two loads turns it red. When the mood endpoint 404s the card says
+the API is probably older than the page, since a fixed path cannot mean "no rows"
+**And** the recent days are a **strip**, one cell per day, left to right — deliberately not the
+habit heat-map's Monday-aligned week grid. A heat-map's columns exist so "only at weekends" is
+visible, which is a question about an act; a mood is read as a trend, so time runs one way
+**And** a day nobody answered is drawn as an **empty outline**, never as a low score, and the
+caption says so; the thin bar beneath a cell is the verdict, filled for a good day and hollow for
+a bad one, absent when nobody said — two channels, because the two questions are independent
+**And** the summary is a **tally of five counts and never a mean**: a five-point scale is ordinal,
+so the distance from 2 to 3 is not the distance from 4 to 5 and an average of it is arithmetic on
+labels. The denominator printed beside it is *days answered*, never days in the window (AD-41)
+**Given** the calendar
+**When** the Mood layer is on
+**Then** a day carrying an answer shows its dot, its face in the day panel, and its verdict in
+words — with nothing said at all about a day nobody judged, since three states must not become
+two. It is one more endpoint composed at the edge and no new machinery (AD-37)
+**Given** the daily digest
+**When** somebody asks why a mood is not in it
+**Then** the answer is recorded rather than left as an omission: the digest fires when something
+is **exceptional** — stock is out, an entry is waiting — and "you have not said how you feel
+today" is true every day by construction. That is exactly the failure Epic 23 named when it made
+`remind` off by default, and worse here: a nightly notification from a budgeting app asking about
+your feelings is the one that gets the whole digest switched off, taking the stock and recurring
+reminders with it. Habits could opt in because a habit is a commitment a person made; a mood is
+not. The cost is stated — someone who wants a nightly prompt has to open the app — and the shape
+it would take if anyone insists is one `users` column and one clause in `Digest.body`
+
+---
+
 ## Decided, not yet specced
 
 Direction settled on 2026-08-30. Recorded here so it is not re-litigated; none of it is built,
@@ -1178,7 +1563,10 @@ and each needs its own epic before any code.
   other trackers. That makes this a personal-tracking platform with a budget module, and the name
   and the API shape both need to follow. The v2 Expo plan stands; the API's module boundaries are
   the thing to get right first. **The first non-money module landed as Epic 19 (gym)**, and it
-  needed no new machinery — which is the evidence the module boundaries were right.
+  needed no new machinery — which is the evidence the module boundaries were right. **Habits
+  (Epic 23) is the second**, and the calendar (Epic 22) is the first view to read across all of
+  them; that it could be built by composing existing endpoints, adding two module-owned reads
+  and no cross-module service, is the second piece of that evidence (AD-37).
 - **Users stay fully independent.** No household or shared pot. Family members live in different
   countries, so there is nothing to share and the row-level security already delivers exactly
   this. No work required — recorded so the option is not revisited by accident.
@@ -1384,3 +1772,375 @@ So that "we seem to buy a lot of milk" is a chart rather than an impression.
 **And** creating an item logs a level (`quantity → quantity`), not a change from zero, so a new item is never counted as a restock and `restocked_at` stays null until a real increase
 **And** restocks are bucketed by month in UTC explicitly, the stated limitation being that a change at 00:30 local east of UTC lands in the previous UTC day
 **And** on the inventory page, *History* on an item unfolds a step chart of its quantity over time as inline SVG, with the restock threshold as a dashed rule, and the page shows restocks per space per month as small multiples (Consistency Conventions)
+
+---
+
+## Epic 25: French
+
+The app is read by a household that does not read English, and until now it only spoke it. This
+is the layer that lets a person choose, and the decisions worth writing down are all about *who
+owns the words*.
+
+**The language is on the account, not in the browser.** The obvious alternative — `localStorage`
+plus `Accept-Language` — needs no migration and no endpoint, and is wrong here for two concrete
+reasons: a household member who signs in on a phone and a laptop would read two different
+languages, and the daily push digest is composed by cron on the host, hours after anyone was
+last in a browser, so a preference the server cannot see means a notification that can never be
+French. Currency, weight unit and budget start day are all account settings for related reasons
+(AD-36); this joins them. Unlike the first two it is **never locked and never can be**: those
+relabel a stored number, this changes only the words drawn around numbers that do not move. It
+is the freest setting in the app, and `localStorage` remains as a *cache* of it so the sign-in
+page and the first paint are already in the right language before `/me` answers.
+
+**The catalogue holds both languages in one entry.** A message is
+`{ en: "Habits", fr: "Habitudes" }`, not two parallel files keyed the same way. Two files drift,
+and a key added to one and forgotten in the other is the ordinary failure mode of every
+hand-rolled i18n layer — it surfaces as an English word inside a French sentence, weeks later.
+Here the type makes a missing French string a compile error, and a reviewer reads the pair
+together. It is hand-rolled rather than react-i18next for the same reason this app pins its own
+money and date formatting: two languages that share a plural *shape* need a lookup, an
+interpolation and a plural switch, and that is smaller than the configuration would be.
+
+**The server keeps answering in English, and the client owns every word** (AD-44). Errors carry
+a stable code beside the sentence; the client keys its own wording off the code and falls back
+to the sentence when it meets one it has never heard of, so a new code degrades to English
+rather than to a blank banner. The habit schedule is sent as a *rule* rather than a sentence for
+the same reason — "Mon, Wed, Fri" and "lun., mer., ven." are one rule in two languages. The one
+exception is the push digest, which has no client to translate it.
+
+**Dates are catalogue lookups, not `Intl`.** The system locale on a machine is not the language
+the account chose — the development machine here is set to French — and a heading that changed
+with the machine would make a screenshot, a test and a bug report irreproducible. French month
+and weekday names are lower case, which is the rule in French and is asserted by a test, because
+capitalising them is the clearest possible sign of a translation done by pattern-matching
+English.
+
+**Known gap, stated rather than discovered:** the mood check-in and the mood card keep their
+English strings. Epic 24 is not committed, and writing French against code that may still move
+would be a guess wearing a translation. Both places say so in a comment, and the calendar's mood
+layer keeps an English literal for the same reason.
+
+### Story 25.1: The language belongs to the account
+
+As a member of a household that reads French,
+I want the app to be in French on every device I sign in on,
+So that the choice is mine rather than my browser's.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user
+**When** they change the language in Settings
+**Then** it is written to `users.language` — two letters, `CHECK (language IN ('en', 'fr'))`,
+with the runtime role granted the new column explicitly (AD-19) — and read back from the profile
+**And** it is **never refused**, whatever the account already contains, unlike the currency and
+the weight unit, because it relabels no stored number (AD-36)
+**And** a database write of an unsupported language is refused by the constraint, not only by the
+API, and a test proves it as the runtime role (AD-24)
+**And** signing in again on another device reads the same choice, and one account's language is
+never another's
+**And** a signed-out reader gets the stored value, then the browser's preference narrowed to a
+catalogue this build actually has (`fr-CA` → French, `de-DE` → English), and the sign-in page
+carries its own picker — Settings is behind a sign-in, so without it someone whose browser
+guessed wrong would have to read a language they do not speak to reach the setting that fixes it
+**And** the daily push digest is composed in the account's language by `services/push.py`, with
+the French rule that **0 and 1 are both singular** written down rather than assumed, on both
+sides of the wire
+
+### Story 25.2: A refusal says what it is, not what language the server speaks
+
+As a French reader,
+I want a failure to be a French sentence,
+So that the app does not fall back to English the moment anything goes wrong.
+
+**Acceptance Criteria:**
+
+**Given** any refusal the API returns
+**When** it is rendered
+**Then** the body carries `{"detail": "<English sentence>", "code": "<stable fact>"}` and the
+client's wording is keyed off the **code**, never off the status (AD-44)
+**And** a wrong password and an expired session — both 401 — produce different sentences, which
+is the bug this shape exists to prevent
+**And** a code the client has never heard of falls back to the server's own sentence rather than
+to a blank banner, and a `fetch` that never reached the host is named as such
+**And** a 404 from a *fixed* path is reported as a server older than the page, not as a missing
+row
+**And** the catch-all handler leaves FastAPI's own errors the shape every existing caller reads:
+`detail` stays a string, `code` is added beside it
+
+### Story 25.3: Every screen, in the reader's language
+
+As a French reader,
+I want the whole app in French,
+So that there is no page one tap away that I cannot read.
+
+**Acceptance Criteria:**
+
+**Given** an account set to French
+**When** any page is opened
+**Then** its headings, labels, buttons, placeholders, accessible names, table columns, empty
+states, toasts, confirmations and chart descriptions are French — sign-in, dashboard, entries, a
+category, the calendar, plan, grow, stock, gym, habits and settings
+**And** `document.documentElement.lang` is stamped, so screen readers and the browser's own
+translation prompt agree with the page
+**And** month names, weekday names and day labels come from the catalogue rather than from
+`Intl`, and French keeps them lower case
+**And** a test asserts every catalogue entry has both languages and neither is blank, that every
+`_one` has its `_other`, and that **no full sentence is byte-identical across the two** — the
+check that catches a paragraph pasted rather than translated
+
+---
+
+## Epic 26: Habits that keep a schedule, and check-ins that know the time
+
+Epic 23 shipped the smallest model that answers "did I do it enough this week": a `day`/`week`
+bucket and a count. It said in its own migration that `every N days` and `specific weekdays`
+were left out deliberately and that a later migration would add them. This is that migration,
+and it **rewrites** rather than extends — keeping `period` alongside a schedule would leave two
+models of the same thing, and every read would have to ask which one a row uses, which is the
+classic source of a wrong streak.
+
+**A schedule is typed columns with CHECKs** (AD-43): six kinds — every day, named weekdays,
+every N days, a day of the month, the Nth weekday of the month, and N times a week — with the
+parameters each kind needs and a constraint that refuses every other combination. Not JSONB,
+which the database cannot check; not an RRULE, which can express rules the UI will never build a
+form for. `target_count` survives all six and means the same thing throughout: how many times
+within one occasion.
+
+**Which days are due is Python, counting is SQL.** Expressing "the last Friday of the month" in
+`generate_series` costs a correlated subquery per month and a query nobody reads twice, so the
+calendar arithmetic moved to one pure module with no database at all — which is also what stops
+a second copy of "is today a habit day" appearing in the notifier and the heat-map.
+
+**A check-in is an occurrence, not a counter.** Epic 23 stored one row per (habit, day) with a
+`times` column, and argued that a row per tap makes an accidental double-tap indistinguishable
+from a genuine second session. That argument holds exactly as long as a check-in carries no
+time. Once it does, 08:02 and 08:02 are visibly one mistake while 08:00 and 14:00 are visibly
+two doses — and "delete the 2pm one" becomes a row to delete rather than a counter to decrement
+and a note to guess about.
+
+**And the streak counts occasions, not days**, which is the answer to the question that prompted
+the epic. For a Monday-Wednesday-Friday habit, Tuesday is invisible: neither a miss nor a free
+pass. "2 of 3 this week" counts the times the schedule *asked* this week, not the days a week
+has. The open occasion is still never a miss (AD-40), and a check-in on a day the schedule did
+not ask for is still recorded — evidence is evidence — it simply moves neither figure.
+
+### Story 26.1: A habit repeats on a rule the database understands
+
+As someone whose habits are not all daily,
+I want to say Monday, Wednesday and Friday — or the 15th, or the last Friday,
+So that the app stops calling a Tuesday a failure.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user
+**When** they create a habit
+**Then** the schedule is stored as `schedule_kind` plus the parameters that kind needs —
+`weekdays` (a Monday-first bitmask), `interval_days`, `day_of_month` (1-28, the widest day every
+month has), `nth` (1-4 or -1 for the last) and `weekday` — each with its own range CHECK
+**And** one constraint refuses every combination except the one the kind requires, so a weekday
+schedule with no weekdays cannot exist even if written by something other than this API (AD-24)
+**And** a parameter the kind does not use is **cleared** rather than stored, so a value nothing
+reads cannot survive an edit and become live again later
+**And** changing the kind rewrites the whole schedule; adjusting a parameter without naming a
+kind keeps the kind already stored
+**And** migration 0018 maps every existing habit: `(day, N)` → `daily` with target N, `(week, N)`
+→ `times_per_week` with target N, and drops `period`
+**And** which days a rule asks for lives in `core/schedule.py`, with no session, no models and no
+service imports, and is tested against hand-written dates without a database (AD-43)
+
+### Story 26.2: A check-in records when, and there may be several
+
+As someone taking medication three times a day,
+I want to record 8am, 2pm and 8pm,
+So that "did I take the afternoon one" has an answer.
+
+**Acceptance Criteria:**
+
+**Given** a habit
+**When** it is checked in
+**Then** each check-in is **its own row**, carrying `done_on` (the day the person says) and
+`done_at` — a `time without time zone`, nullable, where NULL is "did it, did not say when" and
+is not midnight
+**And** three check-ins in a day are three rows with three times, each individually deletable **by
+its own id**, because with three doses recorded "undo" has to say which
+**And** a check-in can be amended — its time cleared with an explicit null, its note changed —
+while its *day* cannot: a check-in on the wrong day is one that did not happen, so it is deleted
+and recorded again
+**And** the day's occurrences sort by time with the untimed ones **last**, because NULL is not a
+claim about midnight
+**And** the three rules the schema cannot hold are enforced in the service with tests: not in the
+future, not before the habit started, and at most a hundred in one day — the last of which used
+to be `CHECK (times <= 100)` and is now a row count, which no CHECK can see
+**And** migration 0018 expands every existing `times = N` row into N rows, keeping the note on
+one of them rather than copying it onto all
+
+### Story 26.3: Progress and streaks that count occasions
+
+As someone with a Monday-Wednesday-Friday habit,
+I want "2 of 3 this week" to mean the three times it asked,
+So that the figure is about my schedule rather than about the calendar.
+
+**Acceptance Criteria:**
+
+**Given** a habit with any of the six schedules
+**When** its progress is read
+**Then** the response says whether it is **due today**, the bounds of the occasion in progress,
+how many times it has been done inside it, and today's occurrences with their ids and times
+**And** it carries the Monday-week rollup counted in **occasions** — how many the schedule asked
+this week, and how many were met — which is 3 for a Monday-Wednesday-Friday habit whatever day it
+is, and 0 for a monthly habit in a week it does not fall in, where the client says "next on the
+15th" rather than rendering a denominator of zero
+**And** the streak counts **consecutive met occasions**, so a day the schedule never asked for is
+neither a miss nor a free pass, and the open occasion is dropped while unmet rather than counted
+against (AD-40)
+**And** a check-in on a day the schedule did not ask for is accepted and shown, and moves neither
+the week's figure nor the streak
+**And** the daily digest names a habit only on a day its schedule actually asks for, so a
+Monday-Wednesday-Friday habit no longer nags on a Tuesday — the same predicate the page uses,
+defined once (AD-30)
+**And** the heat-map returns **every** day in its window with whether it was due, so a missed
+Monday is drawn differently from a Tuesday that was never a habit day — without which a
+three-days-a-week habit reads as a wall of failure
+
+---
+
+## Epic 27: Recipes, nutrition, and meals on the calendar
+
+A sixth module beside the ledger, the inventory, the gym, the habits and the mood (AD-31).
+It holds foods, recipes built out of them, the method for making one, and a record of what
+was actually eaten — which the calendar then draws as an eighth layer, composed at the edge
+like the other seven (AD-37).
+
+**Nutrition is a rate, and every figure over it is derived** (AD-45, extending AD-9 and
+AD-29). A food stores what it contains per one *basis amount* — 100 g, 100 ml, or one of
+the thing — and that is the only nutrition figure written anywhere. A recipe's totals, its
+per-serving figures and a day's energy are all computed on read. The alternative, a `kcal`
+column on `recipes`, is wrong the first time somebody corrects a quantity, and nothing in
+the row says so.
+
+**A missing nutrient is counted, never zeroed.** Nutrient columns are nullable, so a food
+whose protein nobody typed still counts its calories — and every derived figure carries a
+count of how many contributors had no value beside the partial sum. Summing NULL as zero
+would produce a total that is quietly too low and says nothing about it; reporting nothing
+at all when *some* contributors knew would throw away the best answer available. A total
+over contributors that all lacked the nutrient is `null`, which is the same choice AD-29
+makes for a period with no quantified rows: `0.0000` would be a claim about the food.
+
+**Recipes carry their own closed unit list**, `g` / `ml` / `unit`, and AD-29's ledger list
+is untouched. Adding grams there would make `g` selectable beside `kg` on an expense, and
+AD-29 keys a unit-price series by `(category, unit)` with no conversion between them — so a
+household that typed one this month and the other next month would get two series and no
+warning. Two vocabularies, each owned by the module that compares within it. An
+ingredient's unit is never a choice: it is obliged by its food's basis, and a disagreement
+is refused with a code rather than silently corrected.
+
+**A meal log is a record, not a plan** (AD-35). Planning to cook something on Tuesday is a
+*plan*, a different table this epic deliberately does not build; a meal cannot be dated in
+the future, and nothing here appears on the forward half of the calendar. That is also what
+makes the nutrition figures mean anything: a plan's calories are an intention.
+
+**Deleting a food or a recipe that has been used is refused, not nulled.** AD-35's
+`SET NULL (routine_id)` is right for a gym set, which still records a real weight once its
+routine is gone. A meal log nulled off its recipe records *nothing*, because every nutrition
+figure lives on the other side of that key — keeping it would mean snapshotting the totals
+onto the row, which is the stored derived figure AD-9 forbids. So RESTRICT and a 409,
+exactly as a category with entries already behaves (AD-21).
+
+**Where the section lives, and what it cost.** Recipes joins Plan and Grow in the top bar
+rather than taking a sixth bottom tab, ranked the way `App.tsx` ranks everything else — by
+how often a section is *opened*. A third link did not fit for free, and the measurement is
+the point: at 375px the phone bar's content box is **335px**, and the French links are 193px
+(`Budget · Épargne · Recettes`) against English's 154px, so the bar plus a 44px settings
+target came to 363 and wrapped to two rows on every French phone. The app's name is now
+visually hidden at that width — out of flow, still in the accessibility tree — which is the
+one item a phone needs least. Checked at 320px and in both languages, because French is the
+longer one and is where it broke.
+
+**Explicitly out, and recorded as choices rather than omissions:** cooking does not
+decrement the pantry (there is no link between a food and an inventory item, and it would
+need a second cross-module service, ending the property that `services/shopping.py` is the
+one named seam); there is no external food database or barcode scanner (a network call
+inside a request, a privacy question, an offline story and a key with no working default,
+against AD-15); there is no meal *planning*; and there are no photos, for the reason Epic 11
+gave about item photos.
+
+### Story 27.1: A food is typed once and a recipe is built out of it
+
+As someone who cooks the same things repeatedly,
+I want to describe rice once and use it in every recipe,
+So that correcting a figure corrects it everywhere.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user
+**When** they add a food
+**Then** it carries a name unique per account case-insensitively (AD-12), a `basis` from a
+closed list checked by the database, and four nullable nutrients — energy, protein,
+carbohydrate and fat — each with its own range CHECK
+**And** the response says which **unit** that basis obliges, so the client never
+re-implements the mapping and cannot drift from it when a fourth basis arrives
+**And** an empty nutrient box is stored as NULL rather than as zero, and a stored figure
+round-trips unchanged: two places out and two places in, so a client that echoes back what
+it received is not refused
+**And** the basis is **freely changed while the food is unused and refused once a recipe or
+a meal depends on it** (AD-36) — a nutrition figure is a judgement corrected toward a
+packet, while a basis reinterprets every quantity already typed — while the figures beside
+it stay editable at any time
+**And** deleting a food a recipe uses, or one that has been eaten, is a 409 with a stable
+code (AD-21, AD-44)
+**And** `tests/test_isolation_recipes.py` proves, as the runtime role, that a second user
+sees no row of any of the five tables and can write none — including that B cannot reference
+A's food by id, which RLS alone does not prevent because foreign-key checks bypass it (AD-18)
+
+### Story 27.2: A recipe totals what is in it, and says what it does not know
+
+As someone counting calories,
+I want a recipe's figures to follow its ingredients,
+So that a corrected quantity corrects the total in the same breath.
+
+**Acceptance Criteria:**
+
+**Given** a recipe with ingredients
+**When** it is read
+**Then** its totals are one SQL `GROUP BY` over `rate × quantity / basis_amount`, its
+per-serving figures are those divided by `servings`, and **no column anywhere stores
+either** (AD-9, AD-45)
+**And** each ingredient carries its own contribution, so a reader can see where the calories
+came from rather than only the total
+**And** a nutrient that some contributors lack reports the partial sum **and** a count of how
+many had no figure; one that none of them carry reports `null`, not `0.0000`
+**And** a test holds the SQL aggregate equal to the sum of the per-line Python figures, so
+the module's two implementations of one arithmetic cannot drift (AD-30) — the same guard
+AD-29 already specifies for unit prices
+**And** the method is ordered rows, renumbered from 1 on every change, reordered by sending
+the **whole** new order against a `DEFERRABLE INITIALLY DEFERRED` unique key — so a reorder
+is one statement rather than a temporary negative offset or a dropped constraint
+**And** a partial order is refused with a code rather than half-applied
+**And** the client renders every figure it is given and computes none
+
+### Story 27.3: What was eaten, on the day it was eaten
+
+As someone who wants to know what a Tuesday actually looked like,
+I want meals on the calendar beside the money, the gym and the habits,
+So that one screen answers the question day by day.
+
+**Acceptance Criteria:**
+
+**Given** a recipe or a food
+**When** a meal is recorded
+**Then** it is one of exactly two shapes, held by a single CHECK — a recipe in servings, or a
+food in a quantity — with the unused half NULL rather than left behind where a later edit
+could revive it (AD-43)
+**And** "I ate this" defaults to one serving, because that is what it means
+**And** a meal cannot be dated in the future (`meal_in_future`), which the service enforces
+because `current_date` is not IMMUTABLE and no CHECK may call it
+**And** how much, when, and the note are amendable; **what** was eaten is not — a meal filed
+against the wrong recipe is one that did not happen, so it is deleted and recorded again,
+the rule Epic 26 settled for a check-in on the wrong day
+**And** the calendar gains a **meals** layer composed at the edge from `GET /api/meals`
+(AD-37), a chip like the other seven, remembered per device, with a failure taking down its
+own layer only
+**And** a day cell shows the meals and the day's energy, **summed in whole ten-thousandths**
+the way the money line is summed in whole cents — never as a float
+**And** the window is the account's budget month (AD-10, AD-38), so the grid and the list
+cover exactly the same days

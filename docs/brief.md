@@ -5,6 +5,9 @@
 > document shape. Scope below is taken verbatim from the approved spec; no scoping questions were
 > re-asked.
 
+> Later features that needed a brief of their own carry it beside their decision record:
+> `docs/mood.md` (Epic 24). This document remains the v1 scope, unamended.
+
 ## Problem
 
 Personal finance apps are either bank-linked and heavy (Plaid onboarding, account permissions,

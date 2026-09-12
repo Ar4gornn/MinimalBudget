@@ -89,33 +89,102 @@ def mark_notified(session: Session, subscription_id: uuid.UUID, on: dt.date) -> 
     session.flush()
 
 
-class Digest:
-    """What one person has waiting, and the one line that says it."""
+# The one place on the server that writes prose for a reader (Epic 25).
+#
+# AD-44 says the client owns every displayed word — and a push notification has no client.
+# It is composed by cron on the host, hours after anyone was last in the browser, and it
+# arrives as an operating-system notification with no chance to translate anything. So the
+# digest, alone, reads `users.language` and writes the sentence itself. That is also the
+# reason the language is an account column rather than a browser preference (0019).
+#
+# Three clauses, and each is a whole sentence rather than a template with a plural switch
+# baked into the middle of it: French does not agree with English about where the verb
+# goes, and a shared skeleton with `{noun}` holes only ever works for languages that share
+# a shape. In French `0` takes the singular, which is why the tests below check `1` and `2`
+# rather than trusting a `!= 1` written for English.
+_WORDS: dict[str, dict[str, str]] = {
+    "en": {
+        "restock_one": "{count} item needs restocking",
+        "restock_many": "{count} items need restocking",
+        "pending_one": "{count} recurring entry is waiting",
+        "pending_many": "{count} recurring entries are waiting",
+        "habits_one": "{count} habit still to do",
+        "habits_many": "{count} habits still to do",
+        "more": ", …",
+    },
+    "fr": {
+        "restock_one": "{count} article à racheter",
+        "restock_many": "{count} articles à racheter",
+        "pending_one": "{count} opération récurrente en attente",
+        "pending_many": "{count} opérations récurrentes en attente",
+        "habits_one": "{count} habitude à faire",
+        "habits_many": "{count} habitudes à faire",
+        "more": ", …",
+    },
+}
 
-    def __init__(self, low_items: int, pending: int, item_names: list[str]) -> None:
+
+def _plural(language: str, count: int) -> str:
+    """Which of the two forms a count takes.
+
+    English: 1 is singular. French: 0 *and* 1 are singular — "0 article", not "0 articles".
+    Neither is ever asked for a count of zero here (an empty digest is not sent), but the
+    rule is written down rather than assumed, because the next language will not share it.
+    """
+    return "one" if count == 1 or (language == "fr" and count == 0) else "many"
+
+
+class Digest:
+    """What one person has waiting, and the one line that says it, in their language."""
+
+    def __init__(
+        self,
+        low_items: int,
+        pending: int,
+        item_names: list[str],
+        habit_names: list[str] | None = None,
+        language: str = "en",
+    ) -> None:
         self.low_items = low_items
         self.pending = pending
         self.item_names = item_names
+        # Only the habits that opted in, and only on a day their schedule asks for. Off by
+        # default, so a person who has not asked for nagging keeps a digest that arrives
+        # when something is exceptional rather than every single evening (AD-34).
+        self.habit_names = habit_names or []
+        self.language = language if language in _WORDS else "en"
 
     @property
     def empty(self) -> bool:
-        return self.low_items == 0 and self.pending == 0
+        return self.low_items == 0 and self.pending == 0 and not self.habit_names
 
     @property
     def title(self) -> str:
         return "MinimalBudget"
 
+    def _say(self, key: str, count: int) -> str:
+        return _WORDS[self.language][f"{key}_{_plural(self.language, count)}"].format(count=count)
+
+    def _named(self, names: list[str], count: int) -> str:
+        """Up to three names in brackets, with an ellipsis when there are more."""
+        listed = ", ".join(names[:3])
+        if not listed:
+            return ""
+        more = _WORDS[self.language]["more"] if count > 3 else ""
+        return f" ({listed}{more})"
+
     @property
     def body(self) -> str:
         parts = []
         if self.low_items:
-            noun = "item needs" if self.low_items == 1 else "items need"
-            named = ", ".join(self.item_names[:3])
-            tail = f" ({named}{', …' if self.low_items > 3 else ''})" if named else ""
-            parts.append(f"{self.low_items} {noun} restocking{tail}")
+            parts.append(
+                self._say("restock", self.low_items) + self._named(self.item_names, self.low_items)
+            )
         if self.pending:
-            verb = "entry is" if self.pending == 1 else "entries are"
-            parts.append(f"{self.pending} recurring {verb} waiting")
+            parts.append(self._say("pending", self.pending))
+        if self.habit_names:
+            count = len(self.habit_names)
+            parts.append(self._say("habits", count) + self._named(self.habit_names, count))
         return ". ".join(parts) + "."
 
 
@@ -144,4 +213,24 @@ def digest(session: Session, user_id: uuid.UUID) -> Digest:
         ),
         {"uid": str(user_id)},
     ).scalar_one()
-    return Digest(len(low), int(pending), list(low))
+    # The habits clause calls the habits service rather than rewriting its predicate in SQL
+    # here, the way the two counts above are written. That is deliberate: "is this period
+    # met" is period arithmetic plus a target, not a comparison — a second copy would drift
+    # from the Habits page the first time either changed, which is exactly what AD-30
+    # forbids. Reading another module's service (never its models) is what the notification
+    # side is allowed to do, being a composer rather than a module (AD-37).
+    from app.services import auth as auth_service
+    from app.services import habits as habits_service
+
+    # The language is read here rather than passed in, so every caller of `digest` gets a
+    # correctly-worded one without having to remember to look it up (AD-30's shape: one
+    # definition, no second copy).
+    profile = auth_service.read_profile(session, user_id)
+
+    return Digest(
+        len(low),
+        int(pending),
+        list(low),
+        habits_service.outstanding(session, user_id),
+        language=profile.language if profile else "en",
+    )

@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { useT } from "../i18n";
+
 /**
  * Transient feedback, with undo.
  *
@@ -42,6 +44,7 @@ interface ToastApi {
 const ToastContext = createContext<ToastApi | null>(null);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  const t = useT();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(1);
 
@@ -78,7 +81,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   void toast.onUndo?.();
                 }}
               >
-                Undo
+                {t("toast.undo")}
               </button>
             )}
           </div>

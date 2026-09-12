@@ -105,6 +105,19 @@ class ItemChangeOut(BaseModel):
     changed_at: dt.datetime
 
 
+class ItemChangeRowOut(BaseModel):
+    """A quantity change, named — the account-wide form the calendar reads.
+
+    Carries the item so the calendar does not have to fetch every item to caption a row.
+    """
+
+    item_id: uuid.UUID
+    item_name: str
+    quantity_before: int
+    quantity_after: int
+    changed_at: dt.datetime
+
+
 class SpaceRestockSeries(BaseModel):
     space_id: uuid.UUID
     space_name: str

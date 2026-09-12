@@ -6,6 +6,7 @@ import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
 import { isNonNegativeMoney, subtractMoney, toCents } from "../money";
 import { useMoney } from "../useMoney";
 import { project, yearlyPoints } from "../interest";
+import { useT, type Translate } from "../i18n";
 import type { Compounding, InterestMode, Projection } from "../interest";
 
 /**
@@ -64,6 +65,7 @@ function run(scenario: Scenario, years: number): Projection | null {
 
 export function ProjectionsPage() {
   const money = useMoney();
+  const t = useT();
   const [years, setYears] = useState(10);
   const [first, setFirst] = useState<Scenario>(A);
   const [second, setSecond] = useState<Scenario>(B);
@@ -93,26 +95,28 @@ export function ProjectionsPage() {
   return (
     <>
       {invalid && (
-        <ErrorBanner message="Enter amounts of zero or more, with at most two decimal places, and a rate." />
+        <ErrorBanner message={t("grow.badInput")} />
       )}
 
       {comparing ? (
-        <Card title="Compare">
+        <Card title={t("grow.compare")}>
           <CompareFields
             first={first}
             second={second}
             onFirst={setFirst}
             onSecond={setSecond}
             symbol={money.symbol}
+            t={t}
           />
         </Card>
       ) : (
         <ScenarioCard
-          title="What it grows to"
+          title={t("grow.whatItGrowsTo")}
           accent="var(--accent)"
           scenario={first}
           onChange={setFirst}
           symbol={money.symbol}
+          t={t}
         />
       )}
 
@@ -120,14 +124,14 @@ export function ProjectionsPage() {
         <div className="row" style={{ alignItems: "center" }}>
           <label style={{ flex: "1 1 220px", textTransform: "none" }}>
             <span style={{ textTransform: "uppercase", fontSize: 12, letterSpacing: "0.03em" }}>
-              Over {years} {years === 1 ? "year" : "years"}
+              {t.n("grow.overYears", years)}
             </span>
             <input
               type="range"
               min={1}
               max={40}
               step={1}
-              aria-label="Years"
+              aria-label={t("grow.years")}
               value={years}
               onChange={(event) => setYears(Number(event.target.value))}
               style={{ padding: 0 }}
@@ -139,13 +143,12 @@ export function ProjectionsPage() {
             onClick={() => setComparing((on) => !on)}
             aria-pressed={comparing}
           >
-            {comparing ? "Remove comparison" : "Compare with another"}
+            {comparing ? t("grow.removeComparison") : t("grow.compareWith")}
           </button>
         </div>
         {comparing && (
           <p className="hint" style={{ marginTop: 8 }}>
-            Both run over the same period — comparing five years against thirty would tell you
-            very little.
+            {t("grow.sameHorizonHint")}
           </p>
         )}
       </Card>
@@ -155,10 +158,10 @@ export function ProjectionsPage() {
           <div className="grid" style={{ marginTop: 16 }}>
             {comparing && projectionB ? (
               <>
-                <Stat label="A ends at" value={projectionA.finalBalance} tone="in" />
-                <Stat label="B ends at" value={projectionB.finalBalance} tone="in" />
+                <Stat label={t("grow.endsAtA")} value={projectionA.finalBalance} tone="in" />
+                <Stat label={t("grow.endsAtB")} value={projectionB.finalBalance} tone="in" />
                 <div className="card stat" data-stat="Difference">
-                  <div className="label">B minus A</div>
+                  <div className="label">{t("grow.bMinusA")}</div>
                   <div
                     className={`value ${toCents(gap ?? "0.00") < 0 ? "negative" : ""}`}
                     style={
@@ -169,7 +172,7 @@ export function ProjectionsPage() {
                   </div>
                 </div>
                 <div className="card stat" data-stat="Growth">
-                  <div className="label">Growth A / B</div>
+                  <div className="label">{t("grow.growthAB")}</div>
                   <div className="value" style={{ fontSize: 19 }}>
                     {projectionA.growthPercent?.toFixed(0) ?? "—"}% /{" "}
                     {projectionB.growthPercent?.toFixed(0) ?? "—"}%
@@ -178,11 +181,11 @@ export function ProjectionsPage() {
               </>
             ) : (
               <>
-                <Stat label="Ends at" value={projectionA.finalBalance} tone="in" />
-                <Stat label="You put in" value={projectionA.totalContributed} />
-                <Stat label="Interest" value={projectionA.totalInterest} tone="in" />
+                <Stat label={t("grow.endsAt")} value={projectionA.finalBalance} tone="in" />
+                <Stat label={t("grow.youPutIn")} value={projectionA.totalContributed} />
+                <Stat label={t("grow.interest")} value={projectionA.totalInterest} tone="in" />
                 <div className="card stat" data-stat="Growth">
-                  <div className="label">Growth</div>
+                  <div className="label">{t("grow.growth")}</div>
                   <div className="value">
                     {projectionA.growthPercent === null
                       ? "—"
@@ -193,32 +196,43 @@ export function ProjectionsPage() {
             )}
           </div>
 
-          <Card title="Balance over time">
+          <Card title={t("grow.balanceOverTime")}>
             <GrowthChart series={series} />
             <p className="hint" style={{ marginTop: 8 }}>
               {comparing
-                ? "Contribution bands are hidden while comparing — four overlapping areas is mud."
+                ? t("grow.hintComparing")
                 : first.mode === "compound"
-                  ? "The gap between the two lines is interest earning interest."
-                  : "Simple interest is paid on what you put in, never on the interest itself."}
+                  ? t("grow.hintCompound")
+                  : t("grow.hintSimple")}
             </p>
           </Card>
 
-          <Card title="Year by year">
+          <Card title={t("grow.yearByYear")}>
             {projectionA.points.length < 2 ? (
-              <Empty>Nothing to show yet.</Empty>
+              <Empty>{t("grow.nothingYet")}</Empty>
             ) : (
               <TableWrap>
-                <table className="stacked" aria-label="Year by year">
+                <table className="stacked" aria-label={t("grow.yearByYear")}>
                   <thead>
                     <tr>
-                      <th>Year</th>
-                      <th className="num">{comparing ? "A" : "Paid in"} ({money.symbol})</th>
+                      <th>{t("grow.colYear")}</th>
                       <th className="num">
-                        {comparing ? "B" : "Interest"} ({money.symbol})
+                        {t("grow.withSymbol", {
+                          label: comparing ? "A" : t("grow.colPaidIn"),
+                          symbol: money.symbol,
+                        })}
                       </th>
                       <th className="num">
-                        {comparing ? "Difference" : "Balance"} ({money.symbol})
+                        {t("grow.withSymbol", {
+                          label: comparing ? "B" : t("grow.interest"),
+                          symbol: money.symbol,
+                        })}
+                      </th>
+                      <th className="num">
+                        {t("grow.withSymbol", {
+                          label: comparing ? t("grow.colDifference") : t("grow.colBalance"),
+                          symbol: money.symbol,
+                        })}
                       </th>
                     </tr>
                   </thead>
@@ -231,16 +245,27 @@ export function ProjectionsPage() {
                           : undefined;
                         return (
                           <tr key={point.month}>
-                            <td data-label="Year">{point.month / 12}</td>
-                            <td className="num" data-label={comparing ? "A" : "Paid in"}>
+                            <td data-label={t("grow.colYear")}>{point.month / 12}</td>
+                            <td
+                              className="num"
+                              data-label={comparing ? "A" : t("grow.colPaidIn")}
+                            >
                               {money.plain(comparing ? point.balance : point.contributed)}
                             </td>
-                            <td className="num" data-label={comparing ? "B" : "Interest"}>
+                            <td
+                              className="num"
+                              data-label={comparing ? "B" : t("grow.interest")}
+                            >
                               {comparing
                                 ? money.plain(other?.balance ?? "0.00")
                                 : money.plain(point.interest)}
                             </td>
-                            <td className="num" data-label={comparing ? "Difference" : "Balance"}>
+                            <td
+                              className="num"
+                              data-label={
+                                comparing ? t("grow.colDifference") : t("grow.colBalance")
+                              }
+                            >
                               {comparing
                                 ? money.plain(
                                     subtractMoney(other?.balance ?? "0.00", point.balance),
@@ -267,12 +292,14 @@ function ScenarioCard({
   scenario,
   onChange,
   symbol,
+  t,
 }: {
   title: string;
   accent: string;
   scenario: Scenario;
   onChange: (next: Scenario) => void;
   symbol: string;
+  t: Translate;
 }) {
   const set = <K extends keyof Scenario>(key: K, value: Scenario[K]) =>
     onChange({ ...scenario, [key]: value });
@@ -287,61 +314,61 @@ function ScenarioCard({
       />
       <form className="row" onSubmit={(event) => event.preventDefault()}>
         <label style={{ flex: "1 1 130px" }}>
-          Starting ({symbol})
+          {t("grow.starting", { symbol })}
           <input
             className="num"
             inputMode="decimal"
-            aria-label={`${title} starting amount`}
+            aria-label={t("grow.startingAria", { title })}
             value={scenario.initial}
             onChange={(event) => set("initial", event.target.value)}
           />
         </label>
 
         <label style={{ flex: "1 1 130px" }}>
-          Monthly ({symbol})
+          {t("grow.monthly", { symbol })}
           <input
             className="num"
             inputMode="decimal"
-            aria-label={`${title} added monthly`}
+            aria-label={t("grow.monthlyAria", { title })}
             value={scenario.monthly}
             onChange={(event) => set("monthly", event.target.value)}
           />
         </label>
 
         <label style={{ flex: "1 1 110px" }}>
-          Rate (% a year)
+          {t("grow.rate")}
           <input
             className="num"
             inputMode="decimal"
-            aria-label={`${title} annual rate`}
+            aria-label={t("grow.rateAria", { title })}
             value={scenario.rate}
             onChange={(event) => set("rate", event.target.value)}
           />
         </label>
 
         <label style={{ flex: "1 1 130px" }}>
-          Interest
+          {t("grow.interestType")}
           <select
-            aria-label={`${title} interest type`}
+            aria-label={t("grow.modeAria", { title })}
             value={scenario.mode}
             onChange={(event) => set("mode", event.target.value as InterestMode)}
           >
-            <option value="compound">Compound</option>
-            <option value="simple">Simple</option>
+            <option value="compound">{t("grow.compound")}</option>
+            <option value="simple">{t("grow.simple")}</option>
           </select>
         </label>
 
         {scenario.mode === "compound" && (
           <label style={{ flex: "1 1 130px" }}>
-            Compounded
+            {t("grow.compounded")}
             <select
-              aria-label={`${title} compounding frequency`}
+              aria-label={t("grow.frequencyAria", { title })}
               value={scenario.compounding}
               onChange={(event) => set("compounding", event.target.value as Compounding)}
             >
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="annually">Annually</option>
+              <option value="monthly">{t("grow.everyMonth")}</option>
+              <option value="quarterly">{t("grow.everyQuarter")}</option>
+              <option value="annually">{t("grow.everyYear")}</option>
             </select>
           </label>
         )}
@@ -365,19 +392,25 @@ function CompareFields({
   onFirst,
   onSecond,
   symbol,
+  t,
 }: {
   first: Scenario;
   second: Scenario;
   onFirst: (next: Scenario) => void;
   onSecond: (next: Scenario) => void;
   symbol: string;
+  t: Translate;
 }) {
-  const rows: { key: keyof Scenario; label: string; kind: "money" | "rate" | "mode" | "freq" }[] = [
-    { key: "initial", label: `Start (${symbol})`, kind: "money" },
-    { key: "monthly", label: `Monthly (${symbol})`, kind: "money" },
-    { key: "rate", label: "Rate %", kind: "rate" },
-    { key: "mode", label: "Interest", kind: "mode" },
-    { key: "compounding", label: "Every", kind: "freq" },
+  const rows: {
+    key: keyof Scenario;
+    label: string;
+    kind: "money" | "rate" | "mode" | "freq";
+  }[] = [
+    { key: "initial", label: t("grow.rowStart", { symbol }), kind: "money" },
+    { key: "monthly", label: t("grow.rowMonthly", { symbol }), kind: "money" },
+    { key: "rate", label: t("grow.rowRate"), kind: "rate" },
+    { key: "mode", label: t("grow.interestType"), kind: "mode" },
+    { key: "compounding", label: t("grow.rowEvery"), kind: "freq" },
   ];
 
   const cell = (
@@ -386,7 +419,7 @@ function CompareFields({
     row: (typeof rows)[number],
     which: "A" | "B",
   ) => {
-    const label = `Scenario ${which} ${row.label}`;
+    const label = t("grow.scenarioField", { which, label: row.label });
     if (row.kind === "mode") {
       return (
         <select
@@ -394,8 +427,8 @@ function CompareFields({
           value={scenario.mode}
           onChange={(event) => set({ ...scenario, mode: event.target.value as InterestMode })}
         >
-          <option value="compound">Compound</option>
-          <option value="simple">Simple</option>
+          <option value="compound">{t("grow.compound")}</option>
+          <option value="simple">{t("grow.simple")}</option>
         </select>
       );
     }
@@ -411,9 +444,9 @@ function CompareFields({
             set({ ...scenario, compounding: event.target.value as Compounding })
           }
         >
-          <option value="monthly">Month</option>
-          <option value="quarterly">Quarter</option>
-          <option value="annually">Year</option>
+          <option value="monthly">{t("grow.freqMonth")}</option>
+          <option value="quarterly">{t("grow.freqQuarter")}</option>
+          <option value="annually">{t("grow.freqYear")}</option>
         </select>
       );
     }

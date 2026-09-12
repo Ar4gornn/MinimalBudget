@@ -25,3 +25,6 @@ class User(TimestampedMixin, Base):
     budget_start_day: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="1"
     )
+    # Which language the account reads in. Unlike the currency and the weight unit this is
+    # never locked: it changes the words around a number, never what the number means.
+    language: Mapped[str] = mapped_column(String(2), nullable=False, server_default="en")

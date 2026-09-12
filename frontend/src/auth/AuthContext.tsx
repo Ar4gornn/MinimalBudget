@@ -16,7 +16,7 @@ import {
   setUnauthorizedHandler,
   storeTokens,
 } from "../api/client";
-import type { Currency, User } from "../api/types";
+import type { Currency, Language, User } from "../api/types";
 
 interface AuthState {
   user: User | null;
@@ -27,6 +27,7 @@ interface AuthState {
     password: string,
     inviteCode?: string,
     currency?: Currency,
+    language?: Language,
   ) => Promise<void>;
   signOut: () => void;
   /** Re-read the profile after something server-side changes it. */
@@ -83,8 +84,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(
-    async (email: string, password: string, inviteCode?: string, currency?: Currency) => {
-      await api.register(email, password, inviteCode, currency);
+    async (
+      email: string,
+      password: string,
+      inviteCode?: string,
+      currency?: Currency,
+      language?: Language,
+    ) => {
+      await api.register(email, password, inviteCode, currency, language);
       await signIn(email, password);
     },
     [signIn],

@@ -48,7 +48,8 @@ def advance(cadence: str, anchor: dt.date, current: dt.date) -> dt.date:
         return _clamp_day(index // 12, index % 12 + 1, anchor.day)
     if cadence == Cadence.yearly:
         return _clamp_day(current.year + 1, anchor.month, anchor.day)
-    raise Invalid(f"unknown cadence {cadence!r}")  # pragma: no cover — CHECK and enum forbid
+    # pragma: no cover — the CHECK constraint and the enum both forbid reaching this.
+    raise Invalid(f"unknown cadence {cadence!r}", "cadence_unknown")  # pragma: no cover
 
 
 # -------------------------------------------------------------- templates
@@ -94,7 +95,7 @@ def create_template(
         assert category_id is not None
         category = ledger.resolve_category(session, user_id, category_id=category_id, kind=kind)
     if end_on is not None and end_on < start_on:
-        raise Invalid("end_on must not be before start_on")
+        raise Invalid("end_on must not be before start_on", "span_reversed")
 
     template = RecurringTemplate(
         user_id=user_id,
@@ -125,7 +126,7 @@ def update_template(
         if key in fields:
             setattr(template, key, fields[key])
     if template.end_on is not None and template.end_on < template.start_on:
-        raise Invalid("end_on must not be before start_on")
+        raise Invalid("end_on must not be before start_on", "span_reversed")
     template.updated_at = func.now()
     session.flush()
     session.refresh(template)
@@ -230,6 +231,77 @@ def list_pending(session: Session, user_id: uuid.UUID) -> list[PendingRow]:
     return [PendingRow(o, t, name) for o, t, name in rows]
 
 
+class ExpectedRow:
+    def __init__(self, template: RecurringTemplate, due_on: dt.date, category: str) -> None:
+        self.template_id = template.id
+        self.due_on = due_on
+        self.kind = template.kind
+        self.category_id = template.category_id
+        self.category_name = category
+        self.amount = template.amount
+        self.note = template.note
+        self.cadence = template.cadence
+        self.auto = template.auto
+
+
+def expected(
+    session: Session,
+    user_id: uuid.UUID,
+    *,
+    start: dt.date,
+    end: dt.date,
+    today: dt.date | None = None,
+) -> list[ExpectedRow]:
+    """The due dates that fall in ``[start, end)`` and have not happened yet.
+
+    **Computed, never written** (AD-39). AD-33 warns against deriving *proposals* from the
+    cadence, because a derivation cannot remember that somebody said "not this month" — and
+    that warning is respected here by only ever looking **strictly after today**. Every date
+    up to today is a materialised occurrence with a status, so a skip stays skipped; every
+    date after today has no decision to forget, because none can exist yet.
+
+    Nothing returned here is actionable: there is no occurrence id, so there is nothing to
+    confirm. The calendar shows it as a forecast and says so.
+    """
+    today = today or dt.date.today()
+    first = max(start, today + dt.timedelta(days=1))
+    rows: list[ExpectedRow] = []
+    if first >= end:
+        return rows
+
+    names = dict(
+        session.execute(select(Category.id, Category.name).where(Category.user_id == user_id)).all()
+    )
+    # Belt to the braces above: a date that somehow already has a row is that row's to
+    # report, whatever its status, so the same day can never appear twice on the calendar.
+    taken = {
+        (template_id, due_on)
+        for template_id, due_on in session.execute(
+            select(RecurringOccurrence.template_id, RecurringOccurrence.due_on).where(
+                RecurringOccurrence.user_id == user_id,
+                RecurringOccurrence.due_on >= first,
+                RecurringOccurrence.due_on < end,
+            )
+        ).all()
+    }
+
+    for template in list_templates(session, user_id):
+        if template.paused:
+            continue
+        due = template.next_due
+        steps = 0
+        while due < end and steps < _MAX_MATERIALISE:
+            steps += 1
+            if template.end_on is not None and due > template.end_on:
+                break
+            if due >= first and (template.id, due) not in taken:
+                rows.append(ExpectedRow(template, due, names.get(template.category_id, "-")))
+            due = advance(template.cadence, template.start_on, due)
+
+    rows.sort(key=lambda row: (row.due_on, row.category_name.lower(), str(row.template_id)))
+    return rows
+
+
 def _pending_occurrence(
     session: Session, user_id: uuid.UUID, occurrence_id: uuid.UUID
 ) -> tuple[RecurringOccurrence, RecurringTemplate]:
@@ -242,7 +314,7 @@ def _pending_occurrence(
         raise NotFound("No proposed entry with that id")
     occurrence, template = row
     if occurrence.status != OccurrenceStatus.pending.value:
-        raise Conflict("That proposal was already decided")
+        raise Conflict("That proposal was already decided", "occurrence_decided")
     return occurrence, template
 
 
@@ -267,7 +339,7 @@ def confirm(
         .values(status=OccurrenceStatus.created.value, entry_id=entry.id, decided_at=func.now())
     ).rowcount
     if claimed != 1:  # pragma: no cover — the read above holds the row in this transaction
-        raise Conflict("That proposal was already decided")
+        raise Conflict("That proposal was already decided", "occurrence_decided")
     session.flush()
     return entry
 

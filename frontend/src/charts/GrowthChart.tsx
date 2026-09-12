@@ -13,6 +13,7 @@
 import { toChartNumber } from "../money";
 import { useMoney } from "../useMoney";
 import type { ProjectionPoint } from "../interest";
+import { useT } from "../i18n";
 
 export interface GrowthSeries {
   label: string;
@@ -63,6 +64,7 @@ function compact(value: number): string {
 }
 
 export function GrowthChart({ series }: { series: GrowthSeries[] }) {
+  const t = useT();
   const money = useMoney();
   const usable = series.filter((one) => one.points.length >= 2);
   if (usable.length === 0) {
@@ -110,8 +112,10 @@ export function GrowthChart({ series }: { series: GrowthSeries[] }) {
         role="img"
         aria-label={
           comparing
-            ? `Comparing ${usable.map((one) => one.label).join(" and ")}`
-            : `Balance and contributions over ${Math.round((longest - 1) / 12)} years`
+            ? t("chart.growthComparingAria", {
+                labels: usable.map((one) => one.label).join(", "),
+              })
+            : t("chart.growthAria", { years: Math.round((longest - 1) / 12) })
         }
       >
         {ticks.map((value) => (

@@ -9,6 +9,7 @@
 
 import type { Rate, Unit } from "../api/types";
 import { toTenThousandths } from "../quantity";
+import { useT } from "../i18n";
 
 const WIDTH = 240;
 const HEIGHT = 56;
@@ -25,6 +26,7 @@ export function RateChart({
   unit: Unit;
   label: string;
 }) {
+  const t = useT();
   const present = values.filter((v): v is Rate => v !== null).map(toTenThousandths);
   if (present.length === 0) return null;
 
@@ -57,7 +59,7 @@ export function RateChart({
       style={{ maxWidth: WIDTH * 2, height: "auto", display: "block" }}
       preserveAspectRatio="xMinYMid meet"
       role="img"
-      aria-label={`${label} price per ${unit} by month`}
+      aria-label={t("chart.rateAria", { label, unit })}
     >
       {segments.map((points, index) => (
         <polyline

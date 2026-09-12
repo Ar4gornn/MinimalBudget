@@ -8,6 +8,7 @@ from app.core.deps import CurrentUserId, DbSession, StartDay
 from app.schemas.common import Page
 from app.schemas.inventory import (
     ItemChangeOut,
+    ItemChangeRowOut,
     ItemCreate,
     ItemOut,
     ItemUpdate,
@@ -114,6 +115,33 @@ def item_history(
 ) -> Page[ItemChangeOut]:
     rows = inventory.item_history(session, user_id, item_id, days=days)
     return Page[ItemChangeOut](items=[ItemChangeOut.model_validate(r) for r in rows])
+
+
+@router.get("/changes", response_model=Page[ItemChangeRowOut])
+def changes(
+    user_id: CurrentUserId,
+    session: DbSession,
+    month: Annotated[str, Query(description="YYYY-MM, the account's month")],
+    start_day: StartDay = 1,
+) -> Page[ItemChangeRowOut]:
+    """What moved in the stock cupboard this month, across every item.
+
+    Read by the calendar. Declared here, in the module that owns the rows, so composing the
+    calendar stays a matter of calling each module's own endpoint (AD-37).
+    """
+    rows = inventory.changes_in(session, user_id, month=month, start_day=start_day)
+    return Page[ItemChangeRowOut](
+        items=[
+            ItemChangeRowOut(
+                item_id=row.item_id,
+                item_name=name,
+                quantity_before=row.quantity_before,
+                quantity_after=row.quantity_after,
+                changed_at=row.changed_at,
+            )
+            for row, name in rows
+        ]
+    )
 
 
 @router.get("/shopping-list", response_model=ShoppingListOut)

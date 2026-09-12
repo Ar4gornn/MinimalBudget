@@ -18,6 +18,16 @@
   --accent-2: #3f6ea8;
   --accent-2-soft: #e4ebf3;
 
+  /* The five points of the mood scale (Epic 24). Named tokens rather than five literals
+     scattered through a chart and a control, so the faces and the strip cannot drift
+     apart — and so the dark theme moves them together. Colour is never the only channel:
+     every face carries its word and its own mouth curve. */
+  --mood-1: #9a4b3f;
+  --mood-2: #b8776a;
+  --mood-3: #94938d;
+  --mood-4: #5b9282;
+  --mood-5: #2f6f5e;
+
   --radius: 8px;
   --gap: 16px;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace;
@@ -42,6 +52,12 @@
     --focus: #6fbfa5;
     --accent-2: #7fb3e8;
     --accent-2-soft: #1d2735;
+
+    --mood-1: #d59084;
+    --mood-2: #bf8175;
+    --mood-3: #7b7a74;
+    --mood-4: #5aa48c;
+    --mood-5: #6fbfa5;
   }
 }
 
@@ -154,6 +170,32 @@ a {
 .identity a[aria-current="page"] {
   color: var(--text);
   border-color: var(--border-strong);
+}
+
+/* A heading that is also an input: a recipe's name has to be correctable in place,
+   because a recipe that has been eaten cannot be deleted (AD-21). It inherits the heading's
+   type so the page still reads as a page rather than as a form, and shows its edges on
+   focus so it is discoverable as something you can change. */
+.title-input {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 2px 4px;
+  margin-left: -4px;
+  width: 100%;
+  max-width: 22ch;
+}
+
+.title-input:hover {
+  border-color: var(--border);
+}
+
+.title-input:focus {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  outline: none;
 }
 
 .grid {
@@ -597,8 +639,24 @@ tr.history td {
     margin-bottom: 16px;
   }
 
+  /* The app's name is read by a screen reader and takes no space on a phone.
+     
+     Measured, not assumed: the phone top bar's content box is 335px at a 375px viewport,
+     and "MinimalBudget" is 110px of it. With three links beside Plan and Grow (Epic 27)
+     the French bar needs 110 + 8 + 193 + 8 + 44 = 363, so it wrapped to two rows on every
+     French phone — which is exactly what the Epic 23 note above refused. Of the four things
+     in the bar the name is the one a phone does not need: the bottom tab says which section
+     you are in, the page says what it is, and the installed app's own name is on the home
+     screen. Hidden visually rather than `display: none` so the heading stays in the
+     accessibility tree; out of flow, so it costs nothing. Freeing it leaves French at
+     193 + 8 + 44 = 245 of 335. */
   .brand {
-    font-size: 15px;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   /* Replaced by the bottom bar, which is reachable by thumb. */
@@ -619,7 +677,40 @@ tr.history td {
   .identity {
     font-size: 12px;
     gap: 6px;
-    margin-left: auto;
+    /* `flex: 1 1 0` rather than `margin-left: auto`. Flex line-breaking uses an item's
+       *base* size, not its minimum, so a content-sized pill wrapped onto a second row as
+       soon as the top bar gained Plan alongside Grow (Epic 23). A zero basis puts it back
+       on the first row and lets it grow into whatever is left, so the email shows as much
+       of itself as the phone has room for and ellipsises the rest. */
+    flex: 1 1 0;
+    justify-content: flex-end;
+  }
+
+  /* The pill shrinks, and it stops at a tap target.
+     
+     Since Epic 23 the top bar has carried Plan as well as Grow, and a content-sized pill
+     wrapped onto a second row on every phone: a flex item's default `min-width: auto`
+     refuses to shrink below its content. Dropping that to 0 fixed the wrap — the email is
+     a cue about which account you are in, not something anybody reads in full — but Epic 27
+     added Recipes and showed the other end of the same problem.
+     
+     Measured at 375px rather than assumed. In French the three links are 193px wide
+     ("Budget · Épargne · Recettes") against English's 154px, and at 0 the pill collapsed to
+     17px — narrower than its own padding, so the settings gear was clipped to a sliver and
+     the only way into Settings became untappable. The email may vanish; the way in may not.
+     So the floor is 44px, the tap target this project already works to, and it fits on one
+     row: 110 (brand) + 8 + 193 + 8 + 44 is 363 of the 375 available. */
+  .identity,
+  .identity a {
+    min-width: 44px;
+  }
+
+  .identity a {
+    justify-content: center;
+  }
+
+  .identity .glyph {
+    flex: 0 0 auto;
   }
 
   .identity .email {
@@ -1041,4 +1132,629 @@ tr.muted td {
 .filters .filter-note {
   grid-column: 1 / -1;
   margin: -4px 0 0;
+}
+
+/* ------------------------------------------------------------------------ *
+ * Calendar (Epic 22) and habits (Epic 23)
+ * ------------------------------------------------------------------------ */
+
+/* A section with two views marks its tab active on both of them, so standing in the
+   calendar does not look like standing outside the app. Mirrors the aria-current rules. */
+.nav a.on,
+.nav-extra a.on {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* The view switch is a pair of links rather than buttons, because each view has a real
+   URL. They still have to look like the chips everywhere else. */
+a.chip {
+  display: inline-block;
+  text-decoration: none;
+  line-height: 1.5;
+}
+
+.cal-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cal-head,
+.cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.cal-weekday {
+  font-size: 11px;
+  color: var(--faint);
+  text-align: center;
+  padding-bottom: 2px;
+}
+
+.cal-day {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  /* A wide screen gives each cell ~142px, and at 56px tall the month read as a table of
+     thin strips rather than as a calendar. The phone override below keeps 48px, where the
+     cell really is that small. */
+  min-height: 96px;
+  padding: 4px 4px 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+}
+
+.cal-day:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.cal-day.on {
+  border-color: var(--text);
+}
+
+/* Days from the neighbouring periods. Still a target: tapping one moves to the period it
+   belongs to, rather than pretending nothing happened on it. */
+.cal-day.outside {
+  background: transparent;
+  border-style: dashed;
+  color: var(--faint);
+}
+
+.cal-num {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.cal-net {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.cal-net.in {
+  color: var(--accent);
+}
+
+.cal-net.out {
+  color: var(--spend);
+}
+
+/* What is on a day, in words. Only where the width can afford it — under 720px the cell is
+   43px across and the dots below are the whole story. */
+.cal-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 2px;
+}
+
+.cal-line {
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-line.more {
+  color: var(--faint);
+}
+
+.cal-dots {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: auto;
+}
+
+.cal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+
+.cal-dot.savings {
+  background: var(--accent);
+}
+
+.cal-dot.stock {
+  background: var(--accent-2);
+}
+
+.cal-dot.gym {
+  background: var(--spend);
+}
+
+.cal-dot.habits {
+  background: var(--text);
+}
+
+.cal-dot.mood {
+  background: var(--mood-4);
+}
+
+/* What is due is not what happened: an outline rather than a fill, so a forecast never
+   reads as a record at a glance. */
+.cal-dot.due {
+  background: transparent;
+  border: 1px solid var(--muted);
+  width: 6px;
+  height: 6px;
+}
+
+.cal-more {
+  font-size: 9px;
+  color: var(--faint);
+}
+
+.day-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.day-list li {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  font-size: 14px;
+}
+
+.day-list li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.day-list .tag {
+  margin-left: 0;
+  margin-right: 6px;
+}
+
+.tag.income {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.tag.expense {
+  color: var(--spend);
+  border-color: var(--spend);
+}
+
+.tag.expected {
+  border-style: dashed;
+}
+
+/* A label and its select on one line, for a picker that sits inside a sentence rather
+   than in a form column — the language picker on the sign-in page. */
+.inline-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inline-select select {
+  width: auto;
+  margin: 0;
+}
+
+/* --------------------------------------------------------------- habits */
+
+.habit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.habit {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 24px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.habit:last-child {
+  border-bottom: none;
+}
+
+.habit-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  /* Fixed basis on a wide screen so every stepper lines up in one column a readable
+     distance from its name. Left to `1 1 auto` the row stretched the full 1006px card and
+     put the plus button some 900px from the habit it belonged to. The phone override
+     below restores the stretch, where the thumb wants the control at the right edge. */
+  flex: 0 0 320px;
+}
+
+/* The name is the way into the history, so it is a real button rather than a div that
+   happens to respond to clicks. */
+.habit-name {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.habit-name:hover {
+  text-decoration: underline;
+}
+
+.habit.met .habit-name {
+  color: var(--accent);
+}
+
+.streak {
+  color: var(--accent);
+}
+
+.habit-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.habit-step button {
+  /* 40px square: the check-in is the action this page exists for, and it is tapped with a
+     thumb, often more than once. */
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.heatmap {
+  display: block;
+  width: 100%;
+  /* Capped so it does not become a wall on a desktop; below the cap it fills its column,
+     which is what makes the cells legible on a phone. */
+  max-width: 420px;
+  height: auto;
+}
+
+/* A day the schedule does not ask for. Dimmed rather than hidden: the habit still exists,
+   a check-in is still accepted, and hiding it would make the list change length by weekday. */
+.habit.resting .habit-name {
+  color: var(--faint);
+}
+
+/* Today's occurrences, each one its own removable chip. This is what "8am, 2pm, 8pm" looks
+   like once a check-in is an occurrence rather than a counter (Epic 26). */
+.checkin-times {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.time-chip {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+}
+
+.time-chip:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The time the next check-in will carry. Narrow, because it holds "08:00" and nothing
+   else, and the plus button beside it is the thing the thumb is aiming at. */
+.at {
+  width: 96px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Seven toggles rather than seven checkboxes: one row, thumb-sized, and the whole schedule
+   is readable at a glance instead of as a column of labels. */
+.weekday-picker {
+  display: flex;
+  gap: 4px;
+  flex: 1 1 auto;
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.weekday-picker legend {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0;
+}
+
+.day-toggle {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  font-size: 13px;
+  background: none;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.day-toggle.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+@media (max-width: 720px) {
+  /* Same rule as aria-current: the Dashboard tab stays lit while its calendar view is
+     open, so five tabs still describe where you are. */
+  .bottom-nav a.on {
+    color: var(--accent);
+  }
+
+  .cal-day {
+    min-height: 48px;
+    padding: 3px 2px 2px;
+  }
+
+  /* No room for words at 43px across; the dots are the summary here. */
+  .cal-lines {
+    display: none;
+  }
+
+  /* Bleeds into the card's own padding so seven columns clear the 44px tap minimum —
+     they were 43px wide, one short, which is exactly the sort of miss nobody notices
+     until they are tapping the wrong day. */
+  .cal-grid {
+    margin-inline: -8px;
+  }
+
+  .habit {
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .habit-main {
+    flex: 1 1 auto;
+  }
+
+  .cal-head,
+  .cal-week {
+    gap: 1px;
+  }
+}
+
+/* ----------------------------------------------------------------- mood */
+
+/* Read by screen readers, invisible on screen. The clip-rect form rather than
+   `display: none`, which would take the text out of the accessibility tree too. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The heading and its control on one line. `flex-wrap` is deliberately absent: the pair is
+   a short month name and a 40px button, which fits at 320px, and wrapping it would put the
+   button under the title where it reads as a separate thing. */
+.dash-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The anchor the popover is positioned against. Not a modal: nothing here covers the page
+   or makes it inert — see MoodCheckin.tsx for the whole argument. */
+.mood-checkin {
+  position: relative;
+}
+
+.mood-button {
+  /* 40px, the same target as the habit stepper: this is a thumb action on a phone. */
+  min-width: 40px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+}
+
+.mood-button.answered {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.mood-face {
+  display: block;
+}
+
+.mood-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  /* Never wider than the shell's content column, so the panel cannot push a horizontal
+     scrollbar onto the page. This works because the trigger is the first thing in the
+     header — see DashboardPage.tsx; anchored to a button that moves with the length of the
+     month name, no width would have been safe. */
+  width: min(320px, calc(100vw - 40px));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+}
+
+.mood-field {
+  border: none;
+  margin: 0;
+  padding: 12px 0 0;
+}
+
+.mood-field legend {
+  padding: 0;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.mood-scale {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.mood-pick {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  /* 44px of tappable width each at 320px of panel: five of them plus the gaps is 300px. */
+  min-height: 52px;
+  padding: 4px 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+}
+
+.mood-pick:hover:not(:disabled) {
+  border-color: var(--border);
+}
+
+.mood-pick.on {
+  border-color: var(--border-strong);
+  background: var(--bg);
+}
+
+/* The word is the face's accessible name, not a caption — it is never hidden, at any
+   width, because a drawing nobody can name is not an answer anyone can give (AD-42). */
+.mood-word {
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.mood-pick.on .mood-word {
+  color: var(--text);
+}
+
+.mood-verdict {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.mood-verdict .chip {
+  min-height: 40px;
+  padding-inline: 18px;
+}
+
+.mood-note {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+/* A button that reads as a link, for a destructive-ish action that belongs inside a
+   sentence rather than beside one. */
+.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.mood-strip {
+  display: block;
+  width: 100%;
+  /* Capped like the heat-map, so it fills a phone column and does not become a band across
+     a desktop. */
+  max-width: 460px;
+  height: auto;
+}
+
+.mood-tally {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mood-tally li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mood-tally-word {
+  flex: 0 0 44px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.mood-tally-track {
+  flex: 1 1 auto;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.mood-tally-bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.mood-tally-count {
+  flex: 0 0 auto;
+  min-width: 2ch;
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--muted);
 }

@@ -1,3 +1,5 @@
+import { useT } from "../i18n";
+
 /**
  * Whole-number counts per month — restocks per space — as a small multiple.
  *
@@ -20,6 +22,7 @@ export function CountBars({
   /** Shared across every row, so the rows are comparable to each other. */
   peak: number;
 }) {
+  const t = useT();
   if (values.length === 0) return null;
 
   const scale = Math.max(1, peak);
@@ -32,7 +35,7 @@ export function CountBars({
       width={WIDTH}
       height={HEIGHT}
       role="img"
-      aria-label={`${label} restocks per month`}
+      aria-label={t("chart.restocksAria", { label })}
     >
       {values.map((value, index) => {
         const height = (value / scale) * (HEIGHT - 2);

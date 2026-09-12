@@ -14,16 +14,22 @@ import type {
 import { Sparkline } from "../charts/Sparkline";
 import { ProgressBar } from "../charts/ProgressBar";
 import { TrendChart } from "../charts/TrendChart";
+import { MoodCheckin } from "../components/MoodCheckin";
 import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
-import {progress, subtractMoney, toChartNumber, toCents } from "../money";
+import { ViewSwitch } from "../components/ViewSwitch";
+import { progress, subtractMoney, toChartNumber, toCents } from "../money";
 import { useMoney } from "../useMoney";
-import { budgetMonth, monthLabel, monthRangeLabel, shiftMonth } from "../months";
+import { useT } from "../i18n";
+import { errorMessage } from "../i18n/errors";
+import { useDates } from "../useDates";
+import { budgetMonth, shiftMonth } from "../months";
 
-const PERIODS: { value: Period; label: string }[] = [
-  { value: "month", label: "Month" },
-  { value: "year", label: "Year" },
-  { value: "all", label: "All time" },
-];
+/** The three windows, as message keys: the chips are drawn on every dashboard. */
+const PERIODS = [
+  { value: "month", label: "dash.month" },
+  { value: "year", label: "dash.year" },
+  { value: "all", label: "dash.allTime" },
+] as const;
 const PERIOD_KEY = "minimalbudget.period";
 
 function readPeriod(): Period {
@@ -50,6 +56,8 @@ function readTrendMonths(): number {
 
 export function DashboardPage() {
   const money = useMoney();
+  const t = useT();
+  const dates = useDates();
   // The account's month need not be the calendar one (AD-10).
   // Optional, like useMoney: a month boundary has an obvious default, and crashing a
   // whole page for want of context is worse than falling back to the calendar month.
@@ -81,11 +89,11 @@ export function DashboardPage() {
       setSummary(nextSummary);
       setTrends(nextTrends);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not load the dashboard.");
+      setError(errorMessage(t, caught, "dash.couldNotLoad"));
     } finally {
       setLoading(false);
     }
-  }, [month, period, trendMonths]);
+  }, [month, period, trendMonths, t]);
 
   useEffect(() => {
     void load();
@@ -143,6 +151,21 @@ export function DashboardPage() {
     [summary],
   );
 
+  /**
+   * What to call the window on screen.
+   *
+   * The server's `summary.label` is `"2026-09"`, `"2026"` or the words `"All time"` — and
+   * that last one is the only English word the dashboard would otherwise render. A month
+   * is named from the catalogue, a year is a number that needs no translating, and
+   * all-time gets its own message. The server keeps sending its label; it is simply not
+   * the thing a person reads (AD-44's rule, applied to a heading rather than an error).
+   */
+  const periodLabel = (): string => {
+    if (period === "month") return dates.month(month);
+    if (period === "all") return t("dash.allTime");
+    return summary?.label ?? "…";
+  };
+
   // One scale across every sparkline, so the rows can be compared to each other.
   const seriesPeak = useMemo(() => {
     if (!trends) return 1;
@@ -156,24 +179,46 @@ export function DashboardPage() {
     <>
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontSize: 18, margin: 0 }}>
-            {period === "month" ? monthLabel(month) : (summary?.label ?? "…")}
-          </h1>
+          {/* The mood control sits beside the heading rather than in the cluster on the
+              right, and the placement is a decision rather than a spare corner. That
+              cluster already carries three groups — the Summary/Calendar switch, the
+              Month/Year/All-time chips and the month navigator — and it is the half of
+              this header that wraps at 375px. The left half is one line of text with room
+              beside it at every width, so a 40px target goes there and nothing else moves.
+              Verified in a browser at 375px, not asserted. */}
+          <div className="dash-title">
+            {/* Before the heading, not after it, and that is a measurement rather than a
+                preference. The panel is anchored to this button, and a heading that reads
+                "September 2026" in one month and "2026" in another moves the anchor by
+                ~115px — with the button after the title, the panel hung 98px off the right
+                edge of a 375px screen and put a horizontal scrollbar on the page. First in
+                the row, the anchor is at the shell's left padding whatever the month is
+                called. */}
+            <MoodCheckin />
+            <h1 style={{ fontSize: 18, margin: 0 }}>
+              {periodLabel()}
+            </h1>
+          </div>
           {/* Spelled out, because "September" meaning 26 Aug - 25 Sep is exactly the sort
               of thing a person should never have to infer from a total. The server sends
               the real bounds, so the client never has to reconstruct them. */}
           {period === "month" ? (
-            monthRangeLabel(month, startDay) && (
-              <p className="hint" style={{ margin: 0 }}>{monthRangeLabel(month, startDay)}</p>
+            dates.monthRange(month, startDay) && (
+              <p className="hint" style={{ margin: 0 }}>
+                {dates.monthRange(month, startDay)}
+              </p>
             )
           ) : summary?.start && summary?.end ? (
             <p className="hint" style={{ margin: 0 }}>
-              {summary.start} to {summary.end}
+              {t("dash.rangeTo", { start: summary.start, end: summary.end })}
             </p>
           ) : null}
         </div>
         <div className="row" style={{ gap: 8, alignItems: "center" }}>
-          <div className="chips" role="group" aria-label="Period">
+          {/* Two views of one question: totals here, day by day next door. The calendar
+              takes no bottom tab of its own — see App.tsx for the whole argument. */}
+          <ViewSwitch current="summary" />
+          <div className="chips" role="group" aria-label={t("dash.period")}>
             {PERIODS.map((option) => (
               <button
                 key={option.value}
@@ -189,7 +234,7 @@ export function DashboardPage() {
                   }
                 }}
               >
-                {option.label}
+                {t(option.label)}
               </button>
             ))}
           </div>
@@ -200,18 +245,18 @@ export function DashboardPage() {
           <button
             type="button"
             className="quiet"
-            aria-label="Previous month"
+            aria-label={t("month.previous")}
             onClick={() => setMonth(shiftMonth(month, period === "year" ? -12 : -1))}
           >
             ←
           </button>
           <label style={{ textTransform: "none" }}>
             <span className="visually-hidden" style={{ display: "none" }}>
-              Month
+              {t("dash.month")}
             </span>
             <input
               type="month"
-              aria-label="Month"
+              aria-label={t("dash.month")}
               value={month}
               onChange={(event) => setMonth(event.target.value || budgetMonth(startDay))}
             />
@@ -219,7 +264,7 @@ export function DashboardPage() {
           <button
             type="button"
             className="quiet"
-            aria-label="Next month"
+            aria-label={t("month.next")}
             onClick={() => setMonth(shiftMonth(month, period === "year" ? 12 : 1))}
           >
             →
@@ -232,35 +277,32 @@ export function DashboardPage() {
       <ErrorBanner message={error} />
 
       {loading && !summary ? (
-        <p className="empty">Loading…</p>
+        <p className="empty">{t("state.loading")}</p>
       ) : summary ? (
         <>
           <div className="grid">
-            <Stat label="Income" value={summary.income} tone="in" />
-            <Stat label="Expense" value={summary.expense} tone="out" />
-            <Stat label="Net" value={summary.net} />
-            <Stat label="Saved" value={summary.saved} />
+            <Stat label={t("dash.income")} value={summary.income} tone="in" />
+            <Stat label={t("dash.expense")} value={summary.expense} tone="out" />
+            <Stat label={t("dash.net")} value={summary.net} />
+            <Stat label={t("dash.saved")} value={summary.saved} />
           </div>
 
           {pending && pending.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <Card
-                title="To confirm"
+                title={t("dash.toConfirm")}
                 collapseKey="dashboard.pending"
-                summary={`${pending.length} ${pending.length === 1 ? "entry" : "entries"}`}
+                summary={t.n("dash.pendingCount", pending.length)}
               >
                 <p style={{ margin: "0 0 6px" }} data-stat="To confirm">
-                  <Link to="/plan">
-                    {pending.length} recurring{" "}
-                    {pending.length === 1 ? "entry is" : "entries are"} waiting for you
-                  </Link>
+                  <Link to="/plan">{t.n("dash.pendingWaiting", pending.length)}</Link>
                 </p>
                 <p className="hint" style={{ margin: 0 }}>
                   {pending
                     .slice(0, 3)
                     .map((row) => `${row.category_name} · ${row.due_on}`)
                     .join(", ")}
-                  {pending.length > 3 ? ", …" : ""}
+                  {pending.length > 3 ? t("dash.andMore") : ""}
                 </p>
               </Card>
             </div>
@@ -269,14 +311,13 @@ export function DashboardPage() {
           {lowItems && lowItems.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <Card
-                title="Restock"
+                title={t("dash.restock")}
                 collapseKey="dashboard.restock"
-                summary={`${lowItems.length} ${lowItems.length === 1 ? "item" : "items"}`}
+                summary={t.n("dash.restockCount", lowItems.length)}
               >
                 <p style={{ margin: "0 0 6px" }} data-stat="Restock">
                   <Link to="/inventory?filter=restock">
-                    {lowItems.length} {lowItems.length === 1 ? "item needs" : "items need"}{" "}
-                    restocking
+                    {t.n("dash.restockNeed", lowItems.length)}
                   </Link>
                 </p>
                 <p className="hint" style={{ margin: 0 }}>
@@ -287,7 +328,7 @@ export function DashboardPage() {
                       return space ? `${item.name} · ${space}` : item.name;
                     })
                     .join(", ")}
-                  {lowItems.length > 3 ? ", …" : ""}
+                  {lowItems.length > 3 ? t("dash.andMore") : ""}
                 </p>
               </Card>
             </div>
@@ -295,41 +336,33 @@ export function DashboardPage() {
 
           {period !== "month" && (
             <p className="hint" style={{ marginTop: 16 }}>
-              Budgets and savings targets are monthly amounts, so they are shown for a month
-              only. The figures above cover {summary.label.toLowerCase()}.
+              {t("dash.periodNote", { label: periodLabel().toLowerCase() })}
             </p>
           )}
 
           <div className="columns" style={{ marginTop: 16, display: period === "month" ? undefined : "none" }}>
             <Card
-              title="Budget vs actual"
+              title={t("dash.budgetVsActual")}
               collapseKey="dashboard.budgets"
               summary={
                 summary.budgets.length === 0
-                  ? "none"
-                  : `${summary.budgets.length} categories${
-                      overspent > 0 ? ` · ${overspent} over` : ""
-                    }`
+                  ? t("dash.summaryNone")
+                  : t("dash.categoriesCount", { count: summary.budgets.length }) +
+                    (overspent > 0 ? t("dash.overCount", { count: overspent }) : "")
               }
             >
               {summary.budgets.length === 0 ? (
-                <Empty>No budgets set and nothing spent this month.</Empty>
+                <Empty>{t("dash.noBudgets")}</Empty>
               ) : (
                 <TableWrap>
-                  <table className="stacked" aria-label="Budget vs actual">
+                  <table className="stacked" aria-label={t("dash.budgetVsActual")}>
                     <thead>
                       <tr>
-                        <th>Category</th>
-                        <th className="num">
-                          Spent ({money.symbol})
-                        </th>
-                        <th className="num">
-                          Budget ({money.symbol})
-                        </th>
-                        <th className="num">
-                          Left ({money.symbol})
-                        </th>
-                        <th style={{ width: 110 }}>Progress</th>
+                        <th>{t("dash.colCategory")}</th>
+                        <th className="num">{t("dash.colSpent", { symbol: money.symbol })}</th>
+                        <th className="num">{t("dash.colBudget", { symbol: money.symbol })}</th>
+                        <th className="num">{t("dash.colLeft", { symbol: money.symbol })}</th>
+                        <th style={{ width: 110 }}>{t("dash.colProgress")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -339,18 +372,26 @@ export function DashboardPage() {
                           row.budget !== null && toCents(row.actual) > toCents(row.budget);
                         return (
                           <tr key={row.category_id}>
-                            <td data-label="Category">
-                              <Link to={`/categories/${row.category_id}`}>{row.category_name}</Link>
+                            <td data-label={t("dash.colCategory")}>
+                              <Link to={`/categories/${row.category_id}`}>
+                                {row.category_name}
+                              </Link>
                             </td>
-                            <td className="num" data-label="Spent">{money.plain(row.actual)}</td>
-                            <td className="num" data-label="Budget">
+                            <td className="num" data-label={t("dash.colSpentShort")}>
+                              {money.plain(row.actual)}
+                            </td>
+                            <td className="num" data-label={t("dash.colBudgetShort")}>
                               {row.budget === null ? (
-                                <span className="hint">not set</span>
+                                <span className="hint">{t("dash.notSet")}</span>
                               ) : (
                                 money.plain(row.budget)
                               )}
                             </td>
-                            <td className="num" data-label="Left" style={over ? { color: "var(--spend)" } : undefined}>
+                            <td
+                              className="num"
+                              data-label={t("dash.colLeftShort")}
+                              style={over ? { color: "var(--spend)" } : undefined}
+                            >
                               {row.budget === null
                                 ? "—"
                                 : money.plain(subtractMoney(row.budget, row.actual))}
@@ -359,7 +400,7 @@ export function DashboardPage() {
                               <ProgressBar
                                 percent={percent}
                                 over={over}
-                                label={`${row.category_name} budget used`}
+                                label={t("dash.budgetUsed", { name: row.category_name })}
                               />
                             </td>
                           </tr>
@@ -372,39 +413,37 @@ export function DashboardPage() {
             </Card>
 
             <Card
-              title="Savings progress"
+              title={t("dash.savingsProgress")}
               collapseKey="dashboard.savings"
               summary={
                 summary.savings.length === 0
-                  ? "none"
-                  : `${summary.savings.length} ${summary.savings.length === 1 ? "type" : "types"}`
+                  ? t("dash.summaryNone")
+                  : t.n("dash.savingsCount", summary.savings.length)
               }
             >
               {summary.savings.length === 0 ? (
-                <Empty>No targets set and nothing put aside this month.</Empty>
+                <Empty>{t("dash.noSavings")}</Empty>
               ) : (
                 <TableWrap>
-                  <table className="stacked" aria-label="Savings progress">
+                  <table className="stacked" aria-label={t("dash.savingsProgress")}>
                     <thead>
                       <tr>
-                        <th>Type</th>
-                        <th className="num">
-                          Saved ({money.symbol})
-                        </th>
-                        <th className="num">
-                          Target ({money.symbol})
-                        </th>
-                        <th style={{ width: 110 }}>Progress</th>
+                        <th>{t("dash.colType")}</th>
+                        <th className="num">{t("dash.colSaved", { symbol: money.symbol })}</th>
+                        <th className="num">{t("dash.colTarget", { symbol: money.symbol })}</th>
+                        <th style={{ width: 110 }}>{t("dash.colProgress")}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {summary.savings.map((row) => (
                         <tr key={row.savings_type_id}>
-                          <td data-label="Type">{row.savings_type_name}</td>
-                          <td className="num" data-label="Saved">{money.plain(row.actual)}</td>
-                          <td className="num" data-label="Target">
+                          <td data-label={t("dash.colType")}>{row.savings_type_name}</td>
+                          <td className="num" data-label={t("dash.colSavedShort")}>
+                            {money.plain(row.actual)}
+                          </td>
+                          <td className="num" data-label={t("dash.colTargetShort")}>
                             {row.target === null ? (
-                              <span className="hint">not set</span>
+                              <span className="hint">{t("dash.notSet")}</span>
                             ) : (
                               money.plain(row.target)
                             )}
@@ -413,7 +452,7 @@ export function DashboardPage() {
                             <ProgressBar
                               percent={progress(row.actual, row.target)}
                               over={false}
-                              label={`${row.savings_type_name} target reached`}
+                              label={t("dash.targetReached", { name: row.savings_type_name })}
                             />
                           </td>
                         </tr>
@@ -428,9 +467,9 @@ export function DashboardPage() {
           {trends && (
             <div style={{ marginTop: 16 }}>
               <Card
-                title={`Last ${trendMonths} months`}
+                title={t("dash.lastMonths", { count: trendMonths })}
                 actions={
-                  <div className="chips" role="group" aria-label="Trend window">
+                  <div className="chips" role="group" aria-label={t("dash.trendWindow")}>
                     {TREND_WINDOWS.map((months) => (
                       <button
                         key={months}
@@ -446,7 +485,7 @@ export function DashboardPage() {
                           }
                         }}
                       >
-                        {months} months
+                        {t("dash.monthsChip", { count: months })}
                       </button>
                     ))}
                   </div>
@@ -461,27 +500,33 @@ export function DashboardPage() {
               </Card>
 
               <Card
-                title="Expense by category"
+                title={t("dash.expenseByCategory")}
                 collapseKey="dashboard.categories"
-                summary={`${trends.expense_by_category.length} categories`}
+                summary={t("dash.categoriesCount", {
+                  count: trends.expense_by_category.length,
+                })}
               >
                 {trends.expense_by_category.length === 0 ? (
-                  <Empty>Nothing spent in this window.</Empty>
+                  <Empty>{t("dash.nothingSpent")}</Empty>
                 ) : (
                   <TableWrap>
-                    <table className="stacked" aria-label="Expense by category">
+                    <table className="stacked" aria-label={t("dash.expenseByCategory")}>
                       <thead>
                         <tr>
-                          <th>Category</th>
-                          <th>Trend</th>
-                          <th className="num">This month ({money.symbol})</th>
+                          <th>{t("dash.colCategory")}</th>
+                          <th>{t("dash.colTrend")}</th>
+                          <th className="num">
+                            {t("dash.colThisMonth", { symbol: money.symbol })}
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {trends.expense_by_category.map((series) => (
                           <tr key={series.category_id}>
-                            <td data-label="Category">
-                              <Link to={`/categories/${series.category_id}`}>{series.category_name}</Link>
+                            <td data-label={t("dash.colCategory")}>
+                              <Link to={`/categories/${series.category_id}`}>
+                                {series.category_name}
+                              </Link>
                             </td>
                             <td>
                               <Sparkline

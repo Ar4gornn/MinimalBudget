@@ -5,6 +5,8 @@ import type { Category, ShoppingList as List, ShoppingRow } from "../api/types";
 import { isPositiveMoney } from "../money";
 import { useMoney } from "../useMoney";
 import { todayIso } from "../months";
+import { useT } from "../i18n";
+import { errorMessage } from "../i18n/errors";
 import { Card, ErrorBanner, TableWrap } from "./ui";
 import { useToast } from "./Toast";
 
@@ -36,6 +38,7 @@ function writeCategory(name: string): void {
  */
 export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
   const money = useMoney();
+  const t = useT();
   const toast = useToast();
 
   const [list, setList] = useState<List | null>(null);
@@ -55,9 +58,9 @@ export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
       setList(nextList);
       setCategories(nextCategories);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not load the shopping list.");
+      setError(errorMessage(t, caught, "shopping.couldNotLoad"));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -76,16 +79,16 @@ export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
     const draft = draftFor(row);
     const quantity = Number(draft.quantity);
     if (!Number.isInteger(quantity) || quantity < 1) {
-      setError("How many did you buy? A whole number, at least one.");
+      setError(t("shopping.howManyError"));
       return;
     }
     const amount = draft.amount.trim();
     if (amount && !isPositiveMoney(amount)) {
-      setError("Enter an amount with at most two decimal places, greater than zero.");
+      setError(t("entries.badAmount"));
       return;
     }
     if (amount && !category.trim()) {
-      setError("An amount needs a category to file it under.");
+      setError(t("error.purchase_category_missing"));
       return;
     }
 
@@ -105,9 +108,13 @@ export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
       });
       await load();
       onChanged?.();
-      toast.show(amount ? `${row.name} restocked · ${money.amount(amount)}` : `${row.name} restocked`);
+      toast.show(
+        amount
+          ? t("shopping.restockedFor", { name: row.name, amount: money.amount(amount) })
+          : t("shopping.restocked", { name: row.name }),
+      );
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not record that.");
+      setError(errorMessage(t, caught, "shopping.couldNotRecord"));
     } finally {
       setBusy(null);
     }
@@ -122,7 +129,7 @@ export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
 
   return (
     <Card
-      title="Shopping list"
+      title={t("shopping.title")}
       collapseKey="inventory.shopping"
       summary={`${list.items.length} · ${money.plain(list.estimate)}`}
     >
@@ -130,11 +137,11 @@ export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
 
       <div className="row" style={{ marginBottom: 8 }}>
         <label style={{ flex: "1 1 200px" }}>
-          File spending under
+          {t("shopping.fileUnder")}
           <input
             list="shopping-category-names"
-            aria-label="File spending under"
-            placeholder="Groceries"
+            aria-label={t("shopping.fileUnder")}
+            placeholder={t("shopping.fileUnderPlaceholder")}
             value={category}
             onChange={(event) => setCategory(event.target.value)}
           />
@@ -147,12 +154,12 @@ export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
       </div>
 
       <TableWrap>
-        <table className="stacked" aria-label="Shopping list">
+        <table className="stacked" aria-label={t("shopping.title")}>
           <thead>
             <tr>
-              <th>Item</th>
-              <th className="num">Buy</th>
-              <th className="num">Cost ({money.symbol})</th>
+              <th>{t("stock.colItem")}</th>
+              <th className="num">{t("shopping.colBuy")}</th>
+              <th className="num">{t("stock.colCost", { symbol: money.symbol })}</th>
               <th />
             </tr>
           </thead>
@@ -161,15 +168,15 @@ export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
               const draft = draftFor(row);
               return (
                 <tr key={row.item_id}>
-                  <td data-label="Item">
+                  <td data-label={t("stock.colItem")}>
                     {row.name}
                     {row.space_name ? <span className="hint"> · {row.space_name}</span> : null}
                   </td>
-                  <td className="num" data-label="Buy">
+                  <td className="num" data-label={t("shopping.colBuy")}>
                     <input
                       className="num"
                       inputMode="numeric"
-                      aria-label={`How many ${row.name}`}
+                      aria-label={t("shopping.howMany", { name: row.name })}
                       value={draft.quantity}
                       onChange={(event) =>
                         setDrafts({
@@ -179,12 +186,12 @@ export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
                       }
                     />
                   </td>
-                  <td className="num" data-label="Cost">
+                  <td className="num" data-label={t("stock.cost")}>
                     <input
                       className="num"
                       inputMode="decimal"
                       placeholder="—"
-                      aria-label={`What ${row.name} cost`}
+                      aria-label={t("shopping.whatCost", { name: row.name })}
                       value={draft.amount}
                       onChange={(event) =>
                         setDrafts({
@@ -199,9 +206,9 @@ export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
                       type="button"
                       disabled={busy === row.item_id}
                       onClick={() => void bought(row)}
-                      aria-label={`Bought ${row.name}`}
+                      aria-label={t("shopping.boughtAria", { name: row.name })}
                     >
-                      Bought
+                      {t("shopping.bought")}
                     </button>
                   </td>
                 </tr>
@@ -212,13 +219,11 @@ export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
       </TableWrap>
 
       <p className="hint" style={{ marginTop: 8 }}>
-        {money.amount(list.estimate)} estimated
+        {t("shopping.estimated", { amount: money.amount(list.estimate) })}
         {list.without_cost > 0
-          ? `, not counting ${list.without_cost} ${
-              list.without_cost === 1 ? "item with no" : "items with no"
-            } recorded cost`
+          ? t.n("shopping.withoutCost", list.without_cost)
           : ""}
-        . Leaving the cost blank still restocks the item, without recording an expense.
+        {t("shopping.blankCostNote")}
       </p>
     </Card>
   );

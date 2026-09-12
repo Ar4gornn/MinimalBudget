@@ -14,10 +14,21 @@ from app.models.gym import (
     Workout,
     WorkoutSet,
 )
+from app.models.habits import Habit, HabitCheckin, ScheduleKind
 from app.models.inventory import InventoryItem, InventoryItemChange, Space
 from app.models.ledger import Budget, Category, Entry, EntryKind, Unit, Vendor
+from app.models.mood import MoodDay
 from app.models.purchase import InventoryPurchase
 from app.models.push import PushSubscription
+from app.models.recipes import (
+    Food,
+    FoodBasis,
+    MealLog,
+    Recipe,
+    RecipeIngredient,
+    RecipeStep,
+    RecipeUnit,
+)
 from app.models.recurring import Cadence, OccurrenceStatus, RecurringOccurrence, RecurringTemplate
 from app.models.savings import SavingsContribution, SavingsTarget, SavingsType
 from app.models.user import User
@@ -33,6 +44,9 @@ __all__ = [
     "Entry",
     "EntryKind",
     "Exercise",
+    "Habit",
+    "HabitCheckin",
+    "ScheduleKind",
     "InventoryItem",
     "InventoryPurchase",
     "PushSubscription",
@@ -42,9 +56,17 @@ __all__ = [
     "Workout",
     "WorkoutSet",
     "InventoryItemChange",
+    "MoodDay",
     "SavingsContribution",
     "SavingsTarget",
     "SavingsType",
+    "Food",
+    "FoodBasis",
+    "MealLog",
+    "Recipe",
+    "RecipeIngredient",
+    "RecipeStep",
+    "RecipeUnit",
     "Space",
     "Unit",
     "User",

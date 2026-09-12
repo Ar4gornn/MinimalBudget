@@ -10,8 +10,11 @@ import { ShoppingList } from "../components/ShoppingList";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { isNonNegativeMoney } from "../money";
-import { monthLabel } from "../months";
 import { useMoney } from "../useMoney";
+import { useT } from "../i18n";
+import type { MessageKey } from "../i18n/catalogue";
+import { errorMessage } from "../i18n/errors";
+import { useDates } from "../useDates";
 
 const RESTOCK_MONTHS = 6;
 
@@ -26,6 +29,8 @@ type Filter = "all" | "restock" | string; // a space id is also a filter
  */
 export function InventoryPage() {
   const money = useMoney();
+  const t = useT();
+  const dates = useDates();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -86,11 +91,11 @@ export function InventoryPage() {
       setItems(nextItems);
       setRestocks(nextRestocks);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not load the inventory.");
+      setError(errorMessage(t, caught, "stock.couldNotLoad"));
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, t]);
 
   useEffect(() => {
     void load();
@@ -123,12 +128,12 @@ export function InventoryPage() {
     return groups;
   }, [visible]);
 
-  async function run(action: () => Promise<void>, fallback: string) {
+  async function run(action: () => Promise<void>, fallback: MessageKey) {
     setError(null);
     try {
       await action();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : fallback);
+      setError(errorMessage(t, caught, fallback));
     }
   }
 
@@ -136,16 +141,16 @@ export function InventoryPage() {
     event.preventDefault();
     const qty = Number(quantity);
     if (!Number.isInteger(qty) || qty < 0) {
-      setError("Quantity must be a whole number, zero or more.");
+      setError(t("stock.badQuantity"));
       return;
     }
     const threshold = restockBelow.trim() === "" ? null : Number(restockBelow);
     if (threshold !== null && (!Number.isInteger(threshold) || threshold < 0)) {
-      setError("Restock threshold must be a whole number, zero or more.");
+      setError(t("stock.badThreshold"));
       return;
     }
     if (cost.trim() !== "" && !isNonNegativeMoney(cost)) {
-      setError("Enter a cost with at most two decimal places.");
+      setError(t("stock.badCost"));
       return;
     }
     setSaving(true);
@@ -164,8 +169,8 @@ export function InventoryPage() {
       setCost("");
       setNote("");
       await load();
-      toast.show("Item added");
-    }, "Could not add the item.");
+      toast.show(t("stock.itemAdded"));
+    }, "stock.couldNotAdd");
     setSaving(false);
   }
 
@@ -185,7 +190,7 @@ export function InventoryPage() {
       await run(async () => {
         await api.updateItem(item.id, { quantity: next });
         await reload(item.id);
-      }, "Could not change the quantity.");
+      }, "stock.couldNotChangeQuantity");
     } finally {
       inFlight.current.delete(item.id);
       setPending(new Set(inFlight.current));
@@ -199,7 +204,7 @@ export function InventoryPage() {
     await run(async () => {
       await api.updateItem(item.id, { restock_below: item.quantity });
       await load();
-    }, "Could not mark the item.");
+    }, "stock.couldNotMark");
   }
 
   function beginEdit(item: InventoryItem) {
@@ -217,21 +222,21 @@ export function InventoryPage() {
   async function saveEdit(item: InventoryItem) {
     if (!draft) return;
     if (!draft.name.trim()) {
-      setError("An item needs a name.");
+      setError(t("stock.needName"));
       return;
     }
     const qty = Number(draft.quantity);
     if (!Number.isInteger(qty) || qty < 0) {
-      setError("Quantity must be a whole number, zero or more.");
+      setError(t("stock.badQuantity"));
       return;
     }
     const threshold = draft.restock_below.trim() === "" ? null : Number(draft.restock_below);
     if (threshold !== null && (!Number.isInteger(threshold) || threshold < 0)) {
-      setError("Restock threshold must be a whole number, zero or more.");
+      setError(t("stock.badThreshold"));
       return;
     }
     if (draft.cost.trim() !== "" && !isNonNegativeMoney(draft.cost)) {
-      setError("Enter a cost with at most two decimal places.");
+      setError(t("stock.badCost"));
       return;
     }
     // Send only what changed; a cleared field is an explicit null.
@@ -250,15 +255,15 @@ export function InventoryPage() {
       await api.updateItem(item.id, patch);
       setEditing(null);
       await reload(item.id);
-      toast.show("Item updated");
-    }, "Could not save that change.");
+      toast.show(t("stock.itemUpdated"));
+    }, "stock.couldNotSave");
   }
 
   async function removeItem(item: InventoryItem) {
     await run(async () => {
       await api.deleteItem(item.id);
       await load();
-      toast.show(`Deleted ${item.name}`, {
+      toast.show(t("stock.itemDeleted", { name: item.name }), {
         onUndo: async () => {
           await api.createItem({
             name: item.name,
@@ -271,7 +276,7 @@ export function InventoryPage() {
           await load();
         },
       });
-    }, "Could not delete the item.");
+    }, "stock.couldNotDelete");
   }
 
   async function toggleHistory(item: InventoryItem) {
@@ -282,7 +287,7 @@ export function InventoryPage() {
     await run(async () => {
       const changes = await api.itemHistory(item.id);
       setHistory({ id: item.id, changes });
-    }, "Could not load the history.");
+    }, "stock.couldNotLoadHistory");
   }
 
   async function addSpace(event: FormEvent) {
@@ -292,7 +297,7 @@ export function InventoryPage() {
       await api.createSpace(newSpace.trim());
       setNewSpace("");
       await load();
-    }, "Could not add the space.");
+    }, "stock.couldNotAddSpace");
   }
 
   async function saveRename(space: Space) {
@@ -304,7 +309,7 @@ export function InventoryPage() {
       await api.renameSpace(space.id, renameDraft.trim());
       setRenaming(null);
       await load();
-    }, "Could not rename the space.");
+    }, "stock.couldNotRenameSpace");
   }
 
   async function removeSpace(space: Space) {
@@ -313,7 +318,7 @@ export function InventoryPage() {
       await api.deleteSpace(space.id);
       if (filter === space.id) setFilter("all");
       await load();
-    }, "Could not delete the space.");
+    }, "stock.couldNotDeleteSpace");
   }
 
   const restockPeak = Math.max(1, ...(restocks?.series ?? []).flatMap((s) => s.values));
@@ -327,31 +332,32 @@ export function InventoryPage() {
       <ShoppingList onChanged={() => void load()} />
 
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 16 }}>
-        <h1 style={{ fontSize: 18, margin: 0 }}>Stock</h1>
+        <h1 style={{ fontSize: 18, margin: 0 }}>{t("stock.title")}</h1>
         <label style={{ flex: "1 1 160px", maxWidth: 240 }}>
-          Search
+          {t("entries.search")}
           <input
             type="search"
-            aria-label="Search items"
-            placeholder="name or note"
+            aria-label={t("stock.searchAria")}
+            placeholder={t("stock.searchPlaceholder")}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-        <div className="chips" role="group" aria-label="Filter">
+        <div className="chips" role="group" aria-label={t("stock.filter")}>
           <button
             type="button"
             className={`chip ${filter === "all" ? "on" : ""}`}
             onClick={() => setFilter("all")}
           >
-            All
+            {t("stock.all")}
           </button>
           <button
             type="button"
             className={`chip ${filter === "restock" ? "on" : ""}`}
             onClick={() => setFilter("restock")}
           >
-            Needs restocking{lowCount > 0 ? ` · ${lowCount}` : ""}
+            {t("stock.needsRestocking")}
+            {lowCount > 0 ? ` · ${lowCount}` : ""}
           </button>
           {spaces.map((space) => (
             <button
@@ -366,35 +372,35 @@ export function InventoryPage() {
         </div>
       </div>
 
-      <Card title="Add an item">
-        <form className="row" onSubmit={submit} aria-label="Add an item">
+      <Card title={t("stock.addItem")}>
+        <form className="row" onSubmit={submit} aria-label={t("stock.addItem")}>
           <label style={{ flex: "1 1 160px" }}>
-            Name
+            {t("field.name")}
             <input
-              aria-label="Name"
-              placeholder="Milk, batteries…"
+              aria-label={t("field.name")}
+              placeholder={t("stock.namePlaceholder")}
               required
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
           </label>
           <label style={{ flex: "0 0 90px" }}>
-            Quantity
+            {t("field.quantity")}
             <input
               className="num"
               inputMode="numeric"
-              aria-label="Quantity"
+              aria-label={t("field.quantity")}
               required
               value={quantity}
               onChange={(event) => setQuantity(event.target.value)}
             />
           </label>
           <label style={{ flex: "1 1 150px" }}>
-            Space
+            {t("stock.space")}
             <input
               list="space-names"
-              aria-label="Space"
-              placeholder="Fridge, Garage…"
+              aria-label={t("stock.space")}
+              placeholder={t("stock.spacePlaceholder")}
               required
               value={spaceName}
               onChange={(event) => setSpaceName(event.target.value)}
@@ -406,54 +412,54 @@ export function InventoryPage() {
             ))}
           </datalist>
           <label style={{ flex: "0 0 110px" }}>
-            Remind at
+            {t("stock.remindAt")}
             <input
               className="num"
               inputMode="numeric"
               placeholder="—"
-              aria-label="Restock threshold"
+              aria-label={t("stock.restockThreshold")}
               value={restockBelow}
               onChange={(event) => setRestockBelow(event.target.value)}
             />
           </label>
           <label style={{ flex: "0 0 110px" }}>
-            Cost
+            {t("stock.cost")}
             <input
               className="num"
               inputMode="decimal"
               placeholder="0.00"
-              aria-label={`Cost in ${money.currency}`}
+              aria-label={t("stock.costAria", { currency: money.currency })}
               value={cost}
               onChange={(event) => setCost(event.target.value)}
             />
           </label>
           <label style={{ flex: "1 1 160px" }}>
-            Note
-            <input aria-label="Note" value={note} onChange={(event) => setNote(event.target.value)} />
+            {t("field.note")}
+            <input
+              aria-label={t("field.note")}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+            />
           </label>
           <button type="submit" disabled={saving}>
-            {saving ? "Saving…" : "Add"}
+            {saving ? t("entries.saving") : t("action.add")}
           </button>
         </form>
         <p className="hint" style={{ marginTop: 8 }}>
-          A space that does not exist yet is created as you type it. "Remind at" is the
-          quantity at or below which the item shows as needing restocking.
+          {t("stock.formHint")}
         </p>
       </Card>
 
       {loading && items.length === 0 ? (
-        <p className="empty">Loading…</p>
+        <p className="empty">{t("state.loading")}</p>
       ) : spaces.length === 0 ? (
         <Card>
-          <Empty>
-            A space is anywhere you keep things — Fridge, Garage, House stuff. Add an item
-            above and its space is created with it.
-          </Empty>
+          <Empty>{t("stock.noSpaces")}</Empty>
         </Card>
       ) : visible.length === 0 ? (
         <Card>
           <Empty>
-            {filter === "restock" ? "Nothing needs restocking." : "Nothing here yet."}
+            {filter === "restock" ? t("stock.nothingLow") : t("state.empty")}
           </Empty>
         </Card>
       ) : (
@@ -467,15 +473,19 @@ export function InventoryPage() {
                 renaming === space.id ? (
                   <div className="row" style={{ flexWrap: "nowrap", gap: 6 }}>
                     <input
-                      aria-label="Rename space"
+                      aria-label={t("stock.renameSpaceAria")}
                       value={renameDraft}
                       onChange={(event) => setRenameDraft(event.target.value)}
                     />
                     <button type="button" onClick={() => void saveRename(space)}>
-                      Save
+                      {t("action.save")}
                     </button>
-                    <button type="button" className="quiet" onClick={() => setRenaming(null)}>
-                      Cancel
+                    <button
+                      type="button"
+                      className="quiet"
+                      onClick={() => setRenaming(null)}
+                    >
+                      {t("action.cancel")}
                     </button>
                   </div>
                 ) : (
@@ -487,30 +497,33 @@ export function InventoryPage() {
                         setRenaming(space.id);
                         setRenameDraft(space.name);
                       }}
-                      aria-label={`Rename ${space.name}`}
+                      aria-label={t("stock.renameNamed", { name: space.name })}
                     >
-                      Rename
+                      {t("stock.rename")}
                     </button>
                     <button
                       type="button"
                       className="quiet"
                       onClick={() => void removeSpace(space)}
-                      aria-label={`Delete ${space.name}`}
+                      aria-label={t("stock.deleteNamed", { name: space.name })}
                     >
-                      Delete
+                      {t("action.delete")}
                     </button>
                   </div>
                 )
               }
             >
               <TableWrap>
-                <table className="stacked" aria-label={`${space.name} items`}>
+                <table
+                  className="stacked"
+                  aria-label={t("stock.itemsIn", { name: space.name })}
+                >
                   <thead>
                     <tr>
-                      <th>Item</th>
-                      <th className="num">Quantity</th>
-                      <th className="num">Remind at</th>
-                      <th className="num">Cost ({money.symbol})</th>
+                      <th>{t("stock.colItem")}</th>
+                      <th className="num">{t("field.quantity")}</th>
+                      <th className="num">{t("stock.remindAt")}</th>
+                      <th className="num">{t("stock.colCost", { symbol: money.symbol })}</th>
                       <th />
                     </tr>
                   </thead>
@@ -518,15 +531,15 @@ export function InventoryPage() {
                     {(bySpace.get(space.id) ?? []).map((item) =>
                       editing === item.id && draft ? (
                         <tr key={item.id}>
-                          <td data-label="Item">
+                          <td data-label={t("stock.colItem")}>
                             <input
-                              aria-label="Edit name"
+                              aria-label={t("stock.editName")}
                               value={draft.name}
                               onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                             />
                             <div className="row" style={{ flexWrap: "nowrap", gap: 6, marginTop: 6 }}>
                               <select
-                                aria-label="Edit space"
+                                aria-label={t("stock.editSpace")}
                                 value={draft.space_id}
                                 onChange={(event) =>
                                   setDraft({ ...draft, space_id: event.target.value })
@@ -539,29 +552,29 @@ export function InventoryPage() {
                                 ))}
                               </select>
                               <input
-                                aria-label="Edit note"
-                                placeholder="note"
+                                aria-label={t("stock.editNote")}
+                                placeholder={t("stock.notePlaceholder")}
                                 value={draft.note}
                                 onChange={(event) => setDraft({ ...draft, note: event.target.value })}
                               />
                             </div>
                           </td>
-                          <td className="num" data-label="Quantity">
+                          <td className="num" data-label={t("field.quantity")}>
                             <input
                               className="num"
                               inputMode="numeric"
-                              aria-label="Edit quantity"
+                              aria-label={t("stock.editQuantity")}
                               value={draft.quantity}
                               onChange={(event) =>
                                 setDraft({ ...draft, quantity: event.target.value })
                               }
                             />
                           </td>
-                          <td className="num" data-label="Remind at">
+                          <td className="num" data-label={t("stock.remindAt")}>
                             <input
                               className="num"
                               inputMode="numeric"
-                              aria-label="Edit restock threshold"
+                              aria-label={t("stock.editThreshold")}
                               placeholder="—"
                               value={draft.restock_below}
                               onChange={(event) =>
@@ -569,11 +582,11 @@ export function InventoryPage() {
                               }
                             />
                           </td>
-                          <td className="num" data-label="Cost">
+                          <td className="num" data-label={t("stock.cost")}>
                             <input
                               className="num"
                               inputMode="decimal"
-                              aria-label="Edit cost"
+                              aria-label={t("stock.editCost")}
                               placeholder="—"
                               value={draft.cost}
                               onChange={(event) => setDraft({ ...draft, cost: event.target.value })}
@@ -582,10 +595,14 @@ export function InventoryPage() {
                           <td>
                             <div className="row" style={{ flexWrap: "nowrap", gap: 6 }}>
                               <button type="button" onClick={() => void saveEdit(item)}>
-                                Save
+                                {t("action.save")}
                               </button>
-                              <button type="button" className="quiet" onClick={() => setEditing(null)}>
-                                Cancel
+                              <button
+                                type="button"
+                                className="quiet"
+                                onClick={() => setEditing(null)}
+                              >
+                                {t("action.cancel")}
                               </button>
                             </div>
                           </td>
@@ -593,27 +610,31 @@ export function InventoryPage() {
                       ) : (
                         <Fragment key={item.id}>
                           <tr className={item.needs_restock ? "low" : undefined}>
-                            <td data-label="Item">
+                            <td data-label={t("stock.colItem")}>
                               {item.name}
-                              {item.needs_restock && <span className="badge">restock</span>}
+                              {item.needs_restock && (
+                                <span className="badge">{t("stock.restockBadge")}</span>
+                              )}
                               {item.note && <div className="hint">{item.note}</div>}
                             </td>
-                            <td className="num" data-label="Quantity">
+                            <td className="num" data-label={t("field.quantity")}>
                               <div className="stepper">
                                 <button
                                   type="button"
                                   className="quiet"
-                                  aria-label={`One less ${item.name}`}
+                                  aria-label={t("stock.oneLess", { name: item.name })}
                                   disabled={item.quantity === 0 || pending.has(item.id)}
                                   onClick={() => void setQty(item, item.quantity - 1)}
                                 >
                                   −
                                 </button>
-                                <span aria-label={`${item.name} quantity`}>{item.quantity}</span>
+                                <span aria-label={t("stock.quantityOf", { name: item.name })}>
+                                  {item.quantity}
+                                </span>
                                 <button
                                   type="button"
                                   className="quiet"
-                                  aria-label={`One more ${item.name}`}
+                                  aria-label={t("stock.oneMore", { name: item.name })}
                                   disabled={pending.has(item.id)}
                                   onClick={() => void setQty(item, item.quantity + 1)}
                                 >
@@ -621,15 +642,19 @@ export function InventoryPage() {
                                 </button>
                               </div>
                             </td>
-                            <td className="num" data-label="Remind at">
+                            <td className="num" data-label={t("stock.remindAt")}>
                               {item.restock_below === null ? (
                                 <span className="hint">—</span>
                               ) : (
                                 item.restock_below
                               )}
                             </td>
-                            <td className="num" data-label="Cost">
-                              {item.cost === null ? <span className="hint">—</span> : money.plain(item.cost)}
+                            <td className="num" data-label={t("stock.cost")}>
+                              {item.cost === null ? (
+                                <span className="hint">—</span>
+                              ) : (
+                                money.plain(item.cost)
+                              )}
                             </td>
                             <td>
                               <div className="row" style={{ flexWrap: "nowrap", gap: 6 }}>
@@ -638,9 +663,9 @@ export function InventoryPage() {
                                     type="button"
                                     className="quiet"
                                     onClick={() => void runningLow(item)}
-                                    aria-label={`${item.name} is running low`}
+                                    aria-label={t("stock.runningLowAria", { name: item.name })}
                                   >
-                                    Running low
+                                    {t("stock.runningLow")}
                                   </button>
                                 )}
                                 <button
@@ -648,34 +673,34 @@ export function InventoryPage() {
                                   className="quiet"
                                   onClick={() => void toggleHistory(item)}
                                   aria-expanded={history?.id === item.id}
-                                  aria-label={`History of ${item.name}`}
+                                  aria-label={t("stock.historyOf", { name: item.name })}
                                 >
-                                  History
+                                  {t("stock.history")}
                                 </button>
                                 <button
                                   type="button"
                                   className="quiet"
                                   onClick={() => beginEdit(item)}
-                                  aria-label={`Edit ${item.name}`}
+                                  aria-label={t("stock.editNamed", { name: item.name })}
                                 >
-                                  Edit
+                                  {t("action.edit")}
                                 </button>
                                 <button
                                   type="button"
                                   className="quiet"
                                   onClick={() => void removeItem(item)}
-                                  aria-label={`Delete ${item.name}`}
+                                  aria-label={t("stock.deleteNamed", { name: item.name })}
                                 >
-                                  Delete
+                                  {t("action.delete")}
                                 </button>
                               </div>
                             </td>
                           </tr>
                           {history?.id === item.id && (
                             <tr className="history">
-                              <td colSpan={5} data-label="History">
+                              <td colSpan={5} data-label={t("stock.history")}>
                                 {history.changes.length === 0 ? (
-                                  <span className="hint">No changes in the last 90 days.</span>
+                                  <span className="hint">{t("stock.noChanges")}</span>
                                 ) : (
                                   <StepChart
                                     changes={history.changes}
@@ -696,19 +721,19 @@ export function InventoryPage() {
           ))
       )}
 
-      <Card title="Spaces">
-        <form className="row" onSubmit={addSpace} aria-label="Add a space">
+      <Card title={t("stock.spaces")}>
+        <form className="row" onSubmit={addSpace} aria-label={t("stock.addSpace")}>
           <label style={{ flex: "1 1 200px" }}>
-            New space
+            {t("stock.newSpace")}
             <input
-              aria-label="New space"
-              placeholder="Pantry"
+              aria-label={t("stock.newSpace")}
+              placeholder={t("stock.newSpacePlaceholder")}
               value={newSpace}
               onChange={(event) => setNewSpace(event.target.value)}
             />
           </label>
           <button type="submit" className="quiet">
-            Add space
+            {t("stock.addSpaceButton")}
           </button>
         </form>
         {spaces.length > 0 && (
@@ -719,21 +744,21 @@ export function InventoryPage() {
       </Card>
 
       {restocks && anyRestocks && (
-        <Card title={`Restocks per space, last ${RESTOCK_MONTHS} months`}>
+        <Card title={t("stock.restocksTitle", { months: RESTOCK_MONTHS })}>
           <TableWrap>
-            <table className="stacked" aria-label="Restocks per space">
+            <table className="stacked" aria-label={t("stock.restocksAria")}>
               <thead>
                 <tr>
-                  <th>Space</th>
-                  <th>Per month</th>
-                  <th className="num">Total</th>
+                  <th>{t("stock.space")}</th>
+                  <th>{t("stock.colPerMonth")}</th>
+                  <th className="num">{t("stock.colTotal")}</th>
                 </tr>
               </thead>
               <tbody>
                 {restocks.series.map((series) => (
                   <tr key={series.space_id}>
-                    <td data-label="Space">{series.space_name}</td>
-                    <td data-label="Per month">
+                    <td data-label={t("stock.space")}>{series.space_name}</td>
+                    <td data-label={t("stock.colPerMonth")}>
                       <CountBars
                         values={series.values}
                         months={restocks.months}
@@ -741,7 +766,7 @@ export function InventoryPage() {
                         peak={restockPeak}
                       />
                     </td>
-                    <td className="num" data-label="Total">
+                    <td className="num" data-label={t("stock.colTotal")}>
                       {series.values.reduce((sum, v) => sum + v, 0)}
                     </td>
                   </tr>
@@ -751,7 +776,7 @@ export function InventoryPage() {
           </TableWrap>
           <div className="legend">
             {restocks.months.map((m) => (
-              <span key={m}>{monthLabel(m).slice(0, 3)}</span>
+              <span key={m}>{dates.monthTick(m)}</span>
             ))}
           </div>
         </Card>

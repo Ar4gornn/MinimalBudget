@@ -9,6 +9,7 @@
 import { toChartNumber } from "../money";
 import { useMoney } from "../useMoney";
 import type { Money } from "../api/types";
+import { useT } from "../i18n";
 
 const WIDTH = 120;
 const HEIGHT = 26;
@@ -25,6 +26,7 @@ export function Sparkline({
   /** Shared across every row, so the rows are comparable to each other. */
   peak: number;
 }) {
+  const t = useT();
   const money = useMoney();
   if (values.length === 0) return null;
 
@@ -38,7 +40,7 @@ export function Sparkline({
       width={WIDTH}
       height={HEIGHT}
       role="img"
-      aria-label={`${label} spending per month`}
+      aria-label={t("chart.spendingAria", { label })}
     >
       {values.map((value, index) => {
         const height = (toChartNumber(value) / scale) * (HEIGHT - 2);

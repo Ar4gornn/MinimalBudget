@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { api } from "../api/client";
-import { CADENCE_LABELS, type Cadence, type Category, type EntryKind, type PendingEntry, type RecurringTemplate } from "../api/types";
+import {
+  CADENCES,
+  type Cadence,
+  type Category,
+  type EntryKind,
+  type PendingEntry,
+  type RecurringTemplate,
+} from "../api/types";
 import { isPositiveMoney } from "../money";
 import { useMoney } from "../useMoney";
 import { todayIso } from "../months";
+import { useT } from "../i18n";
+import type { MessageKey } from "../i18n/catalogue";
+import { errorMessage } from "../i18n/errors";
 import { Card, Empty, ErrorBanner, TableWrap } from "./ui";
 import { useToast } from "./Toast";
 
@@ -18,6 +28,7 @@ import { useToast } from "./Toast";
  */
 export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
   const money = useMoney();
+  const t = useT();
   const toast = useToast();
 
   const [templates, setTemplates] = useState<RecurringTemplate[]>([]);
@@ -53,11 +64,11 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
       setTemplates(nextTemplates);
       setCategories(nextCategories);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not load recurring entries.");
+      setError(errorMessage(t, caught, "recurring.couldNotLoad"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -68,7 +79,7 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
     return (id: string) => lookup.get(id) ?? "—";
   }, [categories]);
 
-  async function run(id: string, action: () => Promise<unknown>, fallback: string) {
+  async function run(id: string, action: () => Promise<unknown>, fallback: MessageKey) {
     setBusy(id);
     setError(null);
     try {
@@ -76,7 +87,7 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
       await load();
       onChanged?.();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : fallback);
+      setError(errorMessage(t, caught, fallback));
     } finally {
       setBusy(null);
     }
@@ -85,16 +96,18 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
   async function confirm(proposal: PendingEntry) {
     const draft = (drafts[proposal.id] ?? "").trim();
     if (draft && !isPositiveMoney(draft)) {
-      setError("Enter an amount with at most two decimal places, greater than zero.");
+      setError(t("entries.badAmount"));
       return;
     }
     await run(
       proposal.id,
       async () => {
         await api.confirmPending(proposal.id, draft && draft !== proposal.amount ? draft : undefined);
-        toast.show(`Added ${money.amount(draft || proposal.amount)}`);
+        toast.show(
+          t("recurring.added", { amount: money.amount(draft || proposal.amount) }),
+        );
       },
-      "Could not confirm that entry.",
+      "recurring.couldNotConfirm",
     );
   }
 
@@ -103,20 +116,20 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
       proposal.id,
       async () => {
         await api.skipPending(proposal.id);
-        toast.show("Skipped");
+        toast.show(t("recurring.skipped"));
       },
-      "Could not skip that entry.",
+      "recurring.couldNotSkip",
     );
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!isPositiveMoney(amount)) {
-      setError("Enter an amount with at most two decimal places, greater than zero.");
+      setError(t("entries.badAmount"));
       return;
     }
     if (!categoryName.trim()) {
-      setError("A recurring entry needs a category.");
+      setError(t("recurring.needCategory"));
       return;
     }
     setSaving(true);
@@ -135,9 +148,9 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
       setNote("");
       await load();
       onChanged?.();
-      toast.show("Recurring entry saved");
+      toast.show(t("recurring.saved"));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save that.");
+      setError(errorMessage(t, caught, "recurring.couldNotSave"));
     } finally {
       setSaving(false);
     }
@@ -145,40 +158,45 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
 
   return (
     <Card
-      title="Recurring"
+      title={t("recurring.title")}
       collapseKey="plan.recurring"
       summary={
         pending.length > 0
-          ? `${pending.length} to confirm`
-          : `${templates.length} ${templates.length === 1 ? "template" : "templates"}`
+          ? t("recurring.toConfirm", { count: pending.length })
+          : t.n("recurring.templates", templates.length)
       }
     >
       <ErrorBanner message={error} />
 
       {pending.length > 0 && (
         <TableWrap>
-          <table className="stacked" aria-label="Entries to confirm">
+          <table className="stacked" aria-label={t("recurring.entriesToConfirm")}>
             <thead>
               <tr>
-                <th>Due</th>
-                <th>Category</th>
-                <th className="num">Amount ({money.symbol})</th>
+                <th>{t("recurring.colDue")}</th>
+                <th>{t("field.category")}</th>
+                <th className="num">
+                  {t("entries.colAmount", { symbol: money.symbol })}
+                </th>
                 <th />
               </tr>
             </thead>
             <tbody>
               {pending.map((proposal) => (
                 <tr key={proposal.id}>
-                  <td data-label="Due">{proposal.due_on}</td>
-                  <td data-label="Category">
+                  <td data-label={t("recurring.colDue")}>{proposal.due_on}</td>
+                  <td data-label={t("field.category")}>
                     {proposal.category_name}
                     {proposal.note ? <span className="hint"> · {proposal.note}</span> : null}
                   </td>
-                  <td className="num" data-label="Amount">
+                  <td className="num" data-label={t("entries.colAmountShort")}>
                     <input
                       className="num"
                       inputMode="decimal"
-                      aria-label={`Amount for ${proposal.category_name} due ${proposal.due_on}`}
+                      aria-label={t("recurring.amountFor", {
+                        name: proposal.category_name,
+                        date: proposal.due_on,
+                      })}
                       value={drafts[proposal.id] ?? proposal.amount}
                       onChange={(event) =>
                         setDrafts({ ...drafts, [proposal.id]: event.target.value })
@@ -194,18 +212,24 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
                         // Named for its row: the card also has a form whose submit button
                         // says "Add", and "which Add?" is a fair question to ask of a screen
                         // reader as much as of a test.
-                        aria-label={`Add ${proposal.category_name} due ${proposal.due_on}`}
+                        aria-label={t("recurring.addFor", {
+                          name: proposal.category_name,
+                          date: proposal.due_on,
+                        })}
                       >
-                        Add
+                        {t("action.add")}
                       </button>
                       <button
                         type="button"
                         className="quiet"
                         disabled={busy === proposal.id}
                         onClick={() => void skip(proposal)}
-                        aria-label={`Skip ${proposal.category_name} due ${proposal.due_on}`}
+                        aria-label={t("recurring.skipFor", {
+                          name: proposal.category_name,
+                          date: proposal.due_on,
+                        })}
                       >
-                        Skip
+                        {t("recurring.skip")}
                       </button>
                     </div>
                   </td>
@@ -216,36 +240,36 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
         </TableWrap>
       )}
 
-      <form className="row" onSubmit={submit} aria-label="Add a recurring entry">
+      <form className="row" onSubmit={submit} aria-label={t("recurring.addForm")}>
         <label style={{ flex: "0 0 120px" }}>
-          Kind
+          {t("entries.kind")}
           <select
-            aria-label="Recurring kind"
+            aria-label={t("recurring.kind")}
             value={kind}
             onChange={(event) => setKind(event.target.value as EntryKind)}
           >
-            <option value="expense">Expense</option>
-            <option value="income">Income</option>
+            <option value="expense">{t("kind.expense")}</option>
+            <option value="income">{t("kind.income")}</option>
           </select>
         </label>
         <label style={{ flex: "0 0 130px" }}>
-          Amount
+          {t("field.amount")}
           <input
             className="num"
             inputMode="decimal"
             placeholder="0.00"
-            aria-label="Recurring amount"
+            aria-label={t("recurring.amount")}
             required
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
           />
         </label>
         <label style={{ flex: "1 1 160px" }}>
-          Category
+          {t("field.category")}
           <input
             list="recurring-category-names"
-            aria-label="Recurring category"
-            placeholder="Rent, Salary…"
+            aria-label={t("recurring.category")}
+            placeholder={t("entries.categoryPlaceholder")}
             required
             value={categoryName}
             onChange={(event) => setCategoryName(event.target.value)}
@@ -259,33 +283,33 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
             ))}
         </datalist>
         <label style={{ flex: "0 0 150px" }}>
-          How often
+          {t("recurring.howOften")}
           <select
-            aria-label="How often"
+            aria-label={t("recurring.howOften")}
             value={cadence}
             onChange={(event) => setCadence(event.target.value as Cadence)}
           >
-            {(Object.keys(CADENCE_LABELS) as Cadence[]).map((value) => (
+            {CADENCES.map((value) => (
               <option key={value} value={value}>
-                {CADENCE_LABELS[value]}
+                {t(`cadence.${value}` as MessageKey)}
               </option>
             ))}
           </select>
         </label>
         <label style={{ flex: "0 0 150px" }}>
-          First due
+          {t("recurring.firstDue")}
           <input
             type="date"
-            aria-label="First due"
+            aria-label={t("recurring.firstDue")}
             required
             value={startOn}
             onChange={(event) => setStartOn(event.target.value)}
           />
         </label>
         <label style={{ flex: "1 1 140px" }}>
-          Note
+          {t("field.note")}
           <input
-            aria-label="Recurring note"
+            aria-label={t("recurring.note")}
             value={note}
             onChange={(event) => setNote(event.target.value)}
           />
@@ -296,47 +320,55 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
             checked={auto}
             onChange={(event) => setAuto(event.target.checked)}
           />
-          Add automatically
+          {t("recurring.auto")}
         </label>
         <button type="submit" disabled={saving}>
-          {saving ? "Saving…" : "Add"}
+          {saving ? t("entries.saving") : t("action.add")}
         </button>
       </form>
       <p className="hint" style={{ marginTop: 8 }}>
-        By default a recurring entry is <em>proposed</em> on its due date and waits for you.
-        Tick "add automatically" only for a fixed amount like rent — a wrong amount created
-        silently is worse than one not created at all.
+        {t("recurring.hint")}
       </p>
 
       {loading && templates.length === 0 ? (
-        <p className="empty">Loading…</p>
+        <p className="empty">{t("state.loading")}</p>
       ) : templates.length === 0 ? (
-        <Empty>Nothing recurring yet.</Empty>
+        <Empty>{t("recurring.none")}</Empty>
       ) : (
         <TableWrap>
-          <table className="stacked" aria-label="Recurring templates">
+          <table className="stacked" aria-label={t("recurring.templatesAria")}>
             <thead>
               <tr>
-                <th>Category</th>
-                <th className="num">Amount ({money.symbol})</th>
-                <th>How often</th>
-                <th>Next</th>
+                <th>{t("field.category")}</th>
+                <th className="num">
+                  {t("entries.colAmount", { symbol: money.symbol })}
+                </th>
+                <th>{t("recurring.howOften")}</th>
+                <th>{t("recurring.colNext")}</th>
                 <th />
               </tr>
             </thead>
             <tbody>
               {templates.map((template) => (
                 <tr key={template.id} className={template.paused ? "muted" : undefined}>
-                  <td data-label="Category">
+                  <td data-label={t("field.category")}>
                     {nameOf(template.category_id)}
-                    {template.auto ? <span className="tag">auto</span> : null}
-                    {template.paused ? <span className="tag">paused</span> : null}
+                    {template.auto ? (
+                      <span className="tag">{t("recurring.tagAuto")}</span>
+                    ) : null}
+                    {template.paused ? (
+                      <span className="tag">{t("recurring.tagPaused")}</span>
+                    ) : null}
                   </td>
-                  <td className="num" data-label="Amount">
+                  <td className="num" data-label={t("entries.colAmountShort")}>
                     {money.plain(template.amount)}
                   </td>
-                  <td data-label="How often">{CADENCE_LABELS[template.cadence]}</td>
-                  <td data-label="Next">{template.paused ? "—" : template.next_due}</td>
+                  <td data-label={t("recurring.howOften")}>
+                    {t(`cadence.${template.cadence}` as MessageKey)}
+                  </td>
+                  <td data-label={t("recurring.colNext")}>
+                    {template.paused ? "—" : template.next_due}
+                  </td>
                   <td>
                     <div className="row" style={{ flexWrap: "nowrap", gap: 6 }}>
                       <button
@@ -347,16 +379,20 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
                           void run(
                             template.id,
                             () => api.updateTemplate(template.id, { paused: !template.paused }),
-                            "Could not change that.",
+                            "recurring.couldNotChange",
                           )
                         }
                         aria-label={
                           template.paused
-                            ? `Resume ${nameOf(template.category_id)}`
-                            : `Pause ${nameOf(template.category_id)}`
+                            ? t("recurring.resumeNamed", {
+                                name: nameOf(template.category_id),
+                              })
+                            : t("recurring.pauseNamed", {
+                                name: nameOf(template.category_id),
+                              })
                         }
                       >
-                        {template.paused ? "Resume" : "Pause"}
+                        {template.paused ? t("recurring.resume") : t("recurring.pause")}
                       </button>
                       <button
                         type="button"
@@ -366,12 +402,14 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
                           void run(
                             template.id,
                             () => api.deleteTemplate(template.id),
-                            "Could not delete that.",
+                            "recurring.couldNotDelete",
                           )
                         }
-                        aria-label={`Delete recurring ${nameOf(template.category_id)}`}
+                        aria-label={t("recurring.deleteNamed", {
+                          name: nameOf(template.category_id),
+                        })}
                       >
-                        Delete
+                        {t("action.delete")}
                       </button>
                     </div>
                   </td>

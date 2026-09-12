@@ -8,10 +8,14 @@ import { isNonNegativeMoney, isPositiveMoney } from "../money";
 import { useToast } from "../components/Toast";
 import { useMoney } from "../useMoney";
 import { todayIso } from "../months";
+import { useT, type Translate } from "../i18n";
+import type { MessageKey } from "../i18n/catalogue";
+import { errorMessage } from "../i18n/errors";
 
 /** Savings and budgets: what the user intends, and what they have actually put aside. */
 export function PlanPage() {
   const money = useMoney();
+  const t = useT();
   const toast = useToast();
   const [types, setTypes] = useState<SavingsType[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
@@ -44,11 +48,11 @@ export function PlanPage() {
       setCategories(nextCategories);
       setBudgets(nextBudgets);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not load your plan.");
+      setError(errorMessage(t, caught, "plan.couldNotLoad"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -69,13 +73,13 @@ export function PlanPage() {
     return (id: string) => lookup.get(id) ?? "—";
   }, [types]);
 
-  async function guard(action: () => Promise<unknown>, fallback: string) {
+  async function guard(action: () => Promise<unknown>, fallback: MessageKey) {
     setError(null);
     try {
       await action();
       await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : fallback);
+      setError(errorMessage(t, caught, fallback));
     }
   }
 
@@ -85,13 +89,13 @@ export function PlanPage() {
     await guard(async () => {
       await api.createSavingsType(newType.trim());
       setNewType("");
-    }, "Could not create that savings type.");
+    }, "plan.couldNotCreateType");
   }
 
   async function addContribution(event: FormEvent) {
     event.preventDefault();
     if (!isPositiveMoney(contributionAmount)) {
-      setError("Enter an amount with at most two decimal places, greater than zero.");
+      setError(t("entries.badAmount"));
       return;
     }
     await guard(async () => {
@@ -101,23 +105,23 @@ export function PlanPage() {
         occurred_on: contributionDate,
       });
       setContributionAmount("");
-    }, "Could not record that contribution.");
+    }, "plan.couldNotRecordContribution");
   }
 
   /** AD-11: PUT, so saving twice updates the standing amount rather than adding a second. */
   async function saveAmount(kind: "target" | "budget", id: string, raw: string) {
     const value = raw.trim();
     if (!isNonNegativeMoney(value)) {
-      setError("Enter an amount of zero or more, with at most two decimal places.");
+      setError(t("plan.badAmountZeroOrMore"));
       return;
     }
     await guard(
       () => (kind === "target" ? api.setTarget(id, value) : api.setBudget(id, value)),
-      "Could not save that amount.",
+      "plan.couldNotSaveAmount",
     );
   }
 
-  if (loading) return <p className="empty">Loading…</p>;
+  if (loading) return <p className="empty">{t("state.loading")}</p>;
 
   return (
     <>
@@ -127,16 +131,18 @@ export function PlanPage() {
 
       <div className="columns">
         <div>
-          <Card title="Monthly savings targets">
+          <Card title={t("plan.savingsTargets")}>
             {types.length === 0 ? (
-              <Empty>No savings types yet.</Empty>
+              <Empty>{t("plan.noTypes")}</Empty>
             ) : (
               <TableWrap>
                 <table className="stacked">
                   <thead>
                     <tr>
-                      <th>Type</th>
-                      <th className="num">Monthly target ({money.symbol})</th>
+                      <th>{t("dash.colType")}</th>
+                      <th className="num">
+                        {t("plan.colMonthlyTarget", { symbol: money.symbol })}
+                      </th>
                       <th />
                     </tr>
                   </thead>
@@ -145,12 +151,13 @@ export function PlanPage() {
                       <AmountRow
                         key={type.id}
                         name={type.name}
+                        t={t}
                         initial={targetFor(type.id)}
                         onSave={(value) => saveAmount("target", type.id, value)}
                         onDelete={() =>
                           guard(
                             () => api.deleteSavingsType(type.id),
-                            "Could not delete that savings type.",
+                            "plan.couldNotDeleteType",
                           )
                         }
                       />
@@ -162,23 +169,23 @@ export function PlanPage() {
 
             <form className="row" onSubmit={addType} style={{ marginTop: 12 }}>
               <label style={{ flex: "1 1 160px" }}>
-                New savings type
+                {t("plan.newType")}
                 <input
-                  aria-label="New savings type"
+                  aria-label={t("plan.newType")}
                   value={newType}
                   onChange={(event) => setNewType(event.target.value)}
                 />
               </label>
-              <button type="submit">Add</button>
+              <button type="submit">{t("action.add")}</button>
             </form>
           </Card>
 
-          <Card title="Record a contribution">
+          <Card title={t("plan.recordContribution")}>
             <form className="row" onSubmit={addContribution}>
               <label style={{ flex: "1 1 150px" }}>
-                Type
+                {t("dash.colType")}
                 <select
-                  aria-label="Savings type"
+                  aria-label={t("plan.savingsType")}
                   value={contributionType || types[0]?.id || ""}
                   onChange={(event) => setContributionType(event.target.value)}
                 >
@@ -190,51 +197,57 @@ export function PlanPage() {
                 </select>
               </label>
               <label style={{ flex: "0 0 130px" }}>
-                Amount
+                {t("field.amount")}
                 <input
                   className="num"
                   inputMode="decimal"
                   placeholder="0.00"
-                  aria-label="Contribution amount"
+                  aria-label={t("plan.contributionAmount")}
                   required
                   value={contributionAmount}
                   onChange={(event) => setContributionAmount(event.target.value)}
                 />
               </label>
               <label style={{ flex: "0 0 150px" }}>
-                Date
+                {t("field.date")}
                 <input
                   type="date"
-                  aria-label="Contribution date"
+                  aria-label={t("plan.contributionDate")}
                   required
                   value={contributionDate}
                   onChange={(event) => setContributionDate(event.target.value)}
                 />
               </label>
               <button type="submit" disabled={types.length === 0}>
-                Add
+                {t("action.add")}
               </button>
             </form>
 
             {contributions.length === 0 ? (
-              <Empty>Nothing put aside yet.</Empty>
+              <Empty>{t("plan.nothingAside")}</Empty>
             ) : (
               <TableWrap>
                 <table className="stacked" style={{ marginTop: 12 }}>
                   <thead>
                     <tr>
-                      <th>Date</th>
-                      <th>Type</th>
-                      <th className="num">Amount ({money.symbol})</th>
+                      <th>{t("field.date")}</th>
+                      <th>{t("dash.colType")}</th>
+                      <th className="num">
+                        {t("entries.colAmount", { symbol: money.symbol })}
+                      </th>
                       <th />
                     </tr>
                   </thead>
                   <tbody>
                     {contributions.map((contribution) => (
                       <tr key={contribution.id}>
-                        <td data-label="Date">{contribution.occurred_on}</td>
-                        <td data-label="Type">{typeName(contribution.savings_type_id)}</td>
-                        <td className="num" data-label="Amount">{money.plain(contribution.amount)}</td>
+                        <td data-label={t("field.date")}>{contribution.occurred_on}</td>
+                        <td data-label={t("dash.colType")}>
+                          {typeName(contribution.savings_type_id)}
+                        </td>
+                        <td className="num" data-label={t("entries.colAmountShort")}>
+                          {money.plain(contribution.amount)}
+                        </td>
                         <td>
                           <button
                             type="button"
@@ -242,7 +255,11 @@ export function PlanPage() {
                             onClick={() =>
                               void guard(async () => {
                                 await api.deleteContribution(contribution.id);
-                                toast.show(`Deleted ${money.amount(contribution.amount)}`, {
+                                toast.show(
+                                  t("entries.deleted", {
+                                    amount: money.amount(contribution.amount),
+                                  }),
+                                  {
                                   onUndo: async () => {
                                     await api.createContribution({
                                       savings_type_id: contribution.savings_type_id,
@@ -251,11 +268,12 @@ export function PlanPage() {
                                     });
                                     await load();
                                   },
-                                });
-                              }, "Could not delete that contribution.")
+                                  },
+                                );
+                              }, "plan.couldNotDeleteContribution")
                             }
                           >
-                            Delete
+                            {t("action.delete")}
                           </button>
                         </td>
                       </tr>
@@ -267,19 +285,21 @@ export function PlanPage() {
           </Card>
         </div>
 
-        <Card title="Monthly budgets">
+        <Card title={t("plan.budgets")}>
           <p className="hint" style={{ marginTop: 0 }}>
-            Expense categories only — a budget on income would mean nothing.
+            {t("plan.budgetsHint")}
           </p>
           {categories.length === 0 ? (
-            <Empty>No expense categories yet. Record an entry to create one.</Empty>
+            <Empty>{t("plan.noCategories")}</Empty>
           ) : (
             <TableWrap>
               <table className="stacked">
                 <thead>
                   <tr>
-                    <th>Category</th>
-                    <th className="num">Monthly budget ({money.symbol})</th>
+                    <th>{t("dash.colCategory")}</th>
+                    <th className="num">
+                      {t("plan.colMonthlyBudget", { symbol: money.symbol })}
+                    </th>
                     <th />
                   </tr>
                 </thead>
@@ -288,12 +308,13 @@ export function PlanPage() {
                     <AmountRow
                       key={category.id}
                       name={category.name}
+                      t={t}
                       initial={budgetFor(category.id)}
                       onSave={(value) => saveAmount("budget", category.id, value)}
                       onDelete={() =>
                         guard(
                           () => api.deleteCategory(category.id),
-                          "Could not delete that category.",
+                          "plan.couldNotDeleteCategory",
                         )
                       }
                     />
@@ -310,11 +331,15 @@ export function PlanPage() {
 
 function AmountRow({
   name,
+  t,
   initial,
   onSave,
   onDelete,
 }: {
   name: string;
+  // Passed in rather than looked up: this row is rendered once per category and per
+  // savings type, and a hook call per row buys nothing the parent has not already got.
+  t: Translate;
   initial: string;
   onSave: (value: string) => Promise<void>;
   onDelete: () => Promise<void>;
@@ -329,13 +354,13 @@ function AmountRow({
 
   return (
     <tr>
-      <td data-label="Name">{name}</td>
-      <td className="num" data-label="Monthly">
+      <td data-label={t("field.name")}>{name}</td>
+      <td className="num" data-label={t("plan.colMonthly")}>
         <input
           className="num"
           inputMode="decimal"
-          placeholder="not set"
-          aria-label={`Monthly amount for ${name}`}
+          placeholder={t("plan.notSetPlaceholder")}
+          aria-label={t("plan.monthlyAmountFor", { name })}
           value={value}
           onChange={(event) => {
             setValue(event.target.value);
@@ -346,15 +371,15 @@ function AmountRow({
       <td>
         <div className="row" style={{ flexWrap: "nowrap" }}>
           <button type="button" disabled={!dirty} onClick={() => void onSave(value)}>
-            Save
+            {t("action.save")}
           </button>
           <button
             type="button"
             className="quiet"
             onClick={() => void onDelete()}
-            aria-label={`Delete ${name}`}
+            aria-label={t("plan.deleteNamed", { name })}
           >
-            Delete
+            {t("action.delete")}
           </button>
         </div>
       </td>

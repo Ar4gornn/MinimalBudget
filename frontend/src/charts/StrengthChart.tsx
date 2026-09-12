@@ -1,4 +1,5 @@
 import type { HistoryPoint, WeightUnit } from "../api/types";
+import { useT } from "../i18n";
 
 /**
  * One exercise over time: the heaviest set per session (Epic 19).
@@ -21,6 +22,7 @@ export function StrengthChart({
   label: string;
   unit: WeightUnit;
 }) {
+  const t = useT();
   const weighted = points.filter((point) => point.top_weight !== null);
   if (weighted.length === 0) {
     return (
@@ -66,7 +68,7 @@ export function StrengthChart({
         style={{ maxWidth: WIDTH }}
         preserveAspectRatio="xMidYMid meet"
         role="img"
-        aria-label={`${label}: heaviest set per session, in ${unit}`}
+        aria-label={t("chart.strengthAria", { label, unit })}
       >
         {runs.map((segment) => (
           <polyline

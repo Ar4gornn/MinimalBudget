@@ -4,9 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SignInPage } from "./SignInPage";
 import { AuthProvider } from "../auth/AuthContext";
+import { LanguageProvider } from "../i18n";
 
 function render(ui: React.ReactElement) {
-  return rtlRender(<AuthProvider>{ui}</AuthProvider>);
+  return rtlRender(
+    <AuthProvider>
+      <LanguageProvider>{ui}</LanguageProvider>
+    </AuthProvider>,
+  );
 }
 
 function json(body: unknown, status = 200): Response {

@@ -41,6 +41,7 @@ class UserRow:
         currency: str,
         weight_unit: str,
         budget_start_day: int,
+        language: str,
         created_at: datetime,
     ) -> None:
         self.id = id
@@ -48,6 +49,7 @@ class UserRow:
         self.currency = currency
         self.weight_unit = weight_unit
         self.budget_start_day = budget_start_day
+        self.language = language
         self.created_at = created_at
 
 
@@ -59,6 +61,7 @@ def _read_user(session: Session, user_id: uuid.UUID) -> UserRow | None:
             User.currency,
             User.weight_unit,
             User.budget_start_day,
+            User.language,
             User.created_at,
         ).where(User.id == user_id)
     ).one_or_none()
@@ -72,6 +75,7 @@ def register(
     email: str,
     password: str,
     currency: str = "USD",
+    language: str = "en",
 ) -> UserRow:
     """Create the user and seed their default savings types.
 
@@ -84,6 +88,7 @@ def register(
             email=email,
             password_hash=hash_password(password),
             currency=currency,
+            language=language,
         )
     )
     try:
@@ -133,6 +138,25 @@ def authenticate(session: Session, *, email: str, password: str) -> uuid.UUID | 
 
 # A real Argon2 hash of a value nobody can supply, used only to equalise timing above.
 _DUMMY_HASH = hash_password(uuid.uuid4().hex)
+
+
+def set_language(session: Session, user_id: uuid.UUID, language: str) -> UserRow:
+    """Change the language the account reads in.
+
+    The freest setting in the app: never locked, whatever is already stored. The currency
+    and the weight unit lock because changing them relabels a stored number (AD-36); the
+    budget start day does not, because it only re-groups rows; this one does not even do
+    that. It changes the words drawn around numbers that do not move.
+    """
+    current = _read_user(session, user_id)
+    if current is None:
+        raise NotFound("No such account")
+    session.execute(update(User).where(User.id == user_id).values(language=language))
+    session.flush()
+    updated = _read_user(session, user_id)
+    if updated is None:  # pragma: no cover
+        raise NotFound("No such account")
+    return updated
 
 
 def set_budget_start_day(session: Session, user_id: uuid.UUID, day: int) -> UserRow:

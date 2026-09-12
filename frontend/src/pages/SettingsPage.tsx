@@ -1,27 +1,32 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
-import { MAX_START_DAY, budgetMonth, monthLabel, monthRangeLabel } from "../months";
+import { MAX_START_DAY, budgetMonth } from "../months";
+import { useDates } from "../useDates";
 import { disablePush, enablePush, pushSupported } from "../push";
-import type { Currency } from "../api/types";
+import type { Currency, Language } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { LANGUAGES, useLanguage } from "../i18n";
+import { errorMessage } from "../i18n/errors";
 import { SecurityCard } from "../components/SecurityCard";
 import { Card, ErrorBanner } from "../components/ui";
 import { useMoney } from "../useMoney";
 
 /**
- * Everything about the account rather than the money: currency, password, recovery codes,
- * signing out. These used to sit on the Plan page beside budgets, where "change my
- * password" is not a thing anyone goes looking for.
+ * Everything about the account rather than the money: currency, language, password,
+ * recovery codes, signing out. These used to sit on the Plan page beside budgets, where
+ * "change my password" is not a thing anyone goes looking for.
  */
 const EXPORTS = [
-  { kind: "entries" as const, label: "Entries CSV" },
-  { kind: "savings" as const, label: "Savings CSV" },
-  { kind: "inventory" as const, label: "Stock CSV" },
+  { kind: "entries" as const, label: "settings.exportEntries" as const },
+  { kind: "savings" as const, label: "settings.exportSavings" as const },
+  { kind: "inventory" as const, label: "settings.exportInventory" as const },
 ];
 
 export function SettingsPage() {
   const { user, signOut, refreshUser: refreshProfile } = useAuth();
+  const { t, lang, setLanguage } = useLanguage();
+  const dates = useDates();
   const money = useMoney();
   const [error, setError] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
@@ -55,20 +60,13 @@ export function SettingsPage() {
         await disablePush();
       } else {
         const outcome = await enablePush();
-        if (outcome === "denied") {
-          setError(
-            "Your browser is blocking notifications for this site. Allow them in its site " +
-              "settings, then try again.",
-          );
-        } else if (outcome === "unsupported") {
-          setError("This browser cannot show notifications.");
-        } else if (outcome === "unavailable") {
-          setError("Notifications are not configured on this instance.");
-        }
+        if (outcome === "denied") setError(t("settings.pushBlocked"));
+        else if (outcome === "unsupported") setError(t("settings.pushUnsupported"));
+        else if (outcome === "unavailable") setError(t("settings.pushUnavailable"));
       }
       setPush(await api.pushStatus());
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not change that.");
+      setError(errorMessage(t, caught, "settings.couldNotChange"));
     } finally {
       setPushBusy(false);
     }
@@ -82,7 +80,22 @@ export function SettingsPage() {
       // Every month picker in the app reads this, so re-read the profile rather than guess.
       await refreshProfile();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not change the month start.");
+      setError(errorMessage(t, caught, "settings.couldNotChange"));
+    } finally {
+      setChanging(false);
+    }
+  }
+
+  async function changeLanguage(next: Language) {
+    if (next === lang) return;
+    setError(null);
+    setChanging(true);
+    try {
+      // The provider writes it to the account and re-reads the profile: the server is the
+      // authority on what the account now says, exactly as for the currency.
+      await setLanguage(next);
+    } catch (caught) {
+      setError(errorMessage(t, caught, "settings.couldNotChange"));
     } finally {
       setChanging(false);
     }
@@ -94,7 +107,7 @@ export function SettingsPage() {
     try {
       await api.exportCsv(kind);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not export that.");
+      setError(errorMessage(t, caught, "settings.couldNotExport"));
     } finally {
       setExporting(null);
     }
@@ -109,7 +122,7 @@ export function SettingsPage() {
       // The profile is the source of the symbol everywhere; re-read it rather than guess.
       await refreshProfile();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not change the currency.");
+      setError(errorMessage(t, caught, "settings.couldNotChange"));
     } finally {
       setChanging(false);
     }
@@ -117,47 +130,64 @@ export function SettingsPage() {
 
   return (
     <>
-      <h1 style={{ fontSize: 18, margin: "0 0 16px" }}>Settings</h1>
+      <h1 style={{ fontSize: 18, margin: "0 0 16px" }}>{t("settings.title")}</h1>
       <ErrorBanner message={error} />
 
-      <Card title="Account">
+      <Card title={t("settings.account")}>
         <p style={{ margin: "0 0 12px" }} data-stat="Email">
-          <span className="hint">Signed in as </span>
+          <span className="hint">{t("settings.signedInAs")}</span>
           {user?.email}
         </p>
         <div className="row">
           <label style={{ flex: "0 0 200px" }}>
-            Account currency
+            {t("settings.currency")}
             <select
-              aria-label="Account currency"
+              aria-label={t("settings.currency")}
               value={money.currency}
               disabled={changing}
               onChange={(event) => void changeCurrency(event.target.value as Currency)}
             >
-              <option value="USD">US dollars ($)</option>
-              <option value="EUR">Euros (€)</option>
+              <option value="USD">{t("settings.currencyUsd")}</option>
+              <option value="EUR">{t("settings.currencyEur")}</option>
+            </select>
+          </label>
+          <label style={{ flex: "0 0 200px" }}>
+            {t("settings.language")}
+            <select
+              aria-label={t("settings.language")}
+              value={lang}
+              disabled={changing}
+              onChange={(event) => void changeLanguage(event.target.value as Language)}
+            >
+              {LANGUAGES.map((option) => (
+                <option key={option} value={option}>
+                  {option === "en" ? t("settings.languageEn") : t("settings.languageFr")}
+                </option>
+              ))}
             </select>
           </label>
         </div>
         <p className="hint" style={{ marginTop: 8 }}>
-          Amounts are stored, not converted — changing this relabels them. It locks as soon as
-          the account has its first entry.
+          {t("settings.currencyHint")}
+        </p>
+        <p className="hint" style={{ marginTop: 8 }}>
+          {t("settings.languageHint")}
         </p>
       </Card>
 
-      <Card title="Budget month">
+      <Card title={t("settings.budgetMonth")}>
         <div className="row">
           <label style={{ flex: "0 0 200px" }}>
-            Starts on day
+            {t("settings.startsOnDay")}
             <select
-              aria-label="Budget month starts on day"
+              aria-label={t("settings.startsOnDayAria")}
               value={startDay}
               disabled={changing}
               onChange={(event) => void changeStartDay(Number(event.target.value))}
             >
               {Array.from({ length: MAX_START_DAY }, (_, index) => index + 1).map((day) => (
                 <option key={day} value={day}>
-                  {day === 1 ? "1 (calendar month)" : day}
+                  {day === 1 ? t("settings.startsOnDayCalendar") : day}
                 </option>
               ))}
             </select>
@@ -165,19 +195,21 @@ export function SettingsPage() {
         </div>
         <p className="hint" style={{ marginTop: 8 }}>
           {startDay === 1
-            ? "Months run from the 1st, as on a calendar."
-            : `Months run from the ${startDay}th to the ${startDay - 1}th, and are named after the month they end in — so ${monthLabel(thisMonth)} is ${monthRangeLabel(thisMonth, startDay)}.`}{" "}
-          Set this to the day you are paid. Changing it only re-groups what you have already
-          recorded; no amount or date is altered, so you can change it as often as you like.
+            ? t("settings.monthPlainHint")
+            : t("settings.monthShiftedHint", {
+                day: startDay,
+                month: dates.month(thisMonth),
+                range: dates.monthRange(thisMonth, startDay),
+              })}{" "}
+          {t("settings.monthHintTail")}
         </p>
       </Card>
 
       <SecurityCard />
 
-      <Card title="Export">
+      <Card title={t("settings.export")}>
         <p className="hint" style={{ margin: "0 0 10px" }}>
-          Your records as CSV files, for a spreadsheet or for keeping. Text that a
-          spreadsheet would run as a formula is written as plain text.
+          {t("settings.exportHint")}
         </p>
         <div className="row">
           {EXPORTS.map(({ kind, label }) => (
@@ -188,22 +220,20 @@ export function SettingsPage() {
               disabled={exporting !== null}
               onClick={() => void exportCsv(kind)}
             >
-              {exporting === kind ? "Preparing…" : label}
+              {exporting === kind ? t("settings.exportPreparing") : t(label)}
             </button>
           ))}
         </div>
       </Card>
 
       {push?.enabled && pushSupported() && (
-        <Card title="Notifications">
+        <Card title={t("settings.notifications")}>
           <p className="hint" style={{ margin: "0 0 10px" }}>
-            A single daily reminder on this device when something needs restocking or a
-            recurring entry is waiting. At most one a day, and nothing at all on a day with
-            nothing to say.
+            {t("settings.notificationsHint")}
           </p>
           <div className="row">
             <button type="button" disabled={pushBusy} onClick={() => void togglePush(true)}>
-              {pushBusy ? "Working…" : "Turn on for this device"}
+              {pushBusy ? t("state.working") : t("settings.notificationsOn")}
             </button>
             <button
               type="button"
@@ -211,24 +241,23 @@ export function SettingsPage() {
               disabled={pushBusy || push.devices === 0}
               onClick={() => void togglePush(false)}
             >
-              Turn off
+              {t("settings.notificationsOff")}
             </button>
           </div>
           <p className="hint" style={{ marginTop: 8 }}>
             {push.devices === 0
-              ? "No devices are receiving notifications."
-              : `${push.devices} ${push.devices === 1 ? "device is" : "devices are"} receiving them.`}
+              ? t("settings.noDevices")
+              : t.n("settings.devices", push.devices)}
           </p>
         </Card>
       )}
 
-      <Card title="Session">
+      <Card title={t("settings.session")}>
         <p className="hint" style={{ margin: "0 0 10px" }}>
-          Signs this device out. Other devices stay signed in; changing the password signs
-          out everything.
+          {t("settings.sessionHint")}
         </p>
         <button type="button" className="quiet" onClick={signOut}>
-          Sign out
+          {t("settings.signOut")}
         </button>
       </Card>
     </>

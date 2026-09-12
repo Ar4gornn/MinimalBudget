@@ -73,11 +73,11 @@ def purchase(
     entry without one cannot exist (AD-7).
     """
     if quantity <= 0:
-        raise Invalid("quantity must be greater than zero")
+        raise Invalid("quantity must be greater than zero", "quantity_not_positive")
     if amount is not None and category_id is None and category_name is None:
-        raise Invalid("an amount needs a category to file it under")
+        raise Invalid("an amount needs a category to file it under", "purchase_category_missing")
     if amount is None and (category_id is not None or category_name is not None):
-        raise Invalid("a category without an amount records nothing")
+        raise Invalid("a category without an amount records nothing", "purchase_amount_missing")
 
     item = inventory_service.get_item(session, user_id, item_id)
 

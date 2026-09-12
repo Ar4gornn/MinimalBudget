@@ -1,17 +1,19 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, Request, Response, status
 from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.core.db import tenant_session
 from app.core.deps import AnonSession, CurrentUserId, DbSession
+from app.core.errors import refused as _refused
 from app.core.ratelimit import LoginLimiter, email_key, source_key
 from app.core.security import create_access_token
 from app.schemas.auth import (
     BudgetStartDayUpdate,
     Credentials,
     CurrencyUpdate,
+    LanguageUpdate,
     PasswordChange,
     PasswordConfirm,
     RecoverRequest,
@@ -65,9 +67,9 @@ def register(payload: RegistrationRequest) -> auth_service.UserRow:
             try:
                 invite_service.verify(session, code=payload.invite_code or "")
             except invite_service.InviteRejected:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="That invite code is not valid.",
+                raise _refused(
+                    status.HTTP_403_FORBIDDEN, "invite_invalid",
+                    "That invite code is not valid.",
                 ) from None
 
         try:
@@ -77,11 +79,12 @@ def register(payload: RegistrationRequest) -> auth_service.UserRow:
                 email=payload.email,
                 password=payload.password,
                 currency=payload.currency,
+                language=payload.language,
             )
         except auth_service.EmailAlreadyRegistered:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="That email is already registered",
+            raise _refused(
+                status.HTTP_409_CONFLICT, "email_taken",
+                "That email is already registered",
             ) from None
 
         if closed:
@@ -89,9 +92,9 @@ def register(payload: RegistrationRequest) -> auth_service.UserRow:
                 invite_service.consume(session, code=payload.invite_code or "", user_id=user_id)
             except invite_service.InviteRejected:
                 # Claimed by a concurrent registration between verify and here.
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="That invite code is not valid.",
+                raise _refused(
+                    status.HTTP_403_FORBIDDEN, "invite_invalid",
+                    "That invite code is not valid.",
                 ) from None
 
         return created
@@ -106,9 +109,10 @@ def login(payload: Credentials, session: AnonSession, request: Request) -> Token
     for key in keys:
         retry_after = login_limiter.retry_after(key)
         if retry_after is not None:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many failed sign-in attempts. Try again shortly.",
+            raise _refused(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                "login_rate_limited",
+                "Too many failed sign-in attempts. Try again shortly.",
                 headers={"Retry-After": str(retry_after)},
             )
 
@@ -117,9 +121,9 @@ def login(payload: Credentials, session: AnonSession, request: Request) -> Token
         for key in keys:
             login_limiter.record_failure(key)
         # Deliberately identical for an unknown email and a wrong password.
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+        raise _refused(
+            status.HTTP_401_UNAUTHORIZED, "credentials_invalid",
+            "Incorrect email or password",
         )
 
     for key in keys:
@@ -137,8 +141,8 @@ def refresh(payload: RefreshRequest, session: AnonSession) -> TokenOut:
     try:
         lookup = session_service.look_up(session, payload.refresh_token)
     except session_service.RefreshRejected:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Please sign in again."
+        raise _refused(
+            status.HTTP_401_UNAUTHORIZED, "session_expired", "Please sign in again."
         ) from None
 
     # Reuse detection. A token presented after it was already rotated means a copy exists,
@@ -147,21 +151,21 @@ def refresh(payload: RefreshRequest, session: AnonSession) -> TokenOut:
     if lookup.revoked:
         with tenant_session(lookup.user_id) as tenant:
             session_service.revoke_family(tenant, lookup.family_id)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Please sign in again."
+        raise _refused(
+            status.HTTP_401_UNAUTHORIZED, "session_expired", "Please sign in again."
         )
 
     if lookup.expired:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Please sign in again."
+        raise _refused(
+            status.HTTP_401_UNAUTHORIZED, "session_expired", "Please sign in again."
         )
 
     with tenant_session(lookup.user_id) as tenant:
         try:
             rotated = session_service.rotate(tenant, token=payload.refresh_token, lookup=lookup)
         except session_service.RefreshRejected:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Please sign in again."
+            raise _refused(
+                status.HTTP_401_UNAUTHORIZED, "session_expired", "Please sign in again."
             ) from None
 
     token, expires_in = create_access_token(lookup.user_id)
@@ -200,16 +204,17 @@ def recover(payload: RecoverRequest, session: AnonSession, request: Request) -> 
     for key in keys:
         retry_after = recovery_limiter.retry_after(key)
         if retry_after is not None:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many attempts. Try again shortly.",
+            raise _refused(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                "recovery_rate_limited",
+                "Too many attempts. Try again shortly.",
                 headers={"Retry-After": str(retry_after)},
             )
 
-    def refused() -> HTTPException:
+    def refused() -> Exception:
         for key in keys:
             recovery_limiter.record_failure(key)
-        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_RECOVERY_REFUSED)
+        return _refused(status.HTTP_401_UNAUTHORIZED, "recovery_invalid", _RECOVERY_REFUSED)
 
     row = session.execute(
         text("SELECT user_id FROM auth_lookup(:email)"), {"email": payload.email}
@@ -236,8 +241,8 @@ def _confirm_password(session, user_id: uuid.UUID, password: str) -> None:
         profile is None
         or auth_service.authenticate(session, email=profile.email, password=password) != user_id
     ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="That password is not correct."
+        raise _refused(
+            status.HTTP_403_FORBIDDEN, "password_incorrect", "That password is not correct."
         )
 
 
@@ -274,12 +279,11 @@ def set_currency(
     try:
         return auth_service.set_currency(session, user_id, payload.currency)
     except auth_service.CurrencyLocked:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "This account already has entries. Changing the currency would relabel them "
-                "rather than convert them, so it is locked."
-            ),
+        raise _refused(
+            status.HTTP_409_CONFLICT,
+            "currency_locked",
+            "This account already has entries. Changing the currency would relabel them "
+            "rather than convert them, so it is locked.",
         ) from None
 
 
@@ -290,13 +294,21 @@ def set_weight_unit(
     try:
         return auth_service.set_weight_unit(session, user_id, payload.weight_unit)
     except auth_service.WeightUnitLocked:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "This account already has logged sets. Changing the unit would relabel them "
-                "rather than convert them, so it is locked."
-            ),
+        raise _refused(
+            status.HTTP_409_CONFLICT,
+            "weight_unit_locked",
+            "This account already has logged sets. Changing the unit would relabel them "
+            "rather than convert them, so it is locked.",
         ) from None
+
+
+@router.patch("/me/language", response_model=UserOut)
+def set_language(
+    payload: LanguageUpdate, user_id: CurrentUserId, session: DbSession
+) -> auth_service.UserRow:
+    """No 409 here, and there never will be. This changes the words drawn around a
+    number, not what the number means, so there is nothing for a lock to protect."""
+    return auth_service.set_language(session, user_id, payload.language)
 
 
 @router.patch("/me/budget-start-day", response_model=UserOut)
@@ -312,5 +324,5 @@ def me(user_id: CurrentUserId, session: DbSession) -> auth_service.UserRow:
     profile = auth_service.read_profile(session, user_id)
     if profile is None:
         # A valid token for a user that no longer exists.
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+        raise _refused(status.HTTP_404_NOT_FOUND, "not_found", "Not found")
     return profile

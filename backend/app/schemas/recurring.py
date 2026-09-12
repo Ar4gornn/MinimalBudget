@@ -79,6 +79,26 @@ class PendingOut(BaseModel):
     cadence: Cadence
 
 
+class ExpectedOut(BaseModel):
+    """A date a template *will* fall due, computed and never written (AD-39).
+
+    Deliberately carries no id: there is no row, so there is nothing to confirm or skip.
+    A proposal you can act on is a ``PendingOut`` and has been materialised.
+    """
+
+    template_id: uuid.UUID
+    due_on: dt.date
+    kind: EntryKind
+    category_id: uuid.UUID
+    category_name: str
+    amount: Money
+    note: str | None
+    cadence: Cadence
+    # True when the template creates its entry without asking, so the calendar can say
+    # "this will be recorded" rather than "this will be proposed".
+    auto: bool
+
+
 class ConfirmRequest(BaseModel):
     # The amount may be corrected at confirmation — the electricity bill is never quite the
     # template's figure — without editing the template.

@@ -8,7 +8,10 @@ import { RateChart } from "../charts/RateChart";
 import { Sparkline } from "../charts/Sparkline";
 import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
-import { addMonths, budgetMonth, monthLabel } from "../months";
+import { useT } from "../i18n";
+import { errorMessage } from "../i18n/errors";
+import { useDates } from "../useDates";
+import { addMonths, budgetMonth } from "../months";
 import { toChartNumber } from "../money";
 import { formatQuantity, formatRate, unitSingular } from "../quantity";
 import { useMoney } from "../useMoney";
@@ -29,6 +32,8 @@ const TREND_MONTHS = 6;
 export function CategoryPage() {
   const { categoryId = "" } = useParams();
   const money = useMoney();
+  const t = useT();
+  const dates = useDates();
   // Optional, like useMoney: a month boundary has an obvious default, and crashing a
   // whole page for want of context is worse than falling back to the calendar month.
   const startDay = useOptionalAuth()?.user?.budget_start_day ?? 1;
@@ -69,11 +74,11 @@ export function CategoryPage() {
       setUnitPrices(unitPricesResult);
       setVendorPrices(vendorResult);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not load this category.");
+      setError(errorMessage(t, caught, "category.couldNotLoad"));
     } finally {
       setLoading(false);
     }
-  }, [categoryId, month]);
+  }, [categoryId, month, t]);
 
   useEffect(() => {
     void load();
@@ -84,7 +89,7 @@ export function CategoryPage() {
     try {
       await api.deleteEntry(entry.id);
       await load();
-      toast.show(`Deleted ${money.amount(entry.amount)}`, {
+      toast.show(t("entries.deleted", { amount: money.amount(entry.amount) }), {
         onUndo: async () => {
           // Recreated rather than restored: the server has no undelete, and inventing one
           // for a five-person app would be a table and a sweeper job for a rare mistake.
@@ -102,7 +107,7 @@ export function CategoryPage() {
         },
       });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not delete that entry.");
+      setError(errorMessage(t, caught, "category.couldNotDelete"));
     }
   }
 
@@ -111,7 +116,7 @@ export function CategoryPage() {
   const total = entries.reduce((sum, entry) => sum + Number(entry.amount), 0).toFixed(2);
   const quantified = entries.some((entry) => entry.quantity !== null);
 
-  if (loading && !category) return <p className="empty">Loading…</p>;
+  if (loading && !category) return <p className="empty">{t("state.loading")}</p>;
 
   return (
     <>
@@ -120,15 +125,17 @@ export function CategoryPage() {
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 16 }}>
         <div>
           <Link to="/" className="hint">
-            ← Dashboard
+            {t("category.backToDashboard")}
           </Link>
-          <h1 style={{ fontSize: 18, margin: "4px 0 0" }}>{category?.name ?? "Category"}</h1>
+          <h1 style={{ fontSize: 18, margin: "4px 0 0" }}>
+            {category?.name ?? t("category.fallbackName")}
+          </h1>
         </div>
         <label style={{ flex: "0 0 150px" }}>
-          Month
+          {t("field.month")}
           <input
             type="month"
-            aria-label="Month"
+            aria-label={t("field.month")}
             value={month}
             onChange={(event) => setMonth(event.target.value || budgetMonth(startDay))}
           />
@@ -137,47 +144,47 @@ export function CategoryPage() {
 
       <div className="grid">
         <Stat
-          label={monthLabel(month)}
+          label={dates.month(month)}
           value={total}
           tone={category?.kind === "income" ? "in" : "out"}
         />
         <div className="card stat" data-stat="Entries">
-          <div className="label">Entries</div>
+          <div className="label">{t("category.entries")}</div>
           <div className="value">{entries.length}</div>
         </div>
       </div>
 
       {vendorPrices && vendorPrices.vendors.length > 1 && (
         <Card
-          title="By vendor"
+          title={t("category.byVendor")}
           collapseKey="category.vendors"
-          summary={`${vendorPrices.vendors.length} rows`}
+          summary={t("category.vendorRows", { count: vendorPrices.vendors.length })}
         >
           <TableWrap>
-            <table className="stacked" aria-label="By vendor">
+            <table className="stacked" aria-label={t("category.byVendor")}>
               <thead>
                 <tr>
-                  <th>Vendor</th>
-                  <th className="num">Spent ({money.symbol})</th>
-                  <th className="num">Per unit</th>
-                  <th className="num">Entries</th>
+                  <th>{t("category.colVendor")}</th>
+                  <th className="num">{t("dash.colSpent", { symbol: money.symbol })}</th>
+                  <th className="num">{t("category.colPerUnit")}</th>
+                  <th className="num">{t("category.entries")}</th>
                 </tr>
               </thead>
               <tbody>
                 {vendorPrices.vendors.map((row) => (
                   <tr key={`${row.vendor_id}-${row.unit ?? "none"}`}>
-                    <td data-label="Vendor">{row.vendor_name}</td>
-                    <td className="num" data-label="Spent">
+                    <td data-label={t("category.colVendor")}>{row.vendor_name}</td>
+                    <td className="num" data-label={t("dash.colSpentShort")}>
                       {money.plain(row.spent)}
                     </td>
-                    <td className="num" data-label="Per unit">
+                    <td className="num" data-label={t("category.colPerUnit")}>
                       {row.unit_price === null ? (
                         <span className="hint">—</span>
                       ) : (
                         `${row.unit_price} /${row.unit}`
                       )}
                     </td>
-                    <td className="num" data-label="Entries">
+                    <td className="num" data-label={t("category.entries")}>
                       {row.entries}
                     </td>
                   </tr>
@@ -186,14 +193,13 @@ export function CategoryPage() {
             </table>
           </TableWrap>
           <p className="hint" style={{ marginTop: 8 }}>
-            Volume-weighted over the last {TREND_MONTHS} months. A dash means those entries
-            carried no quantity, so there is no rate to compare — they still count as spend.
+            {t("category.vendorHint", { months: TREND_MONTHS })}
           </p>
         </Card>
       )}
 
       {series && (
-        <Card title={`Last ${TREND_MONTHS} months`}>
+        <Card title={t("dash.lastMonths", { count: TREND_MONTHS })}>
           <Sparkline
             values={series.values}
             months={trends?.months ?? []}
@@ -203,7 +209,7 @@ export function CategoryPage() {
           <div className="legend">
             {(trends?.months ?? []).map((m, index) => (
               <span key={m}>
-                {monthLabel(m).slice(0, 3)} {money.plain(series.values[index] ?? "0.00")}
+                {dates.monthTick(m)} {money.plain(series.values[index] ?? "0.00")}
               </span>
             ))}
           </div>
@@ -213,7 +219,10 @@ export function CategoryPage() {
       {rateSeries.map((rates) => (
         <Card
           key={rates.unit}
-          title={`Price per ${unitSingular(rates.unit)} (${money.symbol})`}
+          title={t("category.pricePer", {
+            unit: unitSingular(rates.unit, t),
+            symbol: money.symbol,
+          })}
         >
           <RateChart
             values={rates.unit_price}
@@ -227,7 +236,7 @@ export function CategoryPage() {
               const qty = rates.quantity[index] ?? "0.000";
               return (
                 <span key={m} title={`${formatQuantity(qty)} ${rates.unit}`}>
-                  {monthLabel(m).slice(0, 3)} {rate === null ? "—" : rate}
+                  {dates.monthTick(m)} {rate === null ? "—" : rate}
                 </span>
               );
             })}
@@ -235,51 +244,62 @@ export function CategoryPage() {
         </Card>
       ))}
 
-      <Card title="Entries">
+      <Card title={t("category.entries")}>
         {entries.length === 0 ? (
           <Empty>
-            Nothing recorded here in {monthLabel(month)}.{" "}
-            <Link to="/entries?add=1">Add an entry</Link>, or{" "}
-            <button type="button" className="link" onClick={() => setMonth(addMonths(month, -1))}>
-              look at the previous month
+            {t("category.nothingIn", { month: dates.month(month) })}{" "}
+            <Link to="/entries?add=1">{t("category.addAnEntry")}</Link>
+            {t("category.or")}
+            <button
+              type="button"
+              className="link"
+              onClick={() => setMonth(addMonths(month, -1))}
+            >
+              {t("category.previousMonth")}
             </button>
             .
           </Empty>
         ) : (
           <TableWrap>
-            <table className="stacked" aria-label="Category entries">
+            <table className="stacked" aria-label={t("category.tableAria")}>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th className="num">Amount ({money.symbol})</th>
-                  {quantified && <th className="num">Quantity</th>}
-                  <th>Note</th>
+                  <th>{t("field.date")}</th>
+                  <th className="num">
+                    {t("entries.colAmount", { symbol: money.symbol })}
+                  </th>
+                  {quantified && <th className="num">{t("field.quantity")}</th>}
+                  <th>{t("field.note")}</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {entries.map((entry) => (
                   <tr key={entry.id}>
-                    <td data-label="Date">{entry.occurred_on}</td>
-                    <td className="num" data-label="Amount">
+                    <td data-label={t("field.date")}>{entry.occurred_on}</td>
+                    <td className="num" data-label={t("entries.colAmountShort")}>
                       {money.plain(entry.amount)}
                       {entry.unit_price && entry.unit && (
                         <div className="hint rate">{formatRate(entry.unit_price, entry.unit)}</div>
                       )}
                     </td>
                     {quantified && (
-                      <td className="num" data-label="Quantity">
+                      <td className="num" data-label={t("field.quantity")}>
                         {entry.quantity && entry.unit
                           ? `${formatQuantity(entry.quantity)} ${entry.unit}`
                           : ""}
                       </td>
                     )}
-                    <td className="wrap" data-label="Note">
+                    <td className="wrap" data-label={t("field.note")}>
                       {entry.note ?? ""}
                     </td>
                     <td>
-                      <button type="button" className="quiet" onClick={() => void remove(entry)}>
-                        Delete
+                      <button
+                        type="button"
+                        className="quiet"
+                        onClick={() => void remove(entry)}
+                      >
+                        {t("action.delete")}
                       </button>
                     </td>
                   </tr>

@@ -32,9 +32,9 @@ def clean_video_url(raw: str | None) -> str | None:
         return None
     parsed = urlparse(url)
     if parsed.scheme not in _ALLOWED_SCHEMES:
-        raise Invalid("a video link must start with https://")
+        raise Invalid("a video link must start with https://", "video_link_not_https")
     if not parsed.netloc or "@" in parsed.netloc:
-        raise Invalid("that does not look like a video link")
+        raise Invalid("that does not look like a video link", "video_link_invalid")
     return url
 
 
@@ -72,13 +72,13 @@ def get_or_create_exercise(session: Session, user_id: uuid.UUID, *, name: str) -
             )
         ).scalar_one_or_none()
         if existing is None:  # pragma: no cover — would mean the unique index disagrees
-            raise Conflict("exercise could not be created or found")
+            raise Conflict("exercise could not be created or found", "exercise_unwritable")
         return existing
 
     session.expire_all()
     exercise = session.get(Exercise, inserted)
     if exercise is None:  # pragma: no cover
-        raise Conflict("exercise was inserted but is not readable")
+        raise Conflict("exercise was inserted but is not readable", "exercise_unreadable")
     return exercise
 
 
@@ -105,7 +105,9 @@ def update_exercise(
         session.flush()
     except IntegrityError as exc:
         session.rollback()
-        raise Conflict("You already have an exercise with that name") from exc
+        raise Conflict(
+            "You already have an exercise with that name", "exercise_name_taken"
+        ) from exc
     return exercise
 
 
@@ -117,7 +119,9 @@ def delete_exercise(session: Session, user_id: uuid.UUID, exercise_id: uuid.UUID
     except IntegrityError as exc:
         # AD-21: RESTRICT. Deleting it would empty routines and orphan a training history.
         session.rollback()
-        raise Conflict("That exercise is still used by a routine or a logged set") from exc
+        raise Conflict(
+            "That exercise is still used by a routine or a logged set", "exercise_in_use"
+        ) from exc
     if result.rowcount == 0:
         raise NotFound("No exercise with that id")
 
@@ -151,7 +155,7 @@ def create_routine(session: Session, user_id: uuid.UUID, *, name: str, note: str
         session.flush()
     except IntegrityError as exc:
         session.rollback()
-        raise Conflict("You already have a routine with that name") from exc
+        raise Conflict("You already have a routine with that name", "routine_name_taken") from exc
     return routine
 
 
@@ -212,7 +216,9 @@ def add_routine_line(
         session.flush()
     except IntegrityError as exc:
         session.rollback()
-        raise Conflict("That exercise is already in this routine") from exc
+        raise Conflict(
+            "That exercise is already in this routine", "routine_exercise_duplicate"
+        ) from exc
     return line
 
 

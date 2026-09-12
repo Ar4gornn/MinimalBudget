@@ -51,13 +51,13 @@ def get_or_create_type(session: Session, user_id: uuid.UUID, *, name: str) -> Sa
             )
         ).scalar_one_or_none()
         if existing is None:  # pragma: no cover
-            raise Conflict("savings type could not be created or found")
+            raise Conflict("savings type could not be created or found", "savings_type_unwritable")
         return existing
 
     session.expire_all()
     created = session.get(SavingsType, inserted)
     if created is None:  # pragma: no cover
-        raise Conflict("savings type was inserted but is not readable")
+        raise Conflict("savings type was inserted but is not readable", "savings_type_unreadable")
     return created
 
 
@@ -81,7 +81,7 @@ def delete_type(session: Session, user_id: uuid.UUID, type_id: uuid.UUID) -> Non
     except IntegrityError as exc:
         # AD-21: contributions are RESTRICT, the attached target is CASCADE.
         session.rollback()
-        raise Conflict("That savings type still has contributions") from exc
+        raise Conflict("That savings type still has contributions", "savings_type_in_use") from exc
     if result.rowcount == 0:
         raise NotFound("No savings type with that id")
 

@@ -7,8 +7,8 @@ paradigm: 'layered service application with the database as the isolation author
 scope: 'MinimalBudget v1 — React SPA, FastAPI JSON API, Postgres with row-level security'
 status: final
 created: '2026-08-29'
-updated: '2026-09-05'
-binds: [slice-1-foundation-auth, slice-2-categories-entries, slice-3-savings-budgets, slice-4-dashboard, slice-5-client, slice-6-ship, epic-10-unit-prices, epic-11-inventory]
+updated: '2026-09-08'
+binds: [epic-27-recipes, slice-1-foundation-auth, slice-2-categories-entries, slice-3-savings-budgets, slice-4-dashboard, slice-5-client, slice-6-ship, epic-10-unit-prices, epic-11-inventory, epic-22-calendar, epic-23-habits, epic-24-mood]
 sources: [docs/brief.md, docs/prd.md]
 companions: [docs/architecture.md]
 ---
@@ -521,6 +521,247 @@ security-definer function
   was measured (AD-29's litres and kilos on an entry) are per-row and never converted either;
   the difference is that those are compared within a unit, not across one.
 
+### AD-37 — A cross-module *read* is composed at the edge; only a cross-module *write* earns a service
+
+- **Binds:** calendar, dashboard, the daily digest, every future view that spans modules
+- **Extends:** AD-31 (modules are independent; the dashboard page composes them) and AD-4 (one
+  request, one transaction)
+- **Prevents:** `services/calendar.py` — a "read-only aggregator" that would have to import five
+  modules' models, which AD-31 forbids outright, or five modules' services, which quietly makes a
+  second seam beside `services/shopping.py` and so ends the property that there is exactly **one**
+  named place where modules touch. It also prevents the failure mode: a single joined endpoint
+  makes one broken module blank the whole view, where composed endpoints cost one layer.
+- **Rule:** a view that needs rows from more than one module calls **each module's own endpoint**
+  and merges the results at the edge — in the page. `services/shopping.py` remains the only
+  cross-module *service*, and it exists because a cross-module **write** needs both halves inside
+  one transaction; a read needs no transaction spanning modules, so it earns no service. When a
+  module cannot answer the question a view asks, the endpoint is added **to that module**, not to
+  the view: `GET /api/inventory/changes` and `GET /api/recurring/expected` were both added this
+  way. The notification side composes too — `services/push.py` reads what each module already
+  defines rather than restating a predicate (AD-30) — and it is a composer, not a module, which is
+  why it may do so.
+
+### AD-38 — A calendar surface shows the account's period, and an instant is placed by UTC day, out loud
+
+- **Binds:** calendar, inventory charts, client
+- **Extends:** AD-10 (the month is the account's, applied identically by every view)
+- **Prevents:** the calendar becoming the one screen in the app that disagrees with the total
+  printed above it — for an account paid on the 26th, a calendar-month grid would show days from
+  two different budget periods under one heading. And, on the other axis, it prevents a stored
+  instant being placed by whatever time zone the reader's browser happens to be in, so that the
+  same restock lands on different days on a phone and a laptop, and the calendar disagrees with
+  the restock chart.
+- **Rule:** a grid runs from the account's period start to its period end (AD-10), rendered as
+  whole weeks; the days of the neighbouring periods that fall inside those weeks are drawn as
+  **outside**, and are a way into the period they belong to rather than blanks. With
+  `budget_start_day = 1` this is exactly the calendar month, which is what every existing account
+  has. A `DATE` a person chose is placed on that day, unconverted. A `TIMESTAMPTZ` has no day of
+  its own until one is picked: **UTC is picked**, matching the restocks chart, and the interface
+  says so rather than leaving the reader to discover it. The stated limitation stands — a change
+  at 00:30 local, east of UTC, lands on the previous day — and a per-account time zone is the fix
+  if one is ever wanted, in one expression.
+
+### AD-39 — A projection is computed, never written, and never actionable
+
+- **Binds:** recurring, calendar, client
+- **Extends:** AD-33 (recurrence materialises on read, idempotently, and proposes before it writes)
+- **Prevents:** a forward calendar quietly becoming the scheduler AD-33 exists to refuse — a view
+  that materialised occurrences ahead of time would create a month of rent nobody was asked
+  about. It also prevents the mirror error AD-33 names: deriving *proposals* from a cadence, which
+  cannot remember that somebody said "not this month".
+- **Rule:** a projected occurrence is computed from the template's cadence at read time, is
+  written nowhere, and advances no `next_due`. It exists **strictly after today** only: every date
+  up to today is a materialised occurrence carrying its own decision, so a skip stays skipped and
+  a projection can never speak for a date a person has already answered. It carries **no id**,
+  because there is no row — which is what makes "confirm" and "skip" unavailable on it rather than
+  merely hidden — and the interface labels it as something that has not happened.
+
+### AD-40 — A target re-judges the past, so it changes freely; every figure over it is derived, and the period in progress is never a miss
+
+- **Binds:** habits, and any future target over repeated facts
+- **Extends:** AD-36 (a unit that relabels stored numbers locks) and AD-9/AD-30 (a derived figure
+  is computed, never duplicated into a column)
+- **Prevents:** habits being locked the way the currency and the weight unit are, which would make
+  "three times a week" a decision nobody could revise; the opposite error of versioning targets by
+  effective date, which answers "your streak is twelve, under three different rules"; a stored
+  `streak` or `done_today` column, wrong from the instant the target moves; and a streak that
+  reads zero every morning — or, worse, claims a day that has not happened yet.
+- **Rule:** a target — a period and a count — **re-judges** stored facts rather than relabelling
+  them. "I did it on the 3rd" is true whatever the target is, so nothing stored changes meaning
+  and the target is editable at any time; only the derived verdict moves, and a test proves every
+  check-in keeps its id, its date and its count across the change. That is the line against AD-36:
+  a *unit* locks because it changes what a stored number means, a *target* does not because it
+  changes only a judgement about it. Completion and streaks are therefore computed in SQL over the
+  records, defined once in the service that owns them, and the same expression feeds the screen
+  and the notification. The period currently open is **never counted as a miss**: it is dropped
+  from the streak scan while unmet and extends it once met.
+
+### AD-41 — A subjective record is one re-answerable row per day, and every figure over it is a count
+
+- **Binds:** mood, and any future record of what a person *said* rather than what happened
+- **Extends:** AD-9 and AD-30 (a derived figure is computed, never stored) and AD-40 (a
+  judgement moves; the fact under it does not)
+- **Prevents:** four failures, each of which looks reasonable in isolation. An **average of an
+  ordinal scale** — the distance from 2 to 3 is not the distance from 4 to 5, so "your week was
+  3.4" is arithmetic on labels and a number nobody chose. A **many-per-day log** whose daily
+  value is then an aggregate somebody picked (a mean, or the last one), which puts a figure on
+  the chart that the person never gave. **"Did not say" flattened into "no"**, so a nullable
+  boolean loses its third state and a week nobody answered reads as a bad week. And a
+  **denominator taken from the calendar** — days in the window rather than days answered —
+  which turns silence into data.
+- **Rule:** a subjective record is stored **once per day per account**, holding the answer the
+  person gave. A later answer **overwrites** it: unlike an amount, which has a receipt behind
+  it, a mood has no referent outside the person's memory, so a second answer is not a
+  correction toward an external truth but a different answer from someone who now remembers the
+  day differently — the system keeps the latest, cannot tell the two apart, and does not
+  pretend to. A row exists only while it carries at least one answer; clearing the last one
+  **deletes the row**, so "no row" stays the only way the data says *did not say* (the rule
+  Epic 23 settled for a check-in at zero, applied to an answer rather than to an act). Every
+  figure derived from such a record is a **count** — how many days carried each value, how many
+  were answered at all — never a mean or a median presented as a level, and its denominator is
+  always *days answered*. A scale that is ordered says only that one point is more than
+  another; anything stronger is a claim the data does not carry.
+
+### AD-42 — A glyph that a reader must name is drawn here, and never ships without its word
+
+- **Binds:** mood, and any future scale or state rendered as a symbol a reader has to tell from
+  its neighbour
+- **Extends:** the Consistency Convention that charts are hand-rolled inline SVG, and AD-5's
+  principle that a wire representation is chosen deliberately rather than inherited
+- **Prevents:** an emoji codepoint being the interface to a graded answer. The same codepoint is
+  a different drawing on iOS, Android and Windows, and this household shares neither device nor
+  operating system — so two people picking "the flat-mouthed one" pick different points, and a
+  legend means something different on every screen it is opened on. It also prevents the mirror
+  error of **storing the glyph instead of the value**, after which restyling the faces rewrites
+  history.
+- **Rule:** the column holds the value; the picture is presentation and is **inline SVG drawn in
+  this repository**, versioned with the code like every chart here. Every such glyph ships with
+  its **word**, which is the accessible name: the SVG is `aria-hidden` and the label beside it is
+  real text, so a drawing nobody can name still has a name, is speakable, and is findable.
+  Purely decorative navigation glyphs are exempt — the bottom bar's `◪`, the calendar's layer
+  chips — because they are geometric, they already sit beside their own word, and nothing asks a
+  reader to distinguish one from another as an answer.
+
+### AD-43 — A schedule is calendar arithmetic, expanded in one pure module; only counting is SQL
+
+- **Binds:** habits, and any future rule of the form "this is due on these days"
+- **Extends:** AD-9 (aggregation happens in SQL) by drawing the line it does not draw, and AD-30
+  (a predicate is defined once and never copied)
+- **Prevents:** four things, each of which looked reasonable at the time. A **`generate_series`
+  that grows a `CASE`**: Epic 23's streak query was exactly right for "every day" and "every
+  week", and expressing "the last Friday of the month" beside them costs a correlated subquery
+  per month and a query nobody reads twice. A **second copy of "is today a habit day"** in the
+  notifier, in the heat-map and on the page, which drift the first time any one of them changes.
+  A **schedule in JSONB**, which the database cannot check, so a malformed rule is caught only in
+  Python and the streak query unpacks JSON on every read. And an **RRULE string**, which can
+  express rules the UI will never build a form for — a column that promises more than the app
+  delivers.
+- **Rule:** *which* days a rule asks for is **calendar arithmetic**, and it lives in one pure
+  module (`core/schedule.py`) with no session, no models and no service imports — so every rule
+  is testable without a database, and a second copy has nowhere to hide. *How many times* it was
+  done is **SQL**: one `GROUP BY` for the whole page, which is what AD-9 is actually about. The
+  service that owns the module is the only place that knows both. The shape a schedule may take
+  is **typed columns with CHECK constraints**, one per parameter, with a single constraint that
+  refuses every combination except the one its kind requires — so the database, not only the
+  service, knows that a weekday schedule without weekdays is not a schedule. The vocabulary is
+  fixed: an **occasion** is one thing the rule asks for, with inclusive bounds; it is **met** when
+  the records inside it reach the target; the occasion containing today is **open** and, per
+  AD-40, is never a miss. A streak counts **occasions**, not days — so a day the rule never asked
+  for is neither a miss nor a free pass.
+
+### AD-44 — The API answers with a code and an English sentence; the client owns every displayed word
+
+- **Binds:** every error the API returns, and the one place on the server that writes prose anyway
+- **Extends:** AD-14 (the API has no coupling to the web client) and AD-16 (one typed client)
+- **Prevents:** three ways a translated app leaks its server's language. **Rendering `detail`**,
+  which puts an English sentence in the middle of a French screen the moment anything goes wrong
+  — the largest single source of untranslated text in an app that thinks it is translated.
+  **Translating on the server**, via `Accept-Language`, which makes the API speak the web
+  client's language and puts a second catalogue in Python for a client that already has one.
+  And **guessing from the status**, which cannot work: a 409 on a habit and a 409 on a category
+  need different words, and a 401 is a wrong password on one path and an expired session on
+  another — a mistake this codebase actually shipped, and which produced "Your session has
+  expired" on a mistyped password.
+- **Rule:** every refusal carries `{"detail": "<English sentence>", "code": "<stable fact>"}`.
+  The **code is the contract** — renaming one is a breaking change — and the client keys its own
+  wording off it. The sentence is the **fallback**, and it is deliberately still sent: a code the
+  client has never heard of degrades to English rather than to a blank banner, and seeing English
+  is the visible sign that a code needs adding. The client is then the **only** place that turns
+  a stored fact into words, which is why the server sends a habit's schedule as a rule and never
+  as a sentence, and why the dashboard names its own periods rather than rendering the label the
+  summary carries.
+  **The one exception is the push digest**, and it is an exception because it has no client: it
+  is composed by cron on the host, hours after anyone was last in a browser, and arrives as an
+  operating-system notification with nothing in between. So `services/push.py` reads
+  `users.language` and writes the sentence itself — which is also why the language is an account
+  column rather than a browser preference (0019), and why the plural rule is written down on both
+  sides rather than assumed to be `!= 1`.
+
+### AD-45 — Nutrition is a rate over a declared basis; a missing figure is counted, never zeroed; and the module owns its own unit vocabulary
+
+- **Binds:** recipes, meals, the calendar's meals layer, client
+- **Extends:** AD-29 (a quantity is a fact and a rate is derived from it) and AD-9/AD-30 (a
+  derived figure is computed once and never duplicated), and draws the line AD-29 does not:
+  what happens when the rate itself is *unknown*, and whether one closed unit list serves
+  every module.
+- **Prevents:** four failures, each of which looked reasonable at the time.
+
+  A **`kcal` column on `recipes`**, which is the obvious way to build this and is wrong the
+  first afternoon somebody corrects a quantity — with nothing in the row to say the stored
+  figure and the ingredients under it have stopped agreeing.
+
+  **NULL summed as zero.** Nutrient columns must be nullable, or a food nobody has fully
+  typed cannot be used at all; and the moment they are, `SUM` treats "not known" as "none",
+  and every total built on it is quietly too low. The mirror mistake is refusing to report
+  anything when one contributor is incomplete, which throws away the best answer available.
+  Neither is honest: the figure and its incompleteness travel together.
+
+  **One shared unit list.** Recipes need grams and millilitres; AD-29's ledger list has
+  neither. Adding them there makes `g` selectable beside `kg` on an expense, and AD-29 keys
+  a unit-price series by `(category, unit)` and converts nothing — so a household that typed
+  one this month and the other next month gets two series, each half right, with no warning.
+
+  And a **unit that changes meaning under stored data.** A food's basis is not a label: "200"
+  beside a food measured per 100 g is two hundred grams, and the same 200 beside the same
+  food measured per 100 ml is two hundred millilitres. Changing it silently reinterprets
+  every quantity already typed — which is exactly what AD-36 refuses for the account's
+  currency and its weight unit.
+
+- **Rule:** a food stores its nutrition **per one basis amount** — 100 g, 100 ml, or one of
+  the thing — and that is the only nutrition figure written anywhere. Every other figure is
+  derived on read: an ingredient's contribution is `rate × quantity / basis_amount`, a
+  recipe's totals are one SQL `GROUP BY` over those, its per-serving figures are those
+  divided by `servings`, and a meal's contribution is the per-serving figure scaled by the
+  portion. No column, row or table stores a total.
+
+  Nutrient columns are **nullable, and NULL is not zero**. Every derived figure carries a
+  **count of the contributors that had no value** beside the partial sum. A figure over
+  contributors that *all* lacked the nutrient is `null` — the same exception AD-29 already
+  carves out for a period with no quantified rows, and for the same reason: `0.0000` would
+  be a claim about the food rather than an absence of data. This is the one place AD-22's
+  zero-fill rule is deliberately not applied.
+
+  Where a single line's arithmetic and an aggregate are both needed, **both exist and a test
+  holds them equal** — the aggregate in SQL per AD-9, the line in one Python function used
+  by every per-row reader. Two implementations is the drift AD-30 warns about, so the
+  equality is asserted over a recipe with several ingredients, exactly as AD-29 specifies
+  for unit prices.
+
+  A module that compares quantities **within** its own measures owns its own **closed unit
+  list**, extended by migration and never by free text. The recipes module's list is `g`,
+  `ml`, `unit`; AD-29's ledger list is untouched. There is no conversion between units in
+  either list. An ingredient's unit is not a choice: it is **obliged** by its food's basis, a
+  rule that spans two tables and therefore lives in the service with a stable code rather
+  than in a CHECK.
+
+  A **basis locks once anything depends on it** (AD-36), because it reinterprets stored
+  quantities; the nutrition figures beside it never lock, because they re-judge rather than
+  relabel (AD-40). Every nutrition value crosses the wire as a **decimal string**, never a
+  JSON number: a stored per-basis figure at two places, so it round-trips exactly through a
+  client that echoes it back, and a derived figure at four under AD-29's rate type. Both are
+  rounded ROUND_HALF_UP before formatting, on both sides — the client sums and rounds in
+  whole ten-thousandths, the way it already sums money in whole cents.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -538,6 +779,7 @@ security-definer function
 | Config | Read from the settings object, never `os.environ` at a call site. |
 | Auth coverage | Every router except `/api/auth/register`, `/api/auth/login` and `/health` depends on the current-user dependency. |
 | Charts | Hand-rolled inline SVG components under `frontend/src/charts/`. No chart library in v1. |
+| Disclosure, not dialog | There is no modal in this application. Something that opens over the page is a button carrying `aria-expanded` plus a panel — Escape closes it, focus returns to the button, nothing is trapped and nothing is made inert. Adding a real dialog means adding a focus trap, scroll locking, `aria-modal` and a 375px design, and is a decision to be argued rather than a component to be reached for. |
 | Logging | Standard library `logging`, one logger per module. Never log a request body, a token, a password or an email. |
 
 ## Stack
@@ -680,6 +922,11 @@ MinimalBudget/
 | Quantity, unit and unit-price series | `api/entries.py`, `api/dashboard.py`, `services/dashboard.py` | AD-29, AD-9, AD-10 |
 | Inventory — spaces, items, log, restock predicate | `api/inventory.py`, `services/inventory.py`, `models/inventory.py` | AD-30, AD-31, AD-8, AD-12, AD-18, AD-21 |
 | React client | `frontend/src/` | AD-5, AD-16, AD-20 |
+| Calendar — one day at a time, composed from every module | `frontend/src/pages/CalendarPage.tsx`, `api/inventory.py`, `api/recurring.py` | AD-37, AD-38, AD-39, AD-10, AD-31 |
+| Habits — schedules, check-ins with a time, streaks | `api/habits.py`, `services/habits.py`, `models/habits.py`, `core/schedule.py` | AD-43, AD-40, AD-35, AD-30, AD-18, AD-21 |
+| Language — the account's, and the words drawn from it | `frontend/src/i18n/`, `api/auth.py`, `services/push.py`, migration 0019 | AD-44, AD-36, AD-14, AD-16 |
+| Errors — a code and a sentence | `core/errors.py`, `main.py`, `frontend/src/i18n/errors.ts` | AD-44, AD-8, AD-20 |
+| Mood — the day's two answers, the strip and the tally | `api/mood.py`, `services/mood.py`, `models/mood.py`, `frontend/src/components/MoodCheckin.tsx` | AD-41, AD-42, AD-31, AD-37, AD-24 |
 | Test strategy | `backend/tests/` | AD-24 |
 
 ## Deferred
@@ -721,6 +968,23 @@ MinimalBudget/
   deferral named was met: there is now a comparison to make, so the reference table earns
   its keep.
 - **Payment method.** A ledger-wide attribute with its own dashboard implications; its own epic.
+- **A week view on the calendar.** Real value on a phone, and a second layout with its own
+  density rules. The day panel answers the same "what happened on this day" for a fraction of
+  the cost, so this waits until somebody misses it.
+- **Marking a day as reviewed.** Not merely deferred — **rejected in this shape**: it is a
+  stored flag over facts the data already knows, which is what AD-30 exists to forbid. If it is
+  ever wanted it needs a real fact to hang on ("I reconciled the statement to here"), which is a
+  different feature with a different table.
+- **Richer habit periods.** `every N days` needs an anchor and a rolling window, so "am I on
+  track" stops being a calendar question; `specific weekdays` is a `weekdays SMALLINT NULL`
+  bitmask with a CHECK that it is only set for a weekly period; `month` is one more value in the
+  period CHECK. Each is additive to the schema of migration 0016, and none is v1.
+- **A quantity on a check-in.** `amount NUMERIC(10,3) NULL` plus a unit from a closed list, on
+  the AD-29 pattern. It arrives with a decision about what the *target* then means — three
+  sessions or ninety minutes — which is why it is not a column added quietly.
+- **A skip distinct from a miss** on a habit. A skip is a *decision*, so by AD-33's reasoning it
+  must be a recorded row rather than a computed one, and it changes what a streak means. Its own
+  decision, not a flag.
 - **A price series on the dashboard.** Needs a "watched category" notion first. The category
   page has it (Epic 10); lifting it is additive.
 - **Unit conversion.** Never planned: a series is per `(category, unit)`, and that is what was
@@ -739,3 +1003,29 @@ MinimalBudget/
   `2.5 kg` rather than `3`.
 - **Photos on items.** Not planned: the first blob in the system, outside `pg_dump`, so the first
   restore after an upload would be the first partial restore.
+
+- **A mood streak, or any "you have logged N days in a row" figure.** Not deferred —
+  **rejected**. The brief says no gamification, and a streak over a *feeling* is worse than
+  gamification: it rewards answering rather than answering honestly, and the cheapest way to
+  keep one is to tap the same face every night. Habits earn a streak because what is counted
+  is an act somebody chose to do (AD-40); a mood is not an act.
+- **Correlating mood with spending.** Explicitly deferred, and the schema is deliberately not
+  shaped toward it — it stores what a person answered, not what a chart would want. What a
+  later feature would actually need: a *page* reading `/api/mood/history` and
+  `/api/dashboard/trends` and drawing two series on one time axis, with no server-side
+  statistic at all (AD-31 forbids the join in a service; AD-37 routes the read to the edge).
+  To say anything stronger than "here are two lines" it would need enough paired points that a
+  coefficient is not noise — a household produces a few dozen a month, where a correlation's
+  confidence interval comfortably contains zero — a hypothesis fixed before looking, or it is a
+  search over however many categories exist, and a decision about dating, since spending is
+  dated by `occurred_on` (a day a person chose, often typed days later) while a mood is dated
+  by the day it is about. The brief's line has not lapsed: no advice, no predictions. Two lines
+  on one axis is a picture; "you spend more when you are sad" is a claim this data cannot carry.
+- **A "why" tag on a mood** (work, sleep, people, health). Deferred, not refused. It is the
+  first thing that turns a two-tap answer into a form, and a fixed tag list is itself a claim
+  about what makes people feel things. It arrives, if ever, as its own reference table on the
+  AD-12 pattern.
+- **Several moods in one day.** Not a column: a day row that became an aggregate of intraday
+  points would be a derived figure stored, which AD-41 exists to forbid. It is a second table
+  and a different feature — an intraday log — with the day's answer staying what the person
+  said about the day.

@@ -7,7 +7,8 @@
 
 import { toChartNumber } from "../money";
 import { useMoney } from "../useMoney";
-import { monthTick } from "../months";
+import { useT } from "../i18n";
+import { useDates } from "../useDates";
 import type { Money } from "../api/types";
 
 interface Series {
@@ -34,13 +35,15 @@ export function TrendChart({
   saved: Money[];
 }) {
   const money = useMoney();
+  const t = useT();
+  const dates = useDates();
   const series: Series[] = [
-    { label: "Income", values: income, color: "var(--accent)" },
-    { label: "Expense", values: expense, color: "var(--spend)" },
-    { label: "Saved", values: saved, color: "var(--border-strong)" },
+    { label: t("dash.income"), values: income, color: "var(--accent)" },
+    { label: t("dash.expense"), values: expense, color: "var(--spend)" },
+    { label: t("dash.saved"), values: saved, color: "var(--border-strong)" },
   ];
 
-  if (months.length === 0) return <p className="empty">No months to show.</p>;
+  if (months.length === 0) return <p className="empty">{t("chart.noMonths")}</p>;
 
   const numbers = series.flatMap((s) => s.values.map(toChartNumber));
   // A flat all-zero window would otherwise divide by zero and render nothing.
@@ -58,7 +61,10 @@ export function TrendChart({
         // screens, leaving a band of dead space above and below the plot.
         style={{ display: "block", height: "auto" }}
         role="img"
-        aria-label={`Income, expense and savings for ${months[0]} to ${months[months.length - 1]}`}
+        aria-label={t("chart.trendAria", {
+          from: months[0] ?? "",
+          to: months[months.length - 1] ?? "",
+        })}
         preserveAspectRatio="none"
       >
         <line
@@ -88,7 +94,13 @@ export function TrendChart({
                     fill={s.color}
                     rx={1}
                   >
-                    <title>{`${s.label} — ${month}: ${money.amount(s.values[index] ?? "0.00")}`}</title>
+                    <title>
+                      {t("chart.trendPoint", {
+                        series: s.label,
+                        month,
+                        amount: money.amount(s.values[index] ?? "0.00"),
+                      })}
+                    </title>
                   </rect>
                 );
               })}
@@ -99,7 +111,7 @@ export function TrendChart({
                 fontSize={11}
                 fill="var(--faint)"
               >
-                {monthTick(month)}
+                {dates.monthTick(month)}
               </text>
             </g>
           );

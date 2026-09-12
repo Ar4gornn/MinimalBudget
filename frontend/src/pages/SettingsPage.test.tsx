@@ -4,12 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SettingsPage } from "./SettingsPage";
 import { AuthProvider } from "../auth/AuthContext";
+import { LanguageProvider } from "../i18n";
 import { ToastProvider } from "../components/Toast";
 
 function render(ui: React.ReactElement) {
   return rtlRender(
     <AuthProvider>
-      <ToastProvider>{ui}</ToastProvider>
+      <LanguageProvider>
+        <ToastProvider>{ui}</ToastProvider>
+      </LanguageProvider>
     </AuthProvider>,
   );
 }

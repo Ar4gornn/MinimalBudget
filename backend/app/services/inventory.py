@@ -51,13 +51,13 @@ def get_or_create_space(session: Session, user_id: uuid.UUID, *, name: str) -> S
             select(Space).where(Space.user_id == user_id, func.lower(Space.name) == name.lower())
         ).scalar_one_or_none()
         if existing is None:  # pragma: no cover — would mean the unique index disagrees
-            raise Conflict("space could not be created or found")
+            raise Conflict("space could not be created or found", "space_unwritable")
         return existing
 
     session.expire_all()
     space = session.get(Space, inserted)
     if space is None:  # pragma: no cover
-        raise Conflict("space was inserted but is not readable")
+        raise Conflict("space was inserted but is not readable", "space_unreadable")
     return space
 
 
@@ -78,7 +78,7 @@ def rename_space(session: Session, user_id: uuid.UUID, space_id: uuid.UUID, *, n
         session.flush()
     except IntegrityError as exc:
         session.rollback()
-        raise Conflict("A space with that name already exists") from exc
+        raise Conflict("A space with that name already exists", "space_name_taken") from exc
     return space
 
 
@@ -90,7 +90,7 @@ def delete_space(session: Session, user_id: uuid.UUID, space_id: uuid.UUID) -> N
     except IntegrityError as exc:
         # AD-21: RESTRICT. The items are the point; the space is only a label on them.
         session.rollback()
-        raise Conflict("That space still has items") from exc
+        raise Conflict("That space still has items", "space_in_use") from exc
     if result.rowcount == 0:
         raise NotFound("No space with that id")
 
@@ -240,6 +240,38 @@ def item_history(
         .order_by(InventoryItemChange.changed_at, InventoryItemChange.id)
     )
     return list(session.execute(query).scalars())
+
+
+def changes_in(
+    session: Session, user_id: uuid.UUID, *, month: str, start_day: int = DEFAULT_START_DAY
+) -> list[tuple[InventoryItemChange, str]]:
+    """Every item's quantity changes inside one budget month, with the item's name.
+
+    The calendar reads this. It belongs to the inventory module rather than to a calendar
+    service: "what moved this month" is a question about stock, and answering it here is
+    what keeps the calendar a composition of module endpoints instead of a join across
+    modules (AD-31, AD-37).
+
+    ``changed_at`` is a ``TIMESTAMPTZ`` — an instant, not a day somebody chose — so the
+    window is applied in **UTC**, the same way the restocks chart above does it, and the
+    client says so rather than pretending it is the same kind of fact as ``occurred_on``.
+    The stated limitation is unchanged: a restock at 00:30 local, east of UTC, lands on the
+    previous UTC day.
+    """
+    start, end = month_range(month, start_day)
+    since = dt.datetime.combine(start, dt.time.min, tzinfo=dt.UTC)
+    until = dt.datetime.combine(end, dt.time.min, tzinfo=dt.UTC)
+    rows = session.execute(
+        select(InventoryItemChange, InventoryItem.name)
+        .join(InventoryItem, InventoryItem.id == InventoryItemChange.item_id)
+        .where(
+            InventoryItemChange.user_id == user_id,
+            InventoryItemChange.changed_at >= since,
+            InventoryItemChange.changed_at < until,
+        )
+        .order_by(InventoryItemChange.changed_at, InventoryItemChange.id)
+    ).all()
+    return [(row, name) for row, name in rows]
 
 
 # AD-9: restocks per space per month, driven from the spaces so one with no restocks still

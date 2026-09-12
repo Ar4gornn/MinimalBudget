@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.models.inventory import InventoryItem, Space
 from app.models.ledger import Category, Entry
+from app.models.mood import MoodDay
 from app.models.savings import SavingsContribution, SavingsType
 
 # The characters a spreadsheet reads as "this cell is a formula". The control characters are
@@ -135,6 +136,38 @@ def inventory_csv(session: Session, user_id: uuid.UUID) -> Iterator[str]:
     return _rows_to_csv(
         ["space", "item", "quantity", "restock_below", "cost", "needs_restock", "note"], rows()
     )
+
+
+def mood_csv(session: Session, user_id: uuid.UUID) -> Iterator[str]:
+    """The day's answers (Epic 24).
+
+    Exported like everything else, and deliberately so: this is the most personal file in
+    the system, which is an argument for the person having a copy of it, not against. It
+    changes nothing about how the export works — the same authenticated download, the same
+    formula neutralisation, the same streaming.
+
+    The scale is named in the **header** rather than written as a word beside every row.
+    The words belong to one place, the client that draws the faces (AD-42); a second copy
+    here would be the drift AD-30 exists to forbid, and ``mood_1_to_5`` says as much as a
+    repeated adjective would.
+    """
+    query = (
+        select(MoodDay)
+        .where(MoodDay.user_id == user_id)
+        .order_by(MoodDay.on_day, MoodDay.id)
+    )
+
+    def rows() -> Iterator[list[object]]:
+        for day in session.execute(query).scalars():
+            yield [
+                day.on_day.isoformat(),
+                "" if day.mood is None else day.mood,
+                # Three states, not two: an empty cell is "did not say", never "no".
+                "" if day.day_ok is None else ("yes" if day.day_ok else "no"),
+                day.note or "",
+            ]
+
+    return _rows_to_csv(["date", "mood_1_to_5", "day_was_good", "note"], rows())
 
 
 def filename(kind: str, today: dt.date | None = None) -> str:

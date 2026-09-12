@@ -221,6 +221,40 @@ describe("transparent refresh", () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
+  it("refreshes for the profile endpoints too, rather than signing the session out", async () => {
+    // The guard used to exclude every path under `/api/auth/`, which swept up `/api/auth/me`
+    // and every `me/*` setting with it. The effect was the exact thing the refresh flow
+    // exists to prevent: opening the app after the access token aged out signed you back
+    // out, while a perfectly good refresh token sat in storage unused (AD-27).
+    storeTokens(tokens("one"));
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/api/auth/refresh")) return respond(tokens("two"));
+      return readToken() === "access-two"
+        ? respond({ id: "u1", email: "sam@example.com", language: "en" })
+        : respond({ detail: "Please sign in again.", code: "session_expired" }, 401);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.me()).resolves.toMatchObject({ email: "sam@example.com" });
+    expect(handler).not.toHaveBeenCalled();
+    expect(readToken()).toBe("access-two");
+  });
+
+  it("refreshes for a settings change under /api/auth/me as well", async () => {
+    storeTokens(tokens("one"));
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/api/auth/refresh")) return respond(tokens("two"));
+      return readToken() === "access-two"
+        ? respond({ id: "u1", email: "sam@example.com", language: "fr" })
+        : respond({ detail: "Please sign in again.", code: "session_expired" }, 401);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.setLanguage("fr")).resolves.toMatchObject({ language: "fr" });
+  });
+
   it("does not try to refresh the auth endpoints themselves", async () => {
     // Otherwise a wrong password would trigger a refresh attempt on the way to reporting
     // itself, and a failed login would look like an expired session.

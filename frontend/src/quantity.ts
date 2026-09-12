@@ -8,8 +8,11 @@
  */
 
 import type { Money, Quantity, Rate, Unit } from "./api/types";
-import { UNIT_LABELS, UNIT_SINGULAR } from "./api/types";
+import { translator, type MessageKey, type Translate } from "./i18n/catalogue";
+import { UNITS } from "./api/types";
 import { fromCents, toCents } from "./money";
+
+const EN = translator("en");
 
 const QUANTITY_SHAPE = /^\d{1,9}(\.\d{1,3})?$/;
 const RATE_SHAPE = /^\d{1,12}(\.\d{1,4})?$/;
@@ -73,12 +76,20 @@ export function formatRate(rate: Rate, unit: Unit): string {
   return `${rate} /${unit}`;
 }
 
-export function unitLabel(unit: Unit): string {
-  return UNIT_LABELS[unit];
+/**
+ * "litres", "kWh" — the plural, for a column head or a picker.
+ *
+ * Only three of the seven units are words at all; the rest are symbols, which are the same
+ * in every language. Called without a translator it answers in English, so the arithmetic
+ * around it stays testable without mounting a provider.
+ */
+export function unitLabel(unit: Unit, t: Translate = EN): string {
+  return t(`unit.${unit}` as MessageKey);
 }
 
-export function unitSingular(unit: Unit): string {
-  return UNIT_SINGULAR[unit];
+/** "per litre", "per kWh": the singular for a rate's caption. */
+export function unitSingular(unit: Unit, t: Translate = EN): string {
+  return t(`unitOne.${unit}` as MessageKey);
 }
 
 /** Trim trailing zeros for display only: "40.000" -> "40", "2.500" -> "2.5". */
@@ -101,7 +112,9 @@ export function rememberUnit(categoryName: string, unit: Unit): void {
 export function recallUnit(categoryName: string): Unit | null {
   try {
     const stored = window.localStorage.getItem(UNIT_MEMORY + categoryName.trim().toLowerCase());
-    return stored && stored in UNIT_LABELS ? (stored as Unit) : null;
+    return stored && (UNITS as readonly string[]).includes(stored)
+      ? (stored as Unit)
+      : null;
   } catch {
     return null;
   }

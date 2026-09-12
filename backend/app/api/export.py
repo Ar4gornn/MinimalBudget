@@ -10,6 +10,7 @@ _KINDS = {
     "entries": export.entries_csv,
     "savings": export.savings_csv,
     "inventory": export.inventory_csv,
+    "mood": export.mood_csv,
 }
 
 
@@ -39,3 +40,8 @@ def savings(user_id: CurrentUserId, session: DbSession) -> StreamingResponse:
 @router.get("/inventory.csv")
 def inventory(user_id: CurrentUserId, session: DbSession) -> StreamingResponse:
     return _csv(export.inventory_csv(session, user_id), export.filename("inventory"))
+
+
+@router.get("/mood.csv")
+def mood(user_id: CurrentUserId, session: DbSession) -> StreamingResponse:
+    return _csv(export.mood_csv(session, user_id), export.filename("mood"))

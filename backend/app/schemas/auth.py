@@ -8,6 +8,10 @@ from app.core.months import MAX_START_DAY
 
 Currency = Literal["USD", "EUR"]
 WeightUnit = Literal["kg", "lb"]
+#: The languages this build actually has a catalogue for. Two letters rather than a BCP 47
+#: tag: a column that could hold "pt-BR" while nothing could render it is a promise the app
+#: does not keep. See migration 0019.
+Language = Literal["en", "fr"]
 
 
 class Credentials(BaseModel):
@@ -33,6 +37,9 @@ class RegistrationRequest(Credentials):
     # Chosen at sign-up because it is far cheaper than changing it later, once the account
     # holds entries the setting can no longer safely relabel.
     currency: Currency = "USD"
+    # Unlike the currency this is free to change afterwards; it is asked at sign-up only so
+    # the first screen after registering is already in the right language.
+    language: Language = "en"
 
 
 class UserOut(BaseModel):
@@ -44,6 +51,7 @@ class UserOut(BaseModel):
     weight_unit: WeightUnit
     # AD-10: 1 is the calendar month. See MAX_START_DAY for why 28 is the ceiling.
     budget_start_day: int
+    language: Language
     created_at: datetime
 
 
@@ -66,6 +74,10 @@ class CurrencyUpdate(BaseModel):
 
 class WeightUnitUpdate(BaseModel):
     weight_unit: WeightUnit
+
+
+class LanguageUpdate(BaseModel):
+    language: Language
 
 
 class BudgetStartDayUpdate(BaseModel):

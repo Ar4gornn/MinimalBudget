@@ -29,10 +29,16 @@ import {
   unitLabel,
 } from "../quantity";
 import { useMoney } from "../useMoney";
-import { budgetMonth, monthLabel, monthRangeLabel, todayIso } from "../months";
+import { useT } from "../i18n";
+import type { MessageKey } from "../i18n/catalogue";
+import { errorMessage } from "../i18n/errors";
+import { useDates } from "../useDates";
+import { budgetMonth, todayIso } from "../months";
 
 export function EntriesPage() {
   const money = useMoney();
+  const t = useT();
+  const dates = useDates();
   // Optional, like useMoney: a month boundary has an obvious default, and crashing a
   // whole page for want of context is worse than falling back to the calendar month.
   const startDay = useOptionalAuth()?.user?.budget_start_day ?? 1;
@@ -102,11 +108,11 @@ export function EntriesPage() {
       setCategories(nextCategories);
       setVendors(nextVendors);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not load entries.");
+      setError(errorMessage(t, caught, "entries.couldNotLoad"));
     } finally {
       setLoading(false);
     }
-  }, [kindFilter, monthFilter, categoryFilter, search]);
+  }, [kindFilter, monthFilter, categoryFilter, search, t]);
 
   useEffect(() => {
     void load();
@@ -116,6 +122,10 @@ export function EntriesPage() {
   // onto the first thing you would type, then drop the parameter so a refresh is normal.
   useEffect(() => {
     if (searchParams.get("add") !== "1") return;
+    // Arriving from a day on the calendar: that day is the one being recorded, so prefill
+    // it rather than leaving today's date to be corrected by hand.
+    const date = searchParams.get("date");
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) setOccurredOn(date);
     amountRef.current?.focus();
     setSearchParams({}, { replace: true });
   }, [searchParams, setSearchParams]);
@@ -172,16 +182,16 @@ export function EntriesPage() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!isPositiveMoney(amount)) {
-      setError("Enter an amount with at most two decimal places, greater than zero.");
+      setError(t("entries.badAmount"));
       return;
     }
     const quantified = kind === "expense" && quantity.trim() !== "";
     if (quantified && !isQuantity(quantity)) {
-      setError("Enter a quantity with at most three decimal places, greater than zero.");
+      setError(t("entries.badQuantity"));
       return;
     }
     if (quantified && !unit) {
-      setError("Choose a unit for the quantity.");
+      setError(t("entries.needUnit"));
       return;
     }
     setSaving(true);
@@ -204,9 +214,9 @@ export function EntriesPage() {
       clearQuantity();
       setUnitDismissed(false);
       await load();
-      toast.show("Entry added");
+      toast.show(t("entries.added"));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save the entry.");
+      setError(errorMessage(t, caught, "entries.couldNotSave"));
     } finally {
       setSaving(false);
     }
@@ -227,16 +237,16 @@ export function EntriesPage() {
   async function saveEdit(entry: Entry) {
     if (!draft) return;
     if (!isPositiveMoney(draft.amount)) {
-      setError("Enter an amount with at most two decimal places, greater than zero.");
+      setError(t("entries.badAmount"));
       return;
     }
     const draftQuantified = draft.quantity.trim() !== "";
     if (draftQuantified && !isQuantity(draft.quantity)) {
-      setError("Enter a quantity with at most three decimal places, greater than zero.");
+      setError(t("entries.badQuantity"));
       return;
     }
     if (draftQuantified && !draft.unit) {
-      setError("Choose a unit for the quantity.");
+      setError(t("entries.needUnit"));
       return;
     }
 
@@ -279,9 +289,9 @@ export function EntriesPage() {
       await api.updateEntry(entry.id, patch);
       setEditing(null);
       await load();
-      toast.show("Entry updated");
+      toast.show(t("entries.updated"));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save that change.");
+      setError(errorMessage(t, caught, "entries.couldNotSaveChange"));
     }
   }
 
@@ -293,7 +303,7 @@ export function EntriesPage() {
       // Undo rather than a confirmation dialog: the common case stays one tap, and the
       // rare mis-tap is recoverable. A confirm would tax every deliberate delete to
       // protect against the occasional accident.
-      toast.show(`Deleted ${money.amount(entry.amount)}`, {
+      toast.show(t("entries.deleted", { amount: money.amount(entry.amount) }), {
         onUndo: async () => {
           await api.createEntry({
             kind: entry.kind,
@@ -309,7 +319,7 @@ export function EntriesPage() {
         },
       });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not delete the entry.");
+      setError(errorMessage(t, caught, "entries.couldNotDelete"));
     }
   }
 
@@ -319,12 +329,12 @@ export function EntriesPage() {
     <>
       <ErrorBanner message={error} />
 
-      <Card title="Record an entry">
-        <form className="row" onSubmit={submit} aria-label="Record an entry">
+      <Card title={t("entries.record")}>
+        <form className="row" onSubmit={submit} aria-label={t("entries.record")}>
           <label style={{ flex: "0 0 120px" }}>
-            Kind
+            {t("entries.kind")}
             <select
-              aria-label="Kind"
+              aria-label={t("entries.kind")}
               value={kind}
               onChange={(event) => {
                 const next = event.target.value as EntryKind;
@@ -337,19 +347,19 @@ export function EntriesPage() {
                 }
               }}
             >
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
+              <option value="expense">{t("kind.expense")}</option>
+              <option value="income">{t("kind.income")}</option>
             </select>
           </label>
 
           <label style={{ flex: "0 0 130px" }}>
-            Amount
+            {t("field.amount")}
             <input
               ref={amountRef}
               className="num"
               inputMode="decimal"
               placeholder="0.00"
-              aria-label={`Amount in ${money.currency}`}
+              aria-label={t("entries.amountAria", { currency: money.currency })}
               required
               value={amount}
               onChange={(event) => onAmountChange(event.target.value)}
@@ -357,11 +367,11 @@ export function EntriesPage() {
           </label>
 
           <label style={{ flex: "1 1 180px" }}>
-            Category
+            {t("field.category")}
             <input
               list="category-names"
-              aria-label="Category"
-              placeholder="Rent, Salary…"
+              aria-label={t("field.category")}
+              placeholder={t("entries.categoryPlaceholder")}
               required
               value={categoryName}
               onChange={(event) => onCategoryNameChange(event.target.value)}
@@ -376,10 +386,10 @@ export function EntriesPage() {
           </datalist>
 
           <label style={{ flex: "0 0 150px" }}>
-            Date
+            {t("field.date")}
             <input
               type="date"
-              aria-label="Date"
+              aria-label={t("field.date")}
               required
               value={occurredOn}
               onChange={(event) => setOccurredOn(event.target.value)}
@@ -387,11 +397,11 @@ export function EntriesPage() {
           </label>
 
           <label style={{ flex: "1 1 140px" }}>
-            Vendor
+            {t("entries.vendor")}
             <input
               list="vendor-names"
-              aria-label="Vendor"
-              placeholder="Shell, Lidl…"
+              aria-label={t("entries.vendor")}
+              placeholder={t("entries.vendorPlaceholder")}
               value={vendorName}
               onChange={(event) => setVendorName(event.target.value)}
             />
@@ -403,9 +413,9 @@ export function EntriesPage() {
           </datalist>
 
           <label style={{ flex: "1 1 160px" }}>
-            Note
+            {t("field.note")}
             <input
-              aria-label="Note"
+              aria-label={t("field.note")}
               value={note}
               onChange={(event) => setNote(event.target.value)}
             />
@@ -418,45 +428,49 @@ export function EntriesPage() {
               onClick={() => setShowQuantity(true)}
               aria-expanded={false}
             >
-              + Quantity
+              {t("entries.addQuantity")}
             </button>
           )}
 
           {quantitySectionOpen && (
-            <div className="row quantity-row" role="group" aria-label="Quantity details">
+            <div
+              className="row quantity-row"
+              role="group"
+              aria-label={t("entries.quantityDetails")}
+            >
               <label style={{ flex: "0 0 120px" }}>
-                Quantity
+                {t("field.quantity")}
                 <input
                   className="num"
                   inputMode="decimal"
-                  placeholder="40"
-                  aria-label="Quantity"
+                  placeholder={t("entries.quantityPlaceholder")}
+                  aria-label={t("field.quantity")}
                   value={quantity}
                   onChange={(event) => onQuantityChange(event.target.value)}
                 />
               </label>
               <label style={{ flex: "0 0 110px" }}>
-                Unit
+                {t("entries.unit")}
                 <select
-                  aria-label="Unit"
+                  aria-label={t("entries.unit")}
                   value={unit}
                   onChange={(event) => setUnit(event.target.value as Unit | "")}
                 >
                   <option value="">—</option>
                   {UNITS.map((u) => (
                     <option key={u} value={u}>
-                      {unitLabel(u)}
+                      {unitLabel(u, t)}
                     </option>
                   ))}
                 </select>
               </label>
               <label style={{ flex: "0 0 130px" }}>
-                Unit price
+                {t("entries.unitPrice")}
                 <input
                   className="num"
                   inputMode="decimal"
                   placeholder="1.4990"
-                  aria-label={`Unit price in ${money.currency}`}
+                  aria-label={t("entries.unitPriceAria", { currency: money.currency })}
                   value={rate}
                   onChange={(event) => onRateChange(event.target.value)}
                 />
@@ -469,7 +483,7 @@ export function EntriesPage() {
                   setShowQuantity(false);
                   setUnitDismissed(true);
                 }}
-                aria-label="Remove quantity"
+                aria-label={t("entries.removeQuantity")}
               >
                 ×
               </button>
@@ -477,49 +491,49 @@ export function EntriesPage() {
           )}
 
           <button type="submit" disabled={saving}>
-            {saving ? "Saving…" : "Add"}
+            {saving ? t("entries.saving") : t("action.add")}
           </button>
         </form>
         <p className="hint" style={{ marginTop: 8 }}>
-          A category that does not exist yet is created as you type it.
-          {quantitySectionOpen && " Fill any two of amount, quantity and unit price."}
+          {t("entries.formHint")}
+          {quantitySectionOpen && t("entries.formHintQuantity")}
         </p>
       </Card>
 
-      <Card title="Entries">
+      <Card title={t("entries.title")}>
         {/* A filter bar, not a header action: four controls and a note do not belong on the
             same baseline as a card title, which is what wrapped them into two ragged rows.
             A grid rather than flex bases, so it reflows on its own instead of being tuned. */}
         <div className="filters">
           <label>
-            Kind
+            {t("entries.kind")}
             <select
-              aria-label="Filter by kind"
+              aria-label={t("entries.filterKind")}
               value={kindFilter}
               onChange={(event) => setKindFilter(event.target.value as EntryKind | "")}
             >
-              <option value="">All</option>
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
+              <option value="">{t("entries.filterAll")}</option>
+              <option value="expense">{t("kind.expense")}</option>
+              <option value="income">{t("kind.income")}</option>
             </select>
           </label>
           <label>
-            Month
+            {t("field.month")}
             <input
               type="month"
-              aria-label="Filter by month"
+              aria-label={t("entries.filterMonth")}
               value={monthFilter}
               onChange={(event) => setMonthFilter(event.target.value)}
             />
           </label>
           <label>
-            Category
+            {t("field.category")}
             <select
-              aria-label="Filter by category"
+              aria-label={t("entries.filterCategory")}
               value={categoryFilter}
               onChange={(event) => setCategoryFilter(event.target.value)}
             >
-              <option value="">All</option>
+              <option value="">{t("entries.filterAll")}</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -528,42 +542,47 @@ export function EntriesPage() {
             </select>
           </label>
           <label>
-            Search
+            {t("entries.search")}
             <input
               type="search"
-              aria-label="Search entries"
-              placeholder="note or category"
+              aria-label={t("entries.searchAria")}
+              placeholder={t("entries.searchPlaceholder")}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
           {/* Its own full-width line: inside the Month label it made that one control taller
               than the other three and broke the row's alignment. */}
-          {monthRangeLabel(monthFilter, startDay) && (
+          {dates.monthRange(monthFilter, startDay) && (
             <p className="filter-note hint">
-              {monthLabel(monthFilter)} runs {monthRangeLabel(monthFilter, startDay)}
+              {t("entries.monthRuns", {
+                month: dates.month(monthFilter),
+                range: dates.monthRange(monthFilter, startDay),
+              })}
             </p>
           )}
         </div>
 
         {loading ? (
-          <p className="empty">Loading…</p>
+          <p className="empty">{t("state.loading")}</p>
         ) : entries.length === 0 ? (
           <Empty>
             {search.trim()
-              ? `Nothing matching “${search.trim()}” in this month.`
-              : "Nothing recorded for this filter."}
+              ? t("entries.noneMatching", { search: search.trim() })
+              : t("entries.noneForFilter")}
           </Empty>
         ) : (
           <TableWrap>
-            <table className="stacked" aria-label="Entries">
+            <table className="stacked" aria-label={t("entries.title")}>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Kind</th>
-                  <th>Category</th>
-                  <th className="num">Amount ({money.symbol})</th>
-                  <th>Note</th>
+                  <th>{t("field.date")}</th>
+                  <th>{t("entries.kind")}</th>
+                  <th>{t("field.category")}</th>
+                  <th className="num">
+                    {t("entries.colAmount", { symbol: money.symbol })}
+                  </th>
+                  <th>{t("field.note")}</th>
                   <th />
                 </tr>
               </thead>
@@ -571,10 +590,10 @@ export function EntriesPage() {
                 {entries.map((entry) =>
                   editing === entry.id && draft ? (
                     <tr key={entry.id}>
-                      <td data-label="Date">
+                      <td data-label={t("field.date")}>
                         <input
                           type="date"
-                          aria-label="Edit date"
+                          aria-label={t("entries.editDate")}
                           value={draft.occurred_on}
                           onChange={(event) =>
                             setDraft({ ...draft, occurred_on: event.target.value })
@@ -586,16 +605,16 @@ export function EntriesPage() {
                           entry to a different category at the same time. Delete and re-add
                           is the honest path, and the API refuses it for the same reason. */}
                       <td
-                        data-label="Kind"
+                        data-label={t("entries.kind")}
                         style={{
                           color: entry.kind === "income" ? "var(--accent)" : "var(--spend)",
                         }}
                       >
-                        {entry.kind}
+                        {t(`kind.${entry.kind}` as MessageKey)}
                       </td>
-                      <td data-label="Category">
+                      <td data-label={t("field.category")}>
                         <select
-                          aria-label="Edit category"
+                          aria-label={t("entries.editCategory")}
                           value={draft.category_id}
                           onChange={(event) =>
                             setDraft({ ...draft, category_id: event.target.value })
@@ -612,11 +631,11 @@ export function EntriesPage() {
                             ))}
                         </select>
                       </td>
-                      <td className="num" data-label="Amount">
+                      <td className="num" data-label={t("entries.colAmountShort")}>
                         <input
                           className="num"
                           inputMode="decimal"
-                          aria-label="Edit amount"
+                          aria-label={t("entries.editAmount")}
                           value={draft.amount}
                           onChange={(event) => setDraft({ ...draft, amount: event.target.value })}
                         />
@@ -625,15 +644,15 @@ export function EntriesPage() {
                             <input
                               className="num"
                               inputMode="decimal"
-                              placeholder="qty"
-                              aria-label="Edit quantity"
+                              placeholder={t("entries.quantityShort")}
+                              aria-label={t("entries.editQuantity")}
                               value={draft.quantity}
                               onChange={(event) =>
                                 setDraft({ ...draft, quantity: event.target.value })
                               }
                             />
                             <select
-                              aria-label="Edit unit"
+                              aria-label={t("entries.editUnit")}
                               value={draft.unit}
                               onChange={(event) =>
                                 setDraft({ ...draft, unit: event.target.value as Unit | "" })
@@ -649,9 +668,9 @@ export function EntriesPage() {
                           </div>
                         )}
                       </td>
-                      <td className="wrap" data-label="Note">
+                      <td className="wrap" data-label={t("field.note")}>
                         <input
-                          aria-label="Edit note"
+                          aria-label={t("entries.editNote")}
                           value={draft.note}
                           onChange={(event) => setDraft({ ...draft, note: event.target.value })}
                         />
@@ -659,31 +678,35 @@ export function EntriesPage() {
                       <td>
                         <div className="row" style={{ flexWrap: "nowrap", gap: 6 }}>
                           <button type="button" onClick={() => void saveEdit(entry)}>
-                            Save
+                            {t("action.save")}
                           </button>
-                          <button type="button" className="quiet" onClick={() => setEditing(null)}>
-                            Cancel
+                          <button
+                            type="button"
+                            className="quiet"
+                            onClick={() => setEditing(null)}
+                          >
+                            {t("action.cancel")}
                           </button>
                         </div>
                       </td>
                     </tr>
                   ) : (
                     <tr key={entry.id}>
-                      <td data-label="Date">{entry.occurred_on}</td>
+                      <td data-label={t("field.date")}>{entry.occurred_on}</td>
                       <td
-                        data-label="Kind"
+                        data-label={t("entries.kind")}
                         style={{
                           color: entry.kind === "income" ? "var(--accent)" : "var(--spend)",
                         }}
                       >
-                        {entry.kind}
+                        {t(`kind.${entry.kind}` as MessageKey)}
                       </td>
-                      <td data-label="Category">
+                      <td data-label={t("field.category")}>
                         <Link to={`/categories/${entry.category_id}`}>
                           {nameOf(entry.category_id)}
                         </Link>
                       </td>
-                      <td className="num" data-label="Amount">
+                      <td className="num" data-label={t("entries.colAmountShort")}>
                         {money.plain(entry.amount)}
                         {entry.quantity && entry.unit && entry.unit_price && (
                           <div className="hint rate" title={`${formatQuantity(entry.quantity)} ${entry.unit}`}>
@@ -691,7 +714,7 @@ export function EntriesPage() {
                           </div>
                         )}
                       </td>
-                      <td className="wrap" data-label="Note">
+                      <td className="wrap" data-label={t("field.note")}>
                         {entry.note ?? ""}
                       </td>
                       <td>
@@ -700,17 +723,23 @@ export function EntriesPage() {
                             type="button"
                             className="quiet"
                             onClick={() => beginEdit(entry)}
-                            aria-label={`Edit entry of ${entry.amount} on ${entry.occurred_on}`}
+                            aria-label={t("entries.editRow", {
+                              amount: entry.amount,
+                              date: entry.occurred_on,
+                            })}
                           >
-                            Edit
+                            {t("action.edit")}
                           </button>
                           <button
                             type="button"
                             className="quiet"
                             onClick={() => void remove(entry)}
-                            aria-label={`Delete entry of ${entry.amount} on ${entry.occurred_on}`}
+                            aria-label={t("entries.deleteRow", {
+                              amount: entry.amount,
+                              date: entry.occurred_on,
+                            })}
                           >
-                            Delete
+                            {t("action.delete")}
                           </button>
                         </div>
                       </td>

@@ -3,10 +3,15 @@ import { useState, type FormEvent } from "react";
 import { api } from "../api/client";
 import { ErrorBanner } from "../components/ui";
 import { useAuth } from "../auth/AuthContext";
-import type { Currency } from "../api/types";
+import { LANGUAGES, useLanguage } from "../i18n";
+import { errorMessage } from "../i18n/errors";
+import type { Currency, Language } from "../api/types";
 
 export function SignInPage() {
   const { signIn, register } = useAuth();
+  // The full context rather than `useT`: this is the one screen where the reader has no
+  // account yet, so the picker below is their only way out of a language they cannot read.
+  const { t, lang, setLanguage } = useLanguage();
   const [mode, setMode] = useState<"signin" | "register" | "recover">("signin");
   const [recoveryCode, setRecoveryCode] = useState("");
   const [email, setEmail] = useState("");
@@ -27,14 +32,17 @@ export function SignInPage() {
     setError(null);
     setBusy(true);
     try {
-      if (registering) await register(email, password, inviteCode, currency);
+      // The language the page is being read in is what the new account starts with, so the
+      // first screen after registering is already right. It is a setting, not a vow: it
+      // changes freely afterwards.
+      if (registering) await register(email, password, inviteCode, currency, lang);
       else if (recovering) {
         // The code sets the password and revokes every session; then sign in with it.
         await api.recover(email, recoveryCode, password);
         await signIn(email, password);
       } else await signIn(email, password);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Something went wrong.");
+      setError(errorMessage(t, caught, "error.generic"));
     } finally {
       setBusy(false);
     }
@@ -42,20 +50,20 @@ export function SignInPage() {
 
   return (
     <main className="signin">
-      <h1>MinimalBudget</h1>
+      <h1>{t("app.name")}</h1>
       <p className="hint">
         {registering
-          ? "Create an account. Your data is visible only to you."
+          ? t("signin.introRegister")
           : recovering
-            ? "Enter your email, one unused recovery code, and a new password."
-            : "Sign in to your account."}
+            ? t("signin.introRecover")
+            : t("signin.intro")}
       </p>
 
       <form className="stack" onSubmit={submit}>
         <ErrorBanner message={error} />
 
         <label>
-          Email
+          {t("signin.email")}
           <input
             type="email"
             name="email"
@@ -68,7 +76,7 @@ export function SignInPage() {
 
         {recovering && (
           <label>
-            Recovery code
+            {t("signin.recoveryCode")}
             <input
               name="recovery-code"
               autoComplete="off"
@@ -81,7 +89,7 @@ export function SignInPage() {
         )}
 
         <label>
-          {recovering ? "New password" : "Password"}
+          {recovering ? t("signin.newPassword") : t("signin.password")}
           <div className="password-field">
             <input
               type={showPassword ? "text" : "password"}
@@ -97,9 +105,9 @@ export function SignInPage() {
               className="quiet"
               onClick={() => setShowPassword((was) => !was)}
               aria-pressed={showPassword}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword ? t("signin.hidePassword") : t("signin.showPassword")}
             >
-              {showPassword ? "Hide" : "Show"}
+              {showPassword ? t("signin.hide") : t("signin.show")}
             </button>
           </div>
         </label>
@@ -107,7 +115,7 @@ export function SignInPage() {
         {registering && (
           <>
             <label>
-              Invite code
+              {t("signin.inviteCode")}
               <input
                 name="invite-code"
                 autoComplete="off"
@@ -116,32 +124,28 @@ export function SignInPage() {
               />
             </label>
             <label>
-              Currency
+              {t("signin.currency")}
               <select
-                aria-label="Currency"
+                aria-label={t("signin.currency")}
                 value={currency}
                 onChange={(event) => setCurrency(event.target.value as Currency)}
               >
-                <option value="USD">US dollars ($)</option>
-                <option value="EUR">Euros (€)</option>
+                <option value="USD">{t("settings.currencyUsd")}</option>
+                <option value="EUR">{t("settings.currencyEur")}</option>
               </select>
             </label>
-            <p className="hint">
-              Passwords need at least 10 characters. An invite code is required unless this
-              instance is running in open mode. Your currency can only be changed while the
-              account is still empty — amounts are stored, not converted.
-            </p>
+            <p className="hint">{t("signin.registerHint")}</p>
           </>
         )}
 
         <button type="submit" disabled={busy}>
           {busy
-            ? "Working…"
+            ? t("state.working")
             : registering
-              ? "Create account"
+              ? t("signin.submitRegister")
               : recovering
-                ? "Set new password"
-                : "Sign in"}
+                ? t("signin.submitRecover")
+                : t("signin.submit")}
         </button>
       </form>
 
@@ -155,13 +159,13 @@ export function SignInPage() {
               setError(null);
             }}
           >
-            {recovering ? "Back to sign in" : "Forgot your password?"}
+            {recovering ? t("signin.backToSignIn") : t("signin.forgot")}
           </button>
         </p>
       )}
 
       <p className="hint" style={{ marginTop: 16 }}>
-        {registering ? "Already have an account? " : "No account yet? "}
+        {registering ? t("signin.haveAccount") : t("signin.noAccount")}
         <button
           type="button"
           className="link"
@@ -170,8 +174,29 @@ export function SignInPage() {
             setError(null);
           }}
         >
-          {registering ? "Sign in" : "Create one"}
+          {registering ? t("signin.submit") : t("signin.createOne")}
         </button>
+      </p>
+
+      {/* The picker belongs on this page and not only in Settings: Settings is behind a
+          sign-in, so without it someone whose browser guessed wrong would have to read a
+          language they do not speak in order to reach the setting that fixes it. Signed
+          out it only writes to this device; the account's own choice wins after that. */}
+      <p className="hint" style={{ marginTop: 16 }}>
+        <label className="inline-select">
+          {t("signin.language")}
+          <select
+            aria-label={t("signin.language")}
+            value={lang}
+            onChange={(event) => void setLanguage(event.target.value as Language)}
+          >
+            {LANGUAGES.map((option) => (
+              <option key={option} value={option}>
+                {option === "en" ? t("settings.languageEn") : t("settings.languageFr")}
+              </option>
+            ))}
+          </select>
+        </label>
       </p>
     </main>
   );

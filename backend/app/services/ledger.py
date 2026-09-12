@@ -62,13 +62,13 @@ def get_or_create_category(
             )
         ).scalar_one_or_none()
         if existing is None:  # pragma: no cover — would mean the unique index disagrees
-            raise Conflict("category could not be created or found")
+            raise Conflict("category could not be created or found", "category_unwritable")
         return existing
 
     session.expire_all()
     category = session.get(Category, inserted)
     if category is None:  # pragma: no cover
-        raise Conflict("category was inserted but is not readable")
+        raise Conflict("category was inserted but is not readable", "category_unreadable")
     return category
 
 
@@ -97,7 +97,7 @@ def delete_category(session: Session, user_id: uuid.UUID, category_id: uuid.UUID
         # destroy a year of records because someone tidied a label. The violation surfaces
         # on the statement itself, not at flush — a Core DELETE is not deferred.
         session.rollback()
-        raise Conflict("That category still has entries") from exc
+        raise Conflict("That category still has entries", "category_in_use") from exc
     if result.rowcount == 0:
         raise NotFound("No category with that id")
 
@@ -131,13 +131,13 @@ def get_or_create_vendor(session: Session, user_id: uuid.UUID, *, name: str) -> 
             select(Vendor).where(Vendor.user_id == user_id, func.lower(Vendor.name) == name.lower())
         ).scalar_one_or_none()
         if existing is None:  # pragma: no cover — would mean the unique index disagrees
-            raise Conflict("vendor could not be created or found")
+            raise Conflict("vendor could not be created or found", "vendor_unwritable")
         return existing
 
     session.expire_all()
     vendor = session.get(Vendor, inserted)
     if vendor is None:  # pragma: no cover
-        raise Conflict("vendor was inserted but is not readable")
+        raise Conflict("vendor was inserted but is not readable", "vendor_unreadable")
     return vendor
 
 
@@ -159,7 +159,7 @@ def delete_vendor(session: Session, user_id: uuid.UUID, vendor_id: uuid.UUID) ->
         # AD-21: RESTRICT. Deleting a vendor would erase which shop a year of entries
         # came from, so the database refuses while any still reference it.
         session.rollback()
-        raise Conflict("That vendor is still used by some entries") from exc
+        raise Conflict("That vendor is still used by some entries", "vendor_in_use") from exc
     if result.rowcount == 0:
         raise NotFound("No vendor with that id")
 
@@ -302,7 +302,7 @@ def update_entry(
         # The schema already refused a lone quantity or a lone unit. What it could not
         # know is the entry's kind (AD-29: only an expense carries a quantity).
         if quantity is not None and entry.kind is not EntryKind.expense:
-            raise Invalid("only an expense can carry a quantity")
+            raise Invalid("only an expense can carry a quantity", "quantity_expense_only")
         entry.quantity = quantity
         entry.unit = unit
     if vendor_given:
