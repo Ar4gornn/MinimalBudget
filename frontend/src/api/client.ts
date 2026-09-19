@@ -7,6 +7,11 @@
  */
 
 import type {
+  Book,
+  BookInput,
+  BookSeries,
+  BookSort,
+  BookStatus,
   Budget,
   Currency,
   Category,
@@ -695,7 +700,7 @@ export const api = {
   skipPending: (id: string) =>
     request<void>(`/api/recurring/occurrences/${id}/skip`, { method: "POST" }),
 
-  exportCsv: (kind: "entries" | "savings" | "inventory") =>
+  exportCsv: (kind: "entries" | "savings" | "inventory" | "books") =>
     download(`/api/export/${kind}.csv`, `minimalbudget-${kind}.csv`),
 
   summary: (month: string, period: Period = "month") =>
@@ -979,4 +984,38 @@ export const api = {
   ) => request<Meal>(`/api/meals/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
 
   deleteMeal: (id: string) => request<void>(`/api/meals/${id}`, { method: "DELETE" }),
+
+  // --- books (Epic 28). Its own module beside the other six: nothing here reaches into
+  // another table, and the dashboard composes `listBooks({ status: "reading" })` at the
+  // edge like the restock list (AD-31, AD-37).
+
+  /** Filtered and ordered server-side, so the definition of each lives once (AD-30). */
+  listBooks: (
+    filters: { q?: string; status?: BookStatus; series_id?: string; sort?: BookSort } = {},
+  ) =>
+    items(
+      request<Page<Book>>(
+        `/api/books${query({
+          q: filters.q || undefined,
+          status: filters.status,
+          series_id: filters.series_id,
+          sort: filters.sort,
+        })}`,
+      ),
+    ),
+
+  /** Every series with at least one book in it; an empty one does not exist. */
+  listBookSeries: () => items(request<Page<BookSeries>>("/api/books/series")),
+
+  createBook: (body: BookInput) =>
+    request<Book>("/api/books", { method: "POST", body: JSON.stringify(body) }),
+
+  /**
+   * Only the keys present are written; `null` clears. A status that moves fills the date
+   * it implies when that date is empty — send the date alongside to store a different one.
+   */
+  updateBook: (id: string, body: Partial<BookInput>) =>
+    request<Book>(`/api/books/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+
+  deleteBook: (id: string) => request<void>(`/api/books/${id}`, { method: "DELETE" }),
 };

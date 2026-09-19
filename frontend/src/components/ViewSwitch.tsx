@@ -1,33 +1,56 @@
 import { Link } from "react-router-dom";
 
-import { useT } from "../i18n";
+import { useT, type MessageKey } from "../i18n";
 
 /**
- * The Dashboard section has two views of the same question.
+ * Two views of one section, switched by a control at the top of the page.
  *
- * "What happened, and what is due" is the dashboard's job; the calendar answers it day by
- * day instead of in totals. They are one section rather than two tabs because the bottom
- * bar holds five and both belong to the same question — see App.tsx for the whole
- * navigation argument.
+ * A section is one bottom tab; a view is a route under it. The Dashboard has the summary
+ * and the calendar — "what happened, and what is due", in totals or day by day. The Habits
+ * tab has the habits and the books (Epic 28) — both records of what a person is doing with
+ * their own time, neither money. Each view is a real route so it can be linked and shared;
+ * the tab stays lit for both (`also` in App.tsx). See App.tsx for the whole navigation
+ * argument, including why neither view gets a tab of its own.
  */
-export function ViewSwitch({ current }: { current: "summary" | "calendar" }) {
+export interface View {
+  to: string;
+  label: MessageKey;
+}
+
+export const DASHBOARD_VIEWS: readonly View[] = [
+  { to: "/", label: "view.summary" },
+  { to: "/calendar", label: "view.calendar" },
+];
+
+export const HABITS_VIEWS: readonly View[] = [
+  { to: "/habits", label: "view.habits" },
+  { to: "/books", label: "view.books" },
+];
+
+export function ViewSwitch({
+  label,
+  views,
+  current,
+}: {
+  /** The group's accessible name — "Dashboard view", "Habits view". */
+  label: MessageKey;
+  views: readonly View[];
+  /** The `to` of the view being drawn. */
+  current: string;
+}) {
   const t = useT();
   return (
-    <div className="chips" role="group" aria-label={t("view.dashboardView")}>
-      <Link
-        to="/"
-        className={`chip ${current === "summary" ? "on" : ""}`}
-        aria-current={current === "summary" ? "page" : undefined}
-      >
-        {t("view.summary")}
-      </Link>
-      <Link
-        to="/calendar"
-        className={`chip ${current === "calendar" ? "on" : ""}`}
-        aria-current={current === "calendar" ? "page" : undefined}
-      >
-        {t("view.calendar")}
-      </Link>
+    <div className="chips" role="group" aria-label={t(label)}>
+      {views.map((view) => (
+        <Link
+          key={view.to}
+          to={view.to}
+          className={`chip ${current === view.to ? "on" : ""}`}
+          aria-current={current === view.to ? "page" : undefined}
+        >
+          {t(view.label)}
+        </Link>
+      ))}
     </div>
   );
 }

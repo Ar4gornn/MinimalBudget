@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../api/client";
-import { ViewSwitch } from "../components/ViewSwitch";
+import { DASHBOARD_VIEWS, ViewSwitch } from "../components/ViewSwitch";
 import { AuthProvider } from "../auth/AuthContext";
 import { LanguageProvider, browserLanguage, translator, useLanguage, useT } from ".";
 import { LANGUAGES, messages, pluralForm, type Lang, type MessageKey } from "./catalogue";
@@ -266,7 +266,7 @@ describe("choosing a language", () => {
     render(
       <MemoryRouter>
         <LanguageProvider>
-          <ViewSwitch current="summary" />
+          <ViewSwitch label="view.dashboardView" views={DASHBOARD_VIEWS} current="/" />
         </LanguageProvider>
       </MemoryRouter>,
     );
@@ -287,7 +287,7 @@ describe("choosing a language", () => {
     render(
       <MemoryRouter>
         <LanguageProvider>
-          <ViewSwitch current="summary" />
+          <ViewSwitch label="view.dashboardView" views={DASHBOARD_VIEWS} current="/" />
           <Switcher />
         </LanguageProvider>
       </MemoryRouter>,
@@ -308,7 +308,7 @@ describe("choosing a language", () => {
     render(
       <MemoryRouter>
         <LanguageProvider>
-          <ViewSwitch current="summary" />
+          <ViewSwitch label="view.dashboardView" views={DASHBOARD_VIEWS} current="/" />
         </LanguageProvider>
       </MemoryRouter>,
     );
@@ -320,7 +320,7 @@ describe("choosing a language", () => {
     render(
       <MemoryRouter>
         <LanguageProvider>
-          <ViewSwitch current="summary" />
+          <ViewSwitch label="view.dashboardView" views={DASHBOARD_VIEWS} current="/" />
         </LanguageProvider>
       </MemoryRouter>,
     );

@@ -1758,3 +1758,111 @@ a.chip {
   font-size: 12px;
   color: var(--muted);
 }
+
+/* ---------------------------------------------------------------- books (Epic 28) */
+
+.book-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.book {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.book:last-child {
+  border-bottom: none;
+}
+
+.book-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 260px;
+}
+
+.book-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* The acts that recur on a book — the page, the stars, Start / Finished — in one column at
+   the right on a wide screen and a full-width row below the title on a phone. */
+.book-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex: 0 1 auto;
+}
+
+.book-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.book-progress .bar-track {
+  width: 100%;
+}
+
+.book-page {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.book-page label {
+  display: block;
+}
+
+.book-page input {
+  width: 72px;
+}
+
+.stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* A star is a real button so the rating is reachable by keyboard and announces itself. */
+.star {
+  background: none;
+  border: none;
+  /* Padding for the thumb: the glyph is 20px, the target about 30 × 34. */
+  padding: 7px 4px;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.star.lit {
+  color: var(--accent);
+}
+
+@media (max-width: 720px) {
+  .book-side {
+    align-items: flex-start;
+    width: 100%;
+  }
+  .book-progress {
+    align-items: flex-start;
+    width: 100%;
+  }
+}

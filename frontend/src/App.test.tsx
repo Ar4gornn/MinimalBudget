@@ -99,6 +99,24 @@ describe("navigation", () => {
     );
   });
 
+  it("marks the Habits tab as the section you are in while the books are open (Epic 28)", async () => {
+    renderAt("/books");
+    await waitFor(() => expect(bottomBar()).toBeInTheDocument());
+
+    const habits = within(bottomBar()).getByRole("link", { name: /Habits/ });
+    expect(habits.className).toContain("on");
+    expect(within(bottomBar()).getByRole("link", { name: /Dashboard/ }).className).not.toContain(
+      "on",
+    );
+    // And the shelf is reached by its own route, with the switch back to habits beside it.
+    const views = await screen.findByRole("group", { name: "Habits view" });
+    expect(within(views).getByRole("link", { name: "Books" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(views).getByRole("link", { name: "Habits" })).toHaveAttribute("href", "/habits");
+  });
+
   it("reaches the calendar and the habits page by their own routes", async () => {
     renderAt("/calendar");
     expect(await screen.findByRole("group", { name: "Layers" })).toBeInTheDocument();

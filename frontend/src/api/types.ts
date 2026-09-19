@@ -760,3 +760,64 @@ export interface Meal {
   note: string | null;
   nutrition: Nutrition;
 }
+
+// --- books (Epic 28)
+
+export const BOOK_STATUSES = ["to-read", "reading", "read"] as const;
+export type BookStatus = (typeof BOOK_STATUSES)[number];
+
+export const BOOK_SORTS = ["added", "title", "author", "rating", "finished"] as const;
+export type BookSort = (typeof BOOK_SORTS)[number];
+
+/**
+ * A book on the shelf. The status is a stated fact and the three dates are facts of their
+ * own (AD-46): the server fills `started_on` / `finished_on` when the status *moves* through
+ * an update and the date is empty, and never on create.
+ */
+export interface Book {
+  id: string;
+  title: string;
+  author: string;
+  series_id: string | null;
+  /** Carried on every row so "Discworld 3" needs no second request. */
+  series_name: string | null;
+  series_order: number | null;
+  status: BookStatus;
+  /** 1–5, or null for unrated — which is not a score of zero. */
+  rating: number | null;
+  page_count: number | null;
+  /** 0 is "open, not started"; needs a `page_count` to be a fraction of. */
+  current_page: number | null;
+  /** Comma-separated, tidied by the server. Empty string, never null. */
+  tags: string;
+  note: string | null;
+  added_on: string;
+  started_on: string | null;
+  finished_on: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A series exists exactly as long as one book names it, so `books` is never zero. */
+export interface BookSeries {
+  id: string;
+  name: string;
+  books: number;
+}
+
+export interface BookInput {
+  title: string;
+  author: string;
+  /** Found or made by name; null takes the book out of its series. */
+  series_name?: string | null;
+  series_order?: number | null;
+  status?: BookStatus;
+  rating?: number | null;
+  page_count?: number | null;
+  current_page?: number | null;
+  tags?: string | null;
+  note?: string | null;
+  added_on?: string | null;
+  started_on?: string | null;
+  finished_on?: string | null;
+}
