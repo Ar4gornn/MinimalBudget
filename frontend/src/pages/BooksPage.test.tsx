@@ -80,7 +80,7 @@ const shelf = [
     page_count: 600,
     current_page: 150,
     tags: "scifi, desert",
-    started_on: "2026-09-10",
+    started_on: `${new Date().getFullYear()}-09-10`,
   }),
   book({
     id: "b3",
@@ -91,7 +91,7 @@ const shelf = [
     series_order: null,
     status: "read",
     rating: 4,
-    finished_on: "2026-08-20",
+    finished_on: "2024-08-20",
   }),
 ];
 
@@ -139,7 +139,9 @@ describe("BooksPage", () => {
     expect(screen.getByText(/scifi, desert/)).toBeInTheDocument();
 
     // The finished one shows when, and its stars.
-    expect(screen.getByText(/^Finished .*20 August/)).toBeInTheDocument();
+    // Read in another year, so the year is written; the current-year rows carry none.
+    expect(screen.getByText(/^Finished .*20 August 2024$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Started .*10 September · scifi, desert$/)).toBeInTheDocument();
     const stars = screen.getAllByRole("group", { name: "Rating" });
     expect(stars).toHaveLength(3);
   });
@@ -314,7 +316,7 @@ describe("BooksPage", () => {
     expect(sent.title).toBe("Emma");
     expect(sent.status).toBe("read");
     expect(sent.rating).toBe(4);
-    expect(sent.finished_on).toBe("2026-08-20");
+    expect(sent.finished_on).toBe("2024-08-20");
   });
 
   it("names the failure in the reader's words when the server refuses", async () => {

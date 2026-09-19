@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { translator } from "./i18n/catalogue";
+
 import {
   budgetMonth,
   currentMonth,
   dayLabel,
+  dayLabelAcrossYears,
   monthBounds,
   monthLabel,
   monthOf,
@@ -90,6 +93,15 @@ describe("dayLabel", () => {
     // Pinned rather than Intl-derived: the locale here is French, and a heading that
     // changed language with the machine would make this test unreproducible.
     expect(dayLabel("2026-09-02")).toBe("Wed 2 September");
+    expect(dayLabelAcrossYears("2026-09-02", undefined, new Date("2026-01-01T00:00:00"))).toBe(
+      "Wed 2 September",
+    );
+    expect(dayLabelAcrossYears("2024-02-20", undefined, new Date("2026-01-01T00:00:00"))).toBe(
+      "Tue 20 February 2024",
+    );
+    expect(
+      dayLabelAcrossYears("2024-02-20", translator("fr"), new Date("2026-01-01T00:00:00")),
+    ).toBe("mar. 20 février 2024");
     expect(dayLabel("2026-08-26")).toBe("Wed 26 August");
     expect(dayLabel("2026-01-01")).toBe("Thu 1 January");
   });

@@ -434,17 +434,18 @@ export function BooksPage() {
                           </>
                         )}
                       </div>
+                      {/* A shelf spans years, so a date not from this year says which. */}
                       <div className="hint book-dates">
                         {book.status === "read" && book.finished_on
                           ? t("books.finishedOn", {
-                              date: dates.day(book.finished_on),
+                              date: dates.dayAcrossYears(book.finished_on),
                             })
                           : book.status === "reading" && book.started_on
                             ? t("books.startedOn", {
-                                date: dates.day(book.started_on),
+                                date: dates.dayAcrossYears(book.started_on),
                               })
                             : t("books.addedOn", {
-                                date: dates.day(book.added_on),
+                                date: dates.dayAcrossYears(book.added_on),
                               })}
                         {book.tags && (
                           <>
