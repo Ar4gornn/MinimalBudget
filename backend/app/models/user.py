@@ -1,6 +1,8 @@
 import uuid
 
-from sqlalchemy import Integer, String
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,3 +30,12 @@ class User(TimestampedMixin, Base):
     # Which language the account reads in. Unlike the currency and the weight unit this is
     # never locked: it changes the words around a number, never what the number means.
     language: Mapped[str] = mapped_column(String(2), nullable=False, server_default="en")
+    # Epic 30: whether the guided tour has run. Two columns rather than an enum because
+    # they answer two questions — "open it?" is both together; "when did they leave?" is
+    # the timestamp alone. Existing accounts were marked completed by migration 0022.
+    tutorial_completed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    tutorial_skipped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

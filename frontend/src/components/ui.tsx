@@ -31,12 +31,15 @@ export function Card({
   collapseKey,
   /** Shown in the header while collapsed, so folding it away does not hide everything. */
   summary,
+  /** Names this card as a stop on the guided tour (Epic 30); see `data-tour` in styles.css. */
+  tour,
 }: {
   title?: string;
   children: ReactNode;
   actions?: ReactNode;
   collapseKey?: string;
   summary?: ReactNode;
+  tour?: string;
 }) {
   const [collapsed, setCollapsed] = useState(() =>
     collapseKey ? readCollapsed(collapseKey) : false,
@@ -53,7 +56,7 @@ export function Card({
   const heading = title ? <h2 style={{ margin: 0 }}>{title}</h2> : <span />;
 
   return (
-    <section className="card">
+    <section className="card" data-tour={tour}>
       {(title || actions) && (
         <div className="card-head">
           {collapseKey ? (
@@ -116,7 +119,11 @@ export function Empty({ children }: { children: ReactNode }) {
   return <p className="empty">{children}</p>;
 }
 
-export function TableWrap({ children }: { children: ReactNode }) {
+export function TableWrap({ children, tour }: { children: ReactNode; tour?: string }) {
   // Wide tables scroll inside their own container rather than the page.
-  return <div className="table-wrap">{children}</div>;
+  return (
+    <div className="table-wrap" data-tour={tour}>
+      {children}
+    </div>
+  );
 }

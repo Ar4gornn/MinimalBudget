@@ -53,6 +53,11 @@ class UserOut(BaseModel):
     budget_start_day: int
     language: Language
     created_at: datetime
+    # Epic 30. Both together answer "open the tour?"; the timestamp alone answers "when did
+    # they leave it". False and null on a new account; true on every account older than
+    # migration 0022.
+    tutorial_completed: bool
+    tutorial_skipped_at: datetime | None
 
 
 class TokenOut(BaseModel):
@@ -82,6 +87,12 @@ class LanguageUpdate(BaseModel):
 
 class BudgetStartDayUpdate(BaseModel):
     budget_start_day: int = Field(ge=1, le=MAX_START_DAY)
+
+
+class TutorialUpdate(BaseModel):
+    """How the guided tour ended. The client says which; the server keeps the time."""
+
+    outcome: Literal["completed", "skipped"]
 
 
 _PASSWORD = Field(min_length=10, max_length=200)

@@ -44,7 +44,17 @@ export interface User {
    */
   language: Language;
   created_at: string;
+  /**
+   * Whether the guided tour has run (Epic 30). Both together decide whether it opens on
+   * sign-in; the timestamp alone says when someone left it. A server older than
+   * migration 0022 sends neither, and the client treats "absent" as "seen".
+   */
+  tutorial_completed?: boolean;
+  tutorial_skipped_at?: string | null;
 }
+
+/** How the guided tour ended. The server keeps the time; the client only says which. */
+export type TutorialOutcome = "completed" | "skipped";
 
 export interface Token {
   access_token: string;

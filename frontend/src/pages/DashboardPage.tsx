@@ -394,6 +394,7 @@ export function DashboardPage() {
             <Card
               title={t("dash.budgetVsActual")}
               collapseKey="dashboard.budgets"
+              tour="budget-progress"
               summary={
                 summary.budgets.length === 0
                   ? t("dash.summaryNone")

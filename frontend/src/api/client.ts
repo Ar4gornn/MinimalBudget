@@ -61,6 +61,7 @@ import type {
   Target,
   Token,
   Trends,
+  TutorialOutcome,
   Unit,
   UnitPrices,
   User,
@@ -482,6 +483,13 @@ export const api = {
     request<User>("/api/auth/me/budget-start-day", {
       method: "PATCH",
       body: JSON.stringify({ budget_start_day: day }),
+    }),
+
+  /** Idempotent: the tour can be replayed from Settings, so a second Done is fine. */
+  setTutorial: (outcome: TutorialOutcome) =>
+    request<User>("/api/auth/me/tutorial", {
+      method: "PATCH",
+      body: JSON.stringify({ outcome }),
     }),
 
   setWeightUnit: (weightUnit: WeightUnit) =>

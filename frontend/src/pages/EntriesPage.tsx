@@ -14,6 +14,7 @@ import {
 } from "../api/types";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
+import { useTutorial } from "../components/Tutorial/useTutorial";
 import { isPositiveMoney } from "../money";
 import {
   formatQuantity,
@@ -43,6 +44,7 @@ export function EntriesPage() {
   // whole page for want of context is worse than falling back to the calendar month.
   const startDay = useOptionalAuth()?.user?.budget_start_day ?? 1;
   const toast = useToast();
+  const tour = useTutorial();
   const [searchParams, setSearchParams] = useSearchParams();
   const amountRef = useRef<HTMLInputElement>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -215,6 +217,8 @@ export function EntriesPage() {
       setUnitDismissed(false);
       await load();
       toast.show(t("entries.added"));
+      // The tour's entry step waits on exactly this; a no-op when it is not running.
+      tour.notify("entry-created");
     } catch (caught) {
       setError(errorMessage(t, caught, "entries.couldNotSave"));
     } finally {
@@ -329,7 +333,7 @@ export function EntriesPage() {
     <>
       <ErrorBanner message={error} />
 
-      <Card title={t("entries.record")}>
+      <Card title={t("entries.record")} tour="record-form">
         <form className="row" onSubmit={submit} aria-label={t("entries.record")}>
           <label style={{ flex: "0 0 120px" }}>
             {t("entries.kind")}
@@ -500,7 +504,7 @@ export function EntriesPage() {
         </p>
       </Card>
 
-      <Card title={t("entries.title")}>
+      <Card title={t("entries.title")} tour="entries-list">
         {/* A filter bar, not a header action: four controls and a note do not belong on the
             same baseline as a card title, which is what wrapped them into two ragged rows.
             A grid rather than flex bases, so it reflows on its own instead of being tuned. */}
@@ -572,7 +576,7 @@ export function EntriesPage() {
               : t("entries.noneForFilter")}
           </Empty>
         ) : (
-          <TableWrap>
+          <TableWrap tour="entries-rows">
             <table className="stacked" aria-label={t("entries.title")}>
               <thead>
                 <tr>

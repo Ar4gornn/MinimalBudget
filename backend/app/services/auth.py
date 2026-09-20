@@ -13,7 +13,7 @@ columns.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -43,6 +43,8 @@ class UserRow:
         budget_start_day: int,
         language: str,
         created_at: datetime,
+        tutorial_completed: bool,
+        tutorial_skipped_at: datetime | None,
     ) -> None:
         self.id = id
         self.email = email
@@ -51,6 +53,8 @@ class UserRow:
         self.budget_start_day = budget_start_day
         self.language = language
         self.created_at = created_at
+        self.tutorial_completed = tutorial_completed
+        self.tutorial_skipped_at = tutorial_skipped_at
 
 
 def _read_user(session: Session, user_id: uuid.UUID) -> UserRow | None:
@@ -63,6 +67,8 @@ def _read_user(session: Session, user_id: uuid.UUID) -> UserRow | None:
             User.budget_start_day,
             User.language,
             User.created_at,
+            User.tutorial_completed,
+            User.tutorial_skipped_at,
         ).where(User.id == user_id)
     ).one_or_none()
     return None if row is None else UserRow(*row)
@@ -152,6 +158,30 @@ def set_language(session: Session, user_id: uuid.UUID, language: str) -> UserRow
     if current is None:
         raise NotFound("No such account")
     session.execute(update(User).where(User.id == user_id).values(language=language))
+    session.flush()
+    updated = _read_user(session, user_id)
+    if updated is None:  # pragma: no cover
+        raise NotFound("No such account")
+    return updated
+
+
+def set_tutorial(session: Session, user_id: uuid.UUID, outcome: str) -> UserRow:
+    """Record how the guided tour ended (Epic 30).
+
+    ``completed`` sets the flag; ``skipped`` stamps the time — server time, never the
+    client's — and leaves the flag alone, so "finished it on the second try" is still
+    distinguishable from "never finished it". Both are idempotent: the tour can be replayed
+    from Settings, and replaying it must not fail.
+    """
+    current = _read_user(session, user_id)
+    if current is None:
+        raise NotFound("No such account")
+    values = (
+        {"tutorial_completed": True}
+        if outcome == "completed"
+        else {"tutorial_skipped_at": func.now()}
+    )
+    session.execute(update(User).where(User.id == user_id).values(**values))
     session.flush()
     updated = _read_user(session, user_id)
     if updated is None:  # pragma: no cover
