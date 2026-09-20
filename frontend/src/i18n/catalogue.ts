@@ -31,6 +31,7 @@ import { dates } from "./messages/dates";
 import { plan } from "./messages/plan";
 import { recipes } from "./messages/recipes";
 import { books } from "./messages/books";
+import { tour } from "./messages/tour";
 
 export const LANGUAGES = ["en", "fr"] as const;
 export type Lang = (typeof LANGUAGES)[number];
@@ -50,6 +51,7 @@ export const messages = {
   ...calendar,
   ...recipes,
   ...books,
+  ...tour,
   ...errors,
 };
 

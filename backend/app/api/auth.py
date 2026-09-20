@@ -22,6 +22,7 @@ from app.schemas.auth import (
     RefreshRequest,
     RegistrationRequest,
     TokenOut,
+    TutorialUpdate,
     UserOut,
     WeightUnitUpdate,
 )
@@ -317,6 +318,14 @@ def set_budget_start_day(
 ) -> auth_service.UserRow:
     """No 409 here, unlike the currency: this re-groups rows, it never relabels one."""
     return auth_service.set_budget_start_day(session, user_id, payload.budget_start_day)
+
+
+@router.patch("/me/tutorial", response_model=UserOut)
+def set_tutorial(
+    payload: TutorialUpdate, user_id: CurrentUserId, session: DbSession
+) -> auth_service.UserRow:
+    """Epic 30. Idempotent, so the tour can be replayed from Settings without a 409."""
+    return auth_service.set_tutorial(session, user_id, payload.outcome)
 
 
 @router.get("/me", response_model=UserOut)

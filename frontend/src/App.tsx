@@ -1,6 +1,8 @@
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
+import { TutorialModal } from "./components/Tutorial/TutorialModal";
+import { TutorialProvider } from "./components/Tutorial/useTutorial";
 import { useT } from "./i18n";
 import { BooksPage } from "./pages/BooksPage";
 import { CalendarPage } from "./pages/CalendarPage";
@@ -123,6 +125,9 @@ export function App() {
   if (!user) return <SignInPage />;
 
   return (
+    // The tour's provider sits here rather than in main.tsx so it is inside the router and
+    // the auth provider, and so every test that mounts <App /> gets it for free.
+    <TutorialProvider>
     <div className="shell">
       <header className="topbar">
         <h1 className="brand">{t("app.name")}</h1>
@@ -203,6 +208,10 @@ export function App() {
           </NavLink>
         ))}
       </nav>
+
+      {/* First sign-in only, or replayed from Settings (Epic 30). */}
+      <TutorialModal />
     </div>
+    </TutorialProvider>
   );
 }

@@ -1866,3 +1866,108 @@ a.chip {
     width: 100%;
   }
 }
+
+/* ------------------------------------------------------------- guided tour */
+
+/* Epic 30. Two shapes of one dialog: dimmed and centred where there is nothing to do
+   behind it (welcome, done), a corner panel where the step points at a real control the
+   person is meant to use. Above the bottom bar (20) and the quick-add button (21), below
+   the toasts (40), so "Added" still shows over the panel on the entry step. */
+.tour-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgb(0 0 0 / 50%);
+}
+
+.tour {
+  position: fixed;
+  z-index: 31;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+}
+
+.tour:focus {
+  outline: none;
+}
+
+.tour-modal {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(500px, calc(100vw - 32px));
+}
+
+.tour-coach {
+  right: 20px;
+  bottom: 20px;
+  width: min(360px, calc(100vw - 32px));
+}
+
+.tour-step {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tour h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.tour p {
+  margin: 0;
+}
+
+.tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+@media (max-width: 720px) {
+  .tour-coach {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    /* Clear of the bottom navigation, like the toasts. */
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    /* Tighter on a phone: in French at 320×568 the panel was 272px of a 568px screen,
+       leaving 138px of page above it. This takes it to about 230. */
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+
+  .tour-coach h2 {
+    font-size: 15px;
+  }
+
+  .tour-coach .tour-actions {
+    margin-top: 10px;
+  }
+}
+
+/* What each step points at. The attribute is set on <body> by the provider and the
+   element is tagged by the page, so the ring appears whenever the page mounts — before,
+   after or during the step — with nothing to time. */
+body[data-tour-step="entry"] [data-tour="record-form"],
+body[data-tour-step="history"] [data-tour="entries-list"],
+body[data-tour-step="budget"] [data-tour="budgets"],
+body[data-tour-step="progress"] [data-tour="budget-progress"] {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+/* The provider scrolls the step's control to the top of the viewport. The margin keeps
+   the ring off the edge; the padding lets a short page scroll far enough — without it a
+   control near the bottom of the page stops behind the panel, which a phone measured. */
+[data-tour] {
+  scroll-margin-top: 16px;
+}
+
+body[data-tour-step] .shell {
+  padding-bottom: calc(76px + 320px + env(safe-area-inset-bottom));
+}

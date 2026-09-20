@@ -9,6 +9,7 @@ import { useAuth } from "../auth/AuthContext";
 import { LANGUAGES, useLanguage } from "../i18n";
 import { errorMessage } from "../i18n/errors";
 import { SecurityCard } from "../components/SecurityCard";
+import { useTutorial } from "../components/Tutorial/useTutorial";
 import { Card, ErrorBanner } from "../components/ui";
 import { useMoney } from "../useMoney";
 
@@ -29,6 +30,7 @@ export function SettingsPage() {
   const { t, lang, setLanguage } = useLanguage();
   const dates = useDates();
   const money = useMoney();
+  const tour = useTutorial();
   const [error, setError] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
@@ -252,6 +254,15 @@ export function SettingsPage() {
           </p>
         </Card>
       )}
+
+      <Card title={t("settings.help")}>
+        <p className="hint" style={{ margin: "0 0 10px" }}>
+          {t("settings.tourHint")}
+        </p>
+        <button type="button" className="quiet" onClick={tour.start}>
+          {t("settings.replayTour")}
+        </button>
+      </Card>
 
       <Card title={t("settings.session")}>
         <p className="hint" style={{ margin: "0 0 10px" }}>

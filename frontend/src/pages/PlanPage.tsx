@@ -285,7 +285,7 @@ export function PlanPage() {
           </Card>
         </div>
 
-        <Card title={t("plan.budgets")}>
+        <Card title={t("plan.budgets")} tour="budgets">
           <p className="hint" style={{ marginTop: 0 }}>
             {t("plan.budgetsHint")}
           </p>
