@@ -8,6 +8,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import (
     auth,
+    books,
     budgets,
     categories,
     dashboard,
@@ -137,6 +138,7 @@ app.include_router(mood.router)
 app.include_router(recipes.router)
 app.include_router(recipes.foods_router)
 app.include_router(recipes.meals_router)
+app.include_router(books.router)
 
 
 @app.get("/health", tags=["meta"])

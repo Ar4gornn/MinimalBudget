@@ -16,9 +16,10 @@ import io
 import uuid
 from collections.abc import Iterator
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.models.books import Book, BookSeries
 from app.models.inventory import InventoryItem, Space
 from app.models.ledger import Category, Entry
 from app.models.mood import MoodDay
@@ -151,11 +152,7 @@ def mood_csv(session: Session, user_id: uuid.UUID) -> Iterator[str]:
     here would be the drift AD-30 exists to forbid, and ``mood_1_to_5`` says as much as a
     repeated adjective would.
     """
-    query = (
-        select(MoodDay)
-        .where(MoodDay.user_id == user_id)
-        .order_by(MoodDay.on_day, MoodDay.id)
-    )
+    query = select(MoodDay).where(MoodDay.user_id == user_id).order_by(MoodDay.on_day, MoodDay.id)
 
     def rows() -> Iterator[list[object]]:
         for day in session.execute(query).scalars():
@@ -168,6 +165,62 @@ def mood_csv(session: Session, user_id: uuid.UUID) -> Iterator[str]:
             ]
 
     return _rows_to_csv(["date", "mood_1_to_5", "day_was_good", "note"], rows())
+
+
+def books_csv(session: Session, user_id: uuid.UUID) -> Iterator[str]:
+    """The library (Epic 28), one row per book, the series written by name.
+
+    The status is the stored word, not a translation: ``to-read`` / ``reading`` / ``read``
+    are the wire's constants (AD-44 keeps the words in the client), and a spreadsheet filter
+    wants a stable token more than a sentence. Every free-text column goes through
+    :func:`safe_cell` like everywhere else — a title can begin with ``=`` as easily as a note.
+    """
+    query = (
+        select(Book, BookSeries.name)
+        .outerjoin(
+            BookSeries,
+            (BookSeries.user_id == Book.user_id) & (BookSeries.id == Book.series_id),
+        )
+        .where(Book.user_id == user_id)
+        .order_by(func.lower(Book.author), BookSeries.name, Book.series_order, Book.title, Book.id)
+    )
+
+    def rows() -> Iterator[list[object]]:
+        for book, series in session.execute(query):
+            yield [
+                book.title,
+                book.author,
+                series or "",
+                "" if book.series_order is None else book.series_order,
+                book.status,
+                "" if book.rating is None else book.rating,
+                "" if book.page_count is None else book.page_count,
+                "" if book.current_page is None else book.current_page,
+                book.tags,
+                book.added_on.isoformat(),
+                "" if book.started_on is None else book.started_on.isoformat(),
+                "" if book.finished_on is None else book.finished_on.isoformat(),
+                book.note or "",
+            ]
+
+    return _rows_to_csv(
+        [
+            "title",
+            "author",
+            "series",
+            "series_order",
+            "status",
+            "rating_1_to_5",
+            "page_count",
+            "current_page",
+            "tags",
+            "added_on",
+            "started_on",
+            "finished_on",
+            "note",
+        ],
+        rows(),
+    )
 
 
 def filename(kind: str, today: dt.date | None = None) -> str:

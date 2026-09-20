@@ -6,6 +6,7 @@ here. The migration is the authority; these declarations keep the ORM honest abo
 """
 
 from app.models.base import Base
+from app.models.books import Book, BookSeries, BookStatus
 from app.models.gym import (
     Exercise,
     Routine,
@@ -35,6 +36,9 @@ from app.models.user import User
 
 __all__ = [
     "Base",
+    "Book",
+    "BookSeries",
+    "BookStatus",
     "Budget",
     "Cadence",
     "OccurrenceStatus",

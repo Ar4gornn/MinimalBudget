@@ -50,7 +50,7 @@ def get_anonymous_session() -> Iterator[Session]:
 
 def get_start_day(
     user_id: Annotated[UUID, Depends(get_current_user_id)],
-    session: Annotated[Session, Depends(get_session)],
+    session: Annotated[Session, Depends(get_session, scope="function")],
 ) -> int:
     """The day this account's budget month starts on (AD-10).
 
@@ -71,6 +71,17 @@ def get_start_day(
 
 
 CurrentUserId = Annotated[UUID, Depends(get_current_user_id)]
-DbSession = Annotated[Session, Depends(get_session)]
-AnonSession = Annotated[Session, Depends(get_anonymous_session)]
+
+# ``scope="function"``: the session's exit code — the commit in ``core.db`` — runs when the
+# path function returns, **before** the response is sent. FastAPI's default for a yield
+# dependency is the request scope, whose exit code runs *after* the response has gone out
+# (documented: "Normally the exit code of dependencies with yield is executed after the
+# response is sent to the client"). Under that default a client that writes and then reads
+# — every "await api.update…(); await load()" in the web client — can receive a 200 for
+# the write and then a list that does not yet contain it, because its GET arrives while the
+# PATCH's transaction is still open on another thread. It also means a commit that *fails*
+# fails after the 200 was already sent. Seen on the Books page during Epic 28's browser
+# walk: an edit answered 200 and the reload that followed showed the row unchanged.
+DbSession = Annotated[Session, Depends(get_session, scope="function")]
+AnonSession = Annotated[Session, Depends(get_anonymous_session, scope="function")]
 StartDay = Annotated[int, Depends(get_start_day)]

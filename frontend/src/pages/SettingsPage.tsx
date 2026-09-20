@@ -21,6 +21,7 @@ const EXPORTS = [
   { kind: "entries" as const, label: "settings.exportEntries" as const },
   { kind: "savings" as const, label: "settings.exportSavings" as const },
   { kind: "inventory" as const, label: "settings.exportInventory" as const },
+  { kind: "books" as const, label: "settings.exportBooks" as const },
 ];
 
 export function SettingsPage() {
@@ -101,7 +102,7 @@ export function SettingsPage() {
     }
   }
 
-  async function exportCsv(kind: "entries" | "savings" | "inventory") {
+  async function exportCsv(kind: "entries" | "savings" | "inventory" | "books") {
     setError(null);
     setExporting(kind);
     try {

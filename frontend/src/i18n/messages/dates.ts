@@ -73,6 +73,12 @@ export const dates = {
   "date.monthYear": { en: "{month} {year}", fr: "{month} {year}" },
   // "Sat 15 August" / "sam. 15 août".
   "date.dayLong": { en: "{weekday} {day} {month}", fr: "{weekday} {day} {month}" },
+  // "Sat 15 August 2024" — for a shelf that spans years, where the bare day would be read
+  // as this year's.
+  "date.dayLongYear": {
+    en: "{weekday} {day} {month} {year}",
+    fr: "{weekday} {day} {month} {year}",
+  },
   // "26 Aug – 25 Sep", so nobody has to guess what a shifted month covers.
   "date.range": { en: "{from} – {to}", fr: "{from} – {to}" },
   "date.dayShort": { en: "{day} {month}", fr: "{day} {month}" },

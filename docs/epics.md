@@ -2144,3 +2144,131 @@ own layer only
 the way the money line is summed in whole cents — never as a float
 **And** the window is the account's budget month (AD-10, AD-38), so the grid and the list
 cover exactly the same days
+
+## Epic 28: Books
+
+A seventh module beside the ledger, the inventory, the gym, the habits, the mood and the
+recipes (AD-31). It holds a personal library — what is to be read, what is open, what has
+been read — and the series a book belongs to. Scoped 2026-09-20 in one options round; a
+previous attempt at the same epic had landed a scaffold on `main` without a spec, tests, a
+working migration or a way to add a book, and was moved to `wip/books-haiku` and rebuilt
+here from the schema up.
+
+**A book's status is a stated fact** (AD-46). `to-read` / `reading` / `read` is what the
+person says, and the three dates beside it are facts of their own. The one link between
+them: when a status *moves* and the date the move implies is empty, the service fills it
+with today — because the move is happening now. A create fills nothing, because a book
+added as already read is a record of the past and "today" is the one date certainly wrong.
+The alternative, deriving the status from the dates, was rejected because it leaves the
+person no way to say what state they are in once a date is typed for any other reason.
+
+**A series is a name owned by its books.** It is found-or-made by name with the first book
+that names it (AD-12) and deleted when the last book leaves — so there is no series page, no
+create, rename or delete endpoint, and the only read is a list where every row has at least
+one book. The foreign key is the composite of AD-18 with the column-list `SET NULL` of
+AD-35: the scaffold this replaces had neither, and its migration could not apply.
+
+**Where the section lives, and what it cost.** Books is the **Habits tab's second view**,
+the way the calendar is the Dashboard's. Ranked by how often it is opened, a shelf sits far
+below the five thumb tabs; it is not money, so not under Entries; it is not consulted while
+cooking, so not beside Recipes. What it shares with Habits is the question — what am I doing
+with my own time. A fourth top-bar link was measured first: French would have put
+`Budget · Épargne · Recettes · Livres` at roughly 300 of the 335px content box, which fits
+at 375 and not at 320. A view costs one tap and no width. The sixth bottom tab the scaffold
+had added was the thing `App.tsx` already records as rejected.
+
+**Explicitly out, and recorded as choices rather than omissions:** an *abandoned* status
+(three states; a fourth is one ALTER of the CHECK, when someone asks); renaming a series
+(retype it on the books); reading statistics; sharing a library between accounts, which the
+"users stay fully independent" decision already refuses; cover images, for the reason Epic
+11 gave about item photos; and an ISBN or catalogue lookup, for the reasons Epic 27 gave
+about a food database.
+
+### Story 28.1: A shelf, its series, and the rules the schema cannot hold
+
+As someone who reads,
+I want to keep the books I own, want, and have read in one place,
+So that "what next" and "did I read that" have an answer.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user
+**When** they add a book
+**Then** a title and an author are enough; the status defaults to `to-read`, the tags to an
+empty string, and `added_on` to today — and **no other date is invented** (AD-46)
+**And** a rating is 1–5 or null, a page count is positive or null, a current page needs a
+page count and cannot pass it (page 0 is "open, not started"), and a place in a series
+needs a series — each held by a CHECK *and* restated in the service so a typo is a 422 with
+a code rather than a 500
+**And** no date may be in the future, refused by the service with `book_date_future` because
+`current_date` is not IMMUTABLE and no CHECK may call it
+**And** naming a series on a book finds or makes it case-insensitively (AD-12); deleting the
+last book in a series, moving it to another, or clearing its series deletes the empty series,
+and clearing a series drops the book's ordinal with it
+**And** a `PATCH` that moves the status to `reading` fills `started_on` with today when it is
+empty after the request's own values are applied; the same for `read` and `finished_on`;
+a date sent alongside wins, a date already there is kept, and moving back clears nothing
+**And** tags are one comma-separated string, tidied on write — trimmed, empties dropped,
+duplicates folded case-insensitively — and searched by substring
+**And** the list is filtered and ordered server-side: `q` over title, author, tags and series
+name (wildcards escaped), `status`, `series_id`, and five full orderings that break ties on
+the row id
+**And** `GET /api/export/books.csv` writes one row per book with the series by name and
+every free-text cell through `safe_cell`, because a title can begin with `=` as easily as a
+note
+**And** `tests/test_isolation_books.py` proves, as the runtime role, that a second user sees
+no row of either table and can write none — that A's "Discworld" and B's "discworld" are
+two rows, and that B cannot point a book at A's series by id even with B's own `user_id` on
+the row (AD-18) — with the composite key and the `(user_id, lower(name))` index each made
+to fail by mutation before the tests were trusted
+
+### Story 28.2: The shelf on screen, as the Habits tab's second view
+
+As someone who has just finished a book,
+I want to say so in one tap and rate it in one more,
+So that keeping the shelf costs less than the reading did.
+
+**Acceptance Criteria:**
+
+**Given** the Habits tab
+**When** it is opened
+**Then** a `Habits · Books` switch at the top of both pages moves between them, `/books` is
+a real route, and the Habits tab stays lit on it (`also`), with `App.tsx` recording why a
+sixth tab and a fourth top-bar link were both rejected
+**And** each row shows the title, the author, the series and place in it, the status as a
+tag, the date that matters for its state, the tags, and the stars
+**And** a book to read offers **Start** and a book being read offers **Finished**, each
+sending *only* the status — the date is the server's to fill (AD-46)
+**And** a book being read with a page count shows a progress bar and a page box that writes
+on blur or Enter, never on every keystroke
+**And** five star buttons rate a book, the lit one clears it, and each carries its word in
+the accessibility tree (AD-42)
+**And** the status chips, the search box, the series select and the sort are **sent to the
+server**, never applied in the page (AD-30)
+**And** one form at the bottom adds a book and, when Edit is pressed on a row, edits it —
+every empty box goes on the wire as `null`, never as `""`, and `added_on` is required so an
+emptied box falls back to today rather than nulling a NOT NULL column
+**And** a delete offers Undo, which puts the row back as it was
+**And** every word is in the catalogue in both languages, every refusal code has a message,
+and the page was measured at 375 and 320 in French with no horizontal overflow
+
+### Story 28.3: Reading now, on the dashboard
+
+As someone opening the app in the morning,
+I want to see what I am in the middle of,
+So that the shelf is a reminder and not a filing cabinet.
+
+**Acceptance Criteria:**
+
+**Given** at least one book with status `reading`
+**When** the dashboard loads
+**Then** a "Reading now" card names up to three of them with the page as a percentage when
+both halves are known, counts the rest, and links to `/books?status=reading`, which the
+Books page reads as its starting filter and then forgets
+**And** the read is `GET /api/books?status=reading` — the books module's own list with its
+own filter, composed at the edge like the restock card (AD-37) — with **no books query in
+`services/dashboard.py`**
+**And** the card is absent, not empty, when nothing is being read, and absent when the read
+fails, so the ledger still renders
+**And** the Settings page's export list gains Books, downloading the same CSV Story 28.1
+specifies

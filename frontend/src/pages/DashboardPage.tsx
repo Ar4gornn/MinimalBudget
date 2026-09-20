@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { useOptionalAuth } from "../auth/AuthContext";
 import type {
+  Book,
   InventoryItem,
   PendingEntry,
   Period,
@@ -16,7 +17,7 @@ import { ProgressBar } from "../charts/ProgressBar";
 import { TrendChart } from "../charts/TrendChart";
 import { MoodCheckin } from "../components/MoodCheckin";
 import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
-import { ViewSwitch } from "../components/ViewSwitch";
+import { DASHBOARD_VIEWS, ViewSwitch } from "../components/ViewSwitch";
 import { progress, subtractMoney, toChartNumber, toCents } from "../money";
 import { useMoney } from "../useMoney";
 import { useT } from "../i18n";
@@ -77,6 +78,10 @@ export function DashboardPage() {
   const [lowItems, setLowItems] = useState<InventoryItem[] | null>(null);
   const [pending, setPending] = useState<PendingEntry[] | null>(null);
   const [spaces, setSpaces] = useState<Space[]>([]);
+  // What is open on the shelf (Epic 28). Read from the books module and composed here, the
+  // same way the restock list is (AD-37); null while unknown, so a failed read hides the
+  // card rather than showing an empty one.
+  const [reading, setReading] = useState<Book[] | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,6 +139,21 @@ export function DashboardPage() {
       .catch(() => {
         if (!cancelled) setLowItems(null);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.listBooks({ status: "reading" }).then(
+      (rows) => {
+        if (!cancelled) setReading(rows);
+      },
+      () => {
+        if (!cancelled) setReading(null);
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -217,7 +237,7 @@ export function DashboardPage() {
         <div className="row" style={{ gap: 8, alignItems: "center" }}>
           {/* Two views of one question: totals here, day by day next door. The calendar
               takes no bottom tab of its own — see App.tsx for the whole argument. */}
-          <ViewSwitch current="summary" />
+          <ViewSwitch label="view.dashboardView" views={DASHBOARD_VIEWS} current="/" />
           <div className="chips" role="group" aria-label={t("dash.period")}>
             {PERIODS.map((option) => (
               <button
@@ -303,6 +323,36 @@ export function DashboardPage() {
                     .map((row) => `${row.category_name} · ${row.due_on}`)
                     .join(", ")}
                   {pending.length > 3 ? t("dash.andMore") : ""}
+                </p>
+              </Card>
+            </div>
+          )}
+
+          {reading && reading.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <Card
+                title={t("dash.readingNow")}
+                collapseKey="dashboard.reading"
+                summary={t.n("dash.readingCount", reading.length)}
+              >
+                <p style={{ margin: "0 0 6px" }} data-stat="Reading">
+                  <Link to="/books?status=reading">
+                    {t.n("dash.readingCount", reading.length)}
+                  </Link>
+                </p>
+                <p className="hint" style={{ margin: 0 }}>
+                  {reading
+                    .slice(0, 3)
+                    .map((book) => {
+                      // The page as a fraction, only when both halves are known.
+                      const pct =
+                        book.page_count && book.current_page !== null
+                          ? ` · ${Math.round((100 * book.current_page) / book.page_count)}%`
+                          : "";
+                      return `${book.title}${pct}`;
+                    })
+                    .join(", ")}
+                  {reading.length > 3 ? t("dash.andMore") : ""}
                 </p>
               </Card>
             </div>

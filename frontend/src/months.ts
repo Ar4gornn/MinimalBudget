@@ -132,3 +132,22 @@ export function dayLabel(iso: string, t: Translate = EN): string {
     month: monthName(at.getMonth() + 1, t),
   });
 }
+
+/**
+ * `dayLabel`, with the year added when it is not the current one.
+ *
+ * The ledger's views are a month at a time, so a bare "Sat 15 August" is unambiguous
+ * there. A shelf spans years: "Finished 20 February" on a book read in 2024 reads as this
+ * year's, so the year is written whenever it would otherwise be assumed wrong.
+ */
+export function dayLabelAcrossYears(iso: string, t: Translate = EN, today = new Date()): string {
+  const at = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(at.getTime())) return iso;
+  if (at.getFullYear() === today.getFullYear()) return dayLabel(iso, t);
+  return t("date.dayLongYear", {
+    weekday: weekdayNameShort(mondayFirst(at), t),
+    day: at.getDate(),
+    month: monthName(at.getMonth() + 1, t),
+    year: at.getFullYear(),
+  });
+}

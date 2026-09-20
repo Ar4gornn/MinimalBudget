@@ -13,6 +13,7 @@ import type {
 import { HabitHeatmap } from "../charts/HabitHeatmap";
 import { MoodStrip, MoodTally } from "../charts/MoodStrip";
 import { Card, Empty, ErrorBanner } from "../components/ui";
+import { HABITS_VIEWS, ViewSwitch } from "../components/ViewSwitch";
 import { useToast } from "../components/Toast";
 import { useT, type Translate } from "../i18n";
 import type { MessageKey } from "../i18n/catalogue";
@@ -539,14 +540,19 @@ export function HabitsPage() {
     <>
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 16 }}>
         <h1 style={{ fontSize: 18, margin: 0 }}>{t("habits.title")}</h1>
-        <button
-          type="button"
-          className="quiet"
-          aria-pressed={showArchived}
-          onClick={() => setShowArchived((was) => !was)}
-        >
-          {showArchived ? t("action.hideArchived") : t("action.showArchived")}
-        </button>
+        <div className="row" style={{ gap: 8, alignItems: "center" }}>
+          {/* Two views of one section: habits here, books next door. The shelf takes no
+              bottom tab of its own — see App.tsx for the whole argument. */}
+          <ViewSwitch label="view.habitsView" views={HABITS_VIEWS} current="/habits" />
+          <button
+            type="button"
+            className="quiet"
+            aria-pressed={showArchived}
+            onClick={() => setShowArchived((was) => !was)}
+          >
+            {showArchived ? t("action.hideArchived") : t("action.showArchived")}
+          </button>
+        </div>
       </div>
 
       <ErrorBanner message={error} />

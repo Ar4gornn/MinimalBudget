@@ -47,11 +47,14 @@ function mockApi(
     trends?: Trends;
     lowItems?: unknown[];
     pending?: unknown[];
+    reading?: unknown[];
   } = {},
 ) {
   const fetchMock = vi.fn(async (url: string) => {
       const body = url.includes("/api/recurring/pending")
         ? { items: overrides.pending ?? [] }
+        : url.includes("/api/books")
+          ? { items: overrides.reading ?? [] }
         : url.includes("/api/inventory/items")
         ? { items: overrides.lowItems ?? [] }
         : url.includes("/api/inventory/spaces")
@@ -442,5 +445,64 @@ describe("restock reminders on the dashboard (AD-30, AD-31)", () => {
     expect(await screen.findByText(/Budgets and savings targets are monthly amounts/)).toBeInTheDocument();
     // And the month picker is gone, because picking one would change nothing.
     expect(screen.queryByRole("button", { name: "Previous month" })).toBeNull();
+  });
+});
+
+describe("reading now on the dashboard (Epic 28, AD-37)", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+  });
+
+  const open = (title: string, page: number | null, count: number | null) => ({
+    id: title,
+    title,
+    author: "Someone",
+    series_id: null,
+    series_name: null,
+    series_order: null,
+    status: "reading",
+    rating: null,
+    page_count: count,
+    current_page: page,
+    tags: "",
+    note: null,
+    added_on: "2026-09-01",
+    started_on: "2026-09-02",
+    finished_on: null,
+    created_at: "",
+    updated_at: "",
+  });
+
+  it("names what is open, with the page as a fraction only when both halves are known", async () => {
+    mockApi({
+      reading: [
+        open("Dune", 150, 600),
+        open("Emma", null, 400),
+        open("Mort", 10, null),
+        open("Ulysses", 0, 700),
+      ],
+    });
+    render(<DashboardPage />);
+
+    // The read is the books module's own list with its own filter — not a dashboard query.
+    const link = await screen.findByRole("link", { name: "4 books open" });
+    expect(link).toHaveAttribute("href", "/books?status=reading");
+    expect(screen.getByText(/Dune · 25%, Emma, Mort, …/)).toBeInTheDocument();
+  });
+
+  it("shows no card at all when nothing is open", async () => {
+    mockApi();
+    render(<DashboardPage />);
+    await screen.findByText("Budget vs actual");
+    expect(screen.queryByText(/Reading now/)).toBeNull();
+  });
+
+  it("asks the books module for the reading list rather than filtering it here", async () => {
+    const fetchMock = mockApi({ reading: [open("Dune", 150, 600)] });
+    render(<DashboardPage />);
+    await screen.findByRole("link", { name: "1 book open" });
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls.some((url) => url.endsWith("/api/books?status=reading"))).toBe(true);
   });
 });

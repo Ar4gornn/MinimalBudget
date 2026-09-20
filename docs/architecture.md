@@ -762,6 +762,58 @@ security-definer function
   rounded ROUND_HALF_UP before formatting, on both sides — the client sums and rounds in
   whole ten-thousandths, the way it already sums money in whole cents.
 
+### AD-46 — A book's status is a stated fact; a transition fills the date it implies; a series is a name owned by its books
+
+- **Binds:** books, book series, the dashboard's "reading now" card, the books export, client
+- **Extends:** AD-35 (a record is a fact, a plan is a plan — and a status is which of the two
+  a person says they are in), AD-12 (a reference row is found-or-made by name), AD-18 (every
+  foreign key between user-scoped tables is composite), AD-31 (a module beside the others,
+  never inside one), AD-37 (the dashboard composes module-owned reads at the edge), AD-41 (a
+  subjective record is what the person said, and the system does not second-guess it).
+- **Prevents:** three failures.
+
+  **A status derived from the dates.** `finished_on IS NOT NULL` reads as "read" until the
+  first person records the day they finished a book they then abandoned, or types a start
+  date on a book they intend to open next week. Every derivation of that kind is a rule the
+  data cannot carry — and it leaves the person no way to *say* what state they are in.
+
+  **A date invented on create.** Filling `finished_on` with today for a book added as
+  already read stores the one date certainly wrong: the day it was recorded is not the day
+  it was read. The mirror failure is leaving the dates for the person to type every time,
+  which turns a one-tap "Finished" into a form.
+
+  **A series table that outlives its books.** A series with nothing in it is a row to name,
+  list, rename and delete — four endpoints and a page — for a thing that exists only so two
+  books can be read in order.
+
+- **Rule:** `books.status` is one of three words, stored as a VARCHAR with a CHECK (the shape
+  of `habits.schedule_kind`, so a fourth is one ALTER), and it is **what the person said**.
+  The three dates beside it — `added_on`, `started_on`, `finished_on` — are facts of their
+  own, freely editable, and never derived from the status or each other beyond the one
+  cross-column rule the schema can hold (`started_on <= finished_on`). The service fills
+  exactly one date, exactly once: when a **PATCH moves** the status to `reading` and
+  `started_on` is empty after the request's own values are applied, it becomes today; the
+  same for `read` and `finished_on`. A create fills nothing. Moving back clears nothing.
+
+  `book_series` has a name and an owner and nothing else. It is created by name with the
+  first book that names it (insert-or-return on `(user_id, lower(name))`, AD-12) and deleted
+  by the service when the last book leaves it — by deletion, by moving series, or by having
+  its series cleared. There is no endpoint that creates, renames or deletes one; the only
+  read is the list, and every row of it has at least one book. The key from `books` is the
+  composite of AD-18 with the column-list `SET NULL (series_id)` of AD-35.
+
+  The future is refused by the service (`current_date` is not IMMUTABLE, the wall
+  `habit_checkins` and `mood_days` both met) with a code, as is every cross-column rule the
+  schema also holds — so a typo is a 422 with a sentence rather than a 500 with an
+  IntegrityError. The dashboard's "reading now" is `GET /api/books?status=reading`, the
+  module's own list with its own filter, composed at the edge like the restock card; there
+  is no books query in `services/dashboard.py`.
+
+- **Consequence:** the words for the three states live once, in the client's catalogue;
+  the export writes the stored token. Tags are one comma-separated string tidied on write and
+  searched by substring — denormalised on purpose, for a word a person types to find a book
+  again, and recorded here so it is a choice rather than an omission.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -927,6 +979,7 @@ MinimalBudget/
 | Language — the account's, and the words drawn from it | `frontend/src/i18n/`, `api/auth.py`, `services/push.py`, migration 0019 | AD-44, AD-36, AD-14, AD-16 |
 | Errors — a code and a sentence | `core/errors.py`, `main.py`, `frontend/src/i18n/errors.ts` | AD-44, AD-8, AD-20 |
 | Mood — the day's two answers, the strip and the tally | `api/mood.py`, `services/mood.py`, `models/mood.py`, `frontend/src/components/MoodCheckin.tsx` | AD-41, AD-42, AD-31, AD-37, AD-24 |
+| Books — the shelf, its series, reading now | `api/books.py`, `services/books.py`, `models/books.py`, `frontend/src/pages/BooksPage.tsx` | AD-46, AD-35, AD-12, AD-18, AD-31, AD-37, AD-24 |
 | Test strategy | `backend/tests/` | AD-24 |
 
 ## Deferred

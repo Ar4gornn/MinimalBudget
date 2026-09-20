@@ -2,6 +2,7 @@ import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "reac
 
 import { useAuth } from "./auth/AuthContext";
 import { useT } from "./i18n";
+import { BooksPage } from "./pages/BooksPage";
 import { CalendarPage } from "./pages/CalendarPage";
 import { CategoryPage } from "./pages/CategoryPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -49,6 +50,18 @@ import { SignInPage } from "./pages/SignInPage";
  *    screen. It is now visually hidden at that width — out of flow, still in the
  *    accessibility tree — which leaves French at 245 of 335 and English at 206.
  *
+ * 4. **Books is the Habits tab's second view (Epic 28), the way the calendar is the
+ *    Dashboard's.** Ranked the same way, a shelf sits far below the five thumb tabs: a book
+ *    is added once and touched again a handful of times over weeks. It is not money, so
+ *    it does not belong under Entries; it is not consulted while cooking, so not beside
+ *    Recipes. What it shares with Habits is the question — what am I doing with my own
+ *    time — and both are records a person keeps for themselves rather than a household
+ *    ledger. A fourth top-bar link was measured first: French would have put
+ *    "Budget · Épargne · Recettes · Livres" at roughly 300 of the 335px content box, which
+ *    fits at 375 and does not at 320. A view costs one tap and no width at all. A previous
+ *    attempt at this epic added a sixth bottom tab; it was reverted for the reason the
+ *    next paragraph gives.
+ *
  * Rejected: a sixth tab (does not fit — the labels wrap and the targets fall under 44px);
  * a "More" overflow tab (spends a slot to hide two sections and demotes Gym, which Epic 19
  * deliberately promoted); merging Habits into Gym (one page with two unrelated jobs, and it
@@ -81,7 +94,9 @@ const SECTIONS = [
   // outside the app while you are standing in it.
   { to: "/", label: "nav.dashboard", glyph: "◪", end: true, also: ["/calendar"] },
   { to: "/entries", label: "nav.entries", glyph: "≡", end: false, also: [] as string[] },
-  { to: "/habits", label: "nav.habits", glyph: "✓", end: false, also: [] as string[] },
+  // The Habits tab covers the books too (Epic 28): a second view of the same section, the
+  // way the calendar is the Dashboard's.
+  { to: "/habits", label: "nav.habits", glyph: "✓", end: false, also: ["/books"] },
   { to: "/inventory", label: "nav.stock", glyph: "▤", end: false, also: [] as string[] },
   // Gym is a thing you open at the gym, so it keeps its thumb-reachable tab.
   { to: "/gym", label: "nav.gym", glyph: "◈", end: false, also: [] as string[] },
@@ -152,6 +167,7 @@ export function App() {
           <Route path="/plan" element={<PlanPage />} />
           <Route path="/projections" element={<ProjectionsPage />} />
           <Route path="/habits" element={<HabitsPage />} />
+          <Route path="/books" element={<BooksPage />} />
           <Route path="/gym" element={<GymPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/recipes" element={<RecipesPage />} />

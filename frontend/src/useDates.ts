@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useT } from "./i18n";
 import {
   dayLabel,
+  dayLabelAcrossYears,
   monthLabel,
   monthName,
   monthNameShort,
@@ -29,6 +30,8 @@ export function useDates(): {
   monthTick: (month: string) => string;
   monthRange: (month: string, startDay?: number) => string;
   day: (iso: string) => string;
+  /** `day`, with the year when it is not this one — for lists that span years. */
+  dayAcrossYears: (iso: string) => string;
   monthName: (index: number) => string;
   monthNameShort: (index: number) => string;
   weekday: (weekday: number) => string;
@@ -42,6 +45,7 @@ export function useDates(): {
       monthTick: (month: string) => monthTick(month, t),
       monthRange: (month: string, startDay = 1) => monthRangeLabel(month, startDay, t),
       day: (iso: string) => dayLabel(iso, t),
+      dayAcrossYears: (iso: string) => dayLabelAcrossYears(iso, t),
       monthName: (index: number) => monthName(index, t),
       monthNameShort: (index: number) => monthNameShort(index, t),
       weekday: (weekday: number) => weekdayName(weekday, t),

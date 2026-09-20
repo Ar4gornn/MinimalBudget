@@ -19,7 +19,7 @@ import type {
 import { MoodFace, moodWord } from "../components/MoodFace";
 import { Card, Empty, ErrorBanner } from "../components/ui";
 import { timeLabel } from "../schedule";
-import { ViewSwitch } from "../components/ViewSwitch";
+import { DASHBOARD_VIEWS, ViewSwitch } from "../components/ViewSwitch";
 import { fromCents, toCents } from "../money";
 import { formatEnergy, sumEnergy, trim } from "../nutrition";
 import { useMoney } from "../useMoney";
@@ -380,7 +380,7 @@ export function CalendarPage() {
           )}
         </div>
         <div className="row" style={{ gap: 8, alignItems: "center" }}>
-          <ViewSwitch current="calendar" />
+          <ViewSwitch label="view.dashboardView" views={DASHBOARD_VIEWS} current="/calendar" />
           <div className="month-nav">
             <button
               type="button"

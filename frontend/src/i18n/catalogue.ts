@@ -30,6 +30,7 @@ import { inventory } from "./messages/inventory";
 import { dates } from "./messages/dates";
 import { plan } from "./messages/plan";
 import { recipes } from "./messages/recipes";
+import { books } from "./messages/books";
 
 export const LANGUAGES = ["en", "fr"] as const;
 export type Lang = (typeof LANGUAGES)[number];
@@ -48,6 +49,7 @@ export const messages = {
   ...habits,
   ...calendar,
   ...recipes,
+  ...books,
   ...errors,
 };
 
