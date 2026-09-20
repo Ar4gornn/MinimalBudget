@@ -48,11 +48,14 @@ function mockApi(
     lowItems?: unknown[];
     pending?: unknown[];
     reading?: unknown[];
+    quote?: unknown;
   } = {},
 ) {
   const fetchMock = vi.fn(async (url: string) => {
       const body = url.includes("/api/recurring/pending")
         ? { items: overrides.pending ?? [] }
+        : url.includes("/api/books/quotes/draw")
+          ? (overrides.quote ?? null)
         : url.includes("/api/books")
           ? { items: overrides.reading ?? [] }
         : url.includes("/api/inventory/items")

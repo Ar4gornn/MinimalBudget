@@ -814,6 +814,46 @@ security-definer function
   searched by substring — denormalised on purpose, for a word a person types to find a book
   again, and recorded here so it is a choice rather than an omission.
 
+### AD-47 — A quote is a line owned by its book; a book holds ten; the draw is the server's
+
+- **Binds:** book quotes, the shelf, the "line from the shelf" card on the dashboard and the
+  calendar, client
+- **Extends:** AD-18 (every foreign key between user-scoped tables is composite — here
+  cascading, because every column of the key is meant to go with the book), AD-30 (a
+  definition lives once, server-side), AD-37 (the dashboard composes module-owned reads at
+  the edge), AD-46 (a series is a name owned by its books; a quote is a line owned by one).
+- **Prevents:** three failures.
+
+  **A quote of nothing.** A quotes table keyed only by its own id outlives the book it came
+  from, and the dashboard one day draws a line with no title under it. The composite key
+  cascades: delete the book, and its quotes go — and the shelf's undo re-adds them under
+  the restored book, so the round trip is honest.
+
+  **A shelf that becomes a notebook.** With no ceiling, one book ends up with forty
+  highlighted paragraphs under it and the row is unreadable. Ten per book is a cap the
+  schema cannot hold (a CHECK cannot count), so the service holds it: it locks the book row
+  with `SELECT … FOR UPDATE`, counts, then inserts — proven by removing the lock, which let
+  two concurrent adds reach eleven. The eleventh answers 409 `book_quotes_full`.
+
+  **Two definitions of "random".** If each page loaded every quote and picked one, the
+  dashboard and the calendar would each have their own draw, and a "Next" that must not
+  repeat the one on screen would be client logic in two places. `GET /api/books/quotes/draw`
+  is the one draw: `ORDER BY random()` over the person's own rows under RLS, with
+  `?exclude=` — the quote on screen — **sorted last rather than filtered out**, so "Next"
+  on a single quote shows it again rather than an empty card.
+
+- **Rule:** `book_quotes` carries a text (1–1000 characters, trimmed, not blank), an
+  optional page (positive, **not** checked against the book's page count — it is where the
+  line was found, and a count typed later or wrongly should not make the quote refuse), and
+  the composite key to `books (user_id, id)` with `ON DELETE CASCADE`. A book's
+  representation carries its quotes in the order they were added, so the shelf makes no
+  second request and there is no list endpoint. On demand, never on a timer: the card
+  changes when "Next" is pressed and at no other time, because a page that changes while
+  it is being read is a distraction.
+- **Consequence:** the cap is one constant in `models/books.py`, restated in the client so
+  the form disappears at ten rather than offering a submit that will be refused. Quotes
+  are not in the books CSV — a row per book cannot hold them, and `pg_dump` does.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -980,6 +1020,7 @@ MinimalBudget/
 | Errors — a code and a sentence | `core/errors.py`, `main.py`, `frontend/src/i18n/errors.ts` | AD-44, AD-8, AD-20 |
 | Mood — the day's two answers, the strip and the tally | `api/mood.py`, `services/mood.py`, `models/mood.py`, `frontend/src/components/MoodCheckin.tsx` | AD-41, AD-42, AD-31, AD-37, AD-24 |
 | Books — the shelf, its series, reading now | `api/books.py`, `services/books.py`, `models/books.py`, `frontend/src/pages/BooksPage.tsx` | AD-46, AD-35, AD-12, AD-18, AD-31, AD-37, AD-24 |
+| Book quotes — lines under a book, one drawn for the dashboard | `api/books.py`, `services/books.py`, migration 0023, `frontend/src/components/BookQuotes.tsx`, `QuoteCard.tsx` | AD-47, AD-18, AD-30, AD-37, AD-24 |
 | Test strategy | `backend/tests/` | AD-24 |
 
 ## Deferred

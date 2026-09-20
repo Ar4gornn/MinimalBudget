@@ -1,4 +1,4 @@
-"""A personal library: books, and the series they belong to (Epic 28)."""
+"""A personal library: books, the series they belong to (Epic 28), and their quotes (Epic 31)."""
 
 import datetime as dt
 import enum
@@ -33,6 +33,13 @@ class BookStatus(enum.StrEnum):
 
 RATING_MIN = 1
 RATING_MAX = 5
+
+# A quote is a line worth keeping, not a chapter: long enough for a paragraph, short enough
+# that the shelf can draw every one of them under the book (AD-47).
+QUOTE_MAX_LENGTH = 1000
+# How many a book can hold. A wall of forty quotes under one row is a notebook, not a shelf,
+# and "Next" on the dashboard is only interesting while the pool is curated.
+QUOTES_PER_BOOK = 10
 
 
 class BookSeries(TimestampedMixin, Base):
@@ -75,6 +82,8 @@ class Book(Base):
             ["book_series.user_id", "book_series.id"],
             name="books_series_fkey",
         ),
+        # The target of the composite key from book_quotes (AD-18). Added by 0023.
+        UniqueConstraint("user_id", "id", name="books_user_id_id_key"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -100,6 +109,46 @@ class Book(Base):
     )
     started_on: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
     finished_on: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class BookQuote(Base):
+    """A line from a book, kept by the person who read it (Epic 31).
+
+    Owned by its book: the composite key cascades, so deleting the book takes its quotes
+    with it and there is no such thing as a quote of nothing. The page is optional and is
+    not checked against the book's page count — it is where the person found the line,
+    and a count typed later or wrongly should not make the quote a liar.
+    """
+
+    __tablename__ = "book_quotes"
+    __table_args__ = (
+        CheckConstraint("page IS NULL OR page > 0", name="book_quotes_page_positive"),
+        CheckConstraint("length(text) > 0", name="book_quotes_text_not_empty"),
+        ForeignKeyConstraint(
+            ["user_id", "book_id"],
+            ["books.user_id", "books.id"],
+            name="book_quotes_book_fkey",
+            ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    book_id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    # The column is `text` (what the wire calls it); the attribute is not, so the name does
+    # not shadow sqlalchemy's `text()` inside this class body.
+    body: Mapped[str] = mapped_column("text", String(QUOTE_MAX_LENGTH), nullable=False)
+    page: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

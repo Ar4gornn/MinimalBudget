@@ -2272,3 +2272,93 @@ own filter, composed at the edge like the restock card (AD-37) — with **no boo
 fails, so the ledger still renders
 **And** the Settings page's export list gains Books, downloading the same CSV Story 28.1
 specifies
+
+## Epic 31: Quotes under a book, and one drawn for the dashboard
+
+A line worth keeping, kept where the book is. Scoped 2026-09-20 in one options round: full
+edit and delete rather than add-only (typos happen), on demand rather than on a timer or
+on refresh, and several per book rather than one — the three answers, with the rejected
+option beside each.
+
+**A quote is a line owned by its book** (AD-47). It is a row under the book with a text and
+an optional page, joined by the composite key of AD-18 and cascading with it, so there is
+no quote of nothing. A book carries its quotes on the wire in the order they were added,
+which is why there is no list endpoint: the shelf has them the moment it has the book, and
+the recipes epic already showed what a route nothing reads costs.
+
+**Ten per book.** A shelf with forty highlighted paragraphs under one row is a notebook.
+The cap lives in the service under a row lock on the book, because a CHECK cannot count;
+the concurrency test was made to fail by removing the lock before it was trusted. The
+eleventh is a 409 with a code; the client hides the form at ten and says why instead.
+
+**The draw is the server's** (AD-30). One route, `GET /api/books/quotes/draw`, picks a
+random quote under RLS and takes the id on screen as `?exclude=`, sorted last rather than
+out, so "Next" on a library with one quote shows that quote again instead of nothing. The
+card on the dashboard and the calendar is one component; it is absent when nothing is
+kept and absent when the request fails, because it is the least important thing on either
+page and does not get a banner. Nothing rotates on its own: the card changes when "Next" is
+pressed, and at no other time.
+
+**Explicitly out, and recorded as choices:** quotes in the books CSV (a row per book cannot
+carry them; `pg_dump` does); a tour step; searching quotes; favourites or ordering; sharing;
+and a page checked against the book's page count, because where the line was found is the
+person's fact and a count typed later should not make the quote refuse.
+
+### Story 31.1: A quote under its book, and the rules the schema cannot hold
+
+As someone who reads,
+I want to keep a line from a book beside the book,
+So that opening the shelf brings it back.
+
+**Acceptance Criteria:**
+
+**Given** a book of mine
+**When** I add a quote with some words and, optionally, a page
+**Then** it is stored trimmed under that book, the page is 1 or more or nothing, and the
+book's representation carries it in the order it was added
+**And** a blank text answers 422 `book_quote_empty` and the eleventh answers 409
+`book_quotes_full`, which holds under two concurrent adds
+**And** I can correct the text or clear the page with a PATCH that writes only the keys
+sent, and delete it, and a second delete is a 404
+**And** the quote is addressed through its book — the same id under another book is a 404
+**And** deleting the book deletes its quotes
+**And** another account sees none of mine, cannot read, change or delete one by id, and
+cannot hang a quote on my book even with their own `user_id` on the row (AD-18, AD-24)
+
+### Story 31.2: The quotes on the shelf
+
+As someone who reads,
+I want to see each book's quotes under it and change them without leaving the shelf,
+So that keeping a line costs one tap.
+
+**Acceptance Criteria:**
+
+**Given** the Books page
+**When** a book has quotes
+**Then** they are drawn under the book's own lines, small and italic, with "— p. N" when a
+page was given
+**And** a small toggle ("Add a quote" when there are none, "Edit quotes" otherwise) opens a
+panel with the quotes, Edit and Delete on each, and the form; closed by default
+**And** an emptied page box is sent as `null`, never `""`
+**And** at ten the form is replaced by one line saying so; editing one of the ten still works
+**And** deleting a quote offers an undo that re-adds it; deleting a book and undoing that
+re-adds the book *and* its quotes under the restored id
+**And** both languages fit at 375 without horizontal scroll
+
+### Story 31.3: A line from the shelf, on the dashboard and the calendar
+
+As someone who reads,
+I want a quote I kept to turn up where I look without a task in mind,
+So that the shelf gives something back.
+
+**Acceptance Criteria:**
+
+**Given** at least one quote kept
+**When** the dashboard or the calendar loads
+**Then** a collapsible "A line from the shelf" card shows one quote drawn by the server,
+with its book, author and page linking to the shelf
+**And** "Next" asks the server for another, sending the id on screen as `exclude`; with a
+single quote, the same one comes back rather than nothing
+**And** the card is absent — not empty, not an error — when nothing is kept or the request
+fails
+**And** the definition of "random" lives once, in `GET /api/books/quotes/draw`

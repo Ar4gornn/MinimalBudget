@@ -363,10 +363,24 @@ select {
   line-height: 1.2;
 }
 
-/* A textarea-like control would fight a fixed height; none exist yet, but the rule above
-   should not silently break the first one that does. */
 input[type="checkbox"] {
   height: auto;
+}
+
+/* The one multi-line control (a quote, Epic 31): the same skin as an input, its own height. */
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 7px 9px;
+  width: 100%;
+  min-width: 0;
+  min-height: 72px;
+  box-sizing: border-box;
+  resize: vertical;
+  line-height: 1.4;
 }
 
 input:focus-visible,
@@ -1865,6 +1879,94 @@ a.chip {
     align-items: flex-start;
     width: 100%;
   }
+}
+
+/* ------------------------------------------------------------- quotes (Epic 31) */
+
+/* Under the book, small and set off by a rule: read at a glance, never mistaken for the
+   note. Every quote is drawn — the cap is ten — so there is no "show more". */
+.book-quotes {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.book-quote {
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.book-quote .quote-page {
+  font-style: normal;
+}
+
+/* The quote controls are the least of a book's; drawn smaller than its Edit and Delete. */
+.quote-btn {
+  font-size: 13px;
+  padding: 4px 8px;
+  min-height: 0;
+}
+
+/* The management panel: one row per quote with its two acts, and the form under them. */
+.quote-panel {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quote-panel-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.quote-panel-row .book-quote {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.quote-panel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quote-panel-form .row {
+  align-items: flex-end;
+}
+
+.quote-panel-form .quote-page-field {
+  flex: 0 0 90px;
+}
+
+/* The card on the dashboard and the calendar. A blockquote, so a screen reader says so. */
+.quote-card blockquote {
+  margin: 0;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.quote-card cite {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 /* ------------------------------------------------------------- guided tour */

@@ -11,6 +11,7 @@ import {
   type BookSort,
   type BookStatus,
 } from "../api/types";
+import { BookQuotes } from "../components/BookQuotes";
 import { Card, Empty, ErrorBanner } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { HABITS_VIEWS, ViewSwitch } from "../components/ViewSwitch";
@@ -293,7 +294,11 @@ export function BooksPage() {
       if (editing?.id === book.id) cancelEditing();
       toast.show(t("books.deleted", { title: book.title }), {
         onUndo: async () => {
-          await api.createBook(inputOf(book));
+          // The quotes went with the book (they are its rows); bring them back with it.
+          const restored = await api.createBook(inputOf(book));
+          for (const quote of book.quotes) {
+            await api.addBookQuote(restored.id, { text: quote.text, page: quote.page });
+          }
           await load();
         },
       });
@@ -455,6 +460,7 @@ export function BooksPage() {
                         )}
                       </div>
                       {book.note && <div className="hint">{book.note}</div>}
+                      <BookQuotes book={book} onChanged={load} />
                     </div>
 
                     <div className="book-side">

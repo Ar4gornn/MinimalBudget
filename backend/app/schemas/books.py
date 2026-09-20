@@ -1,11 +1,11 @@
-"""Wire shapes for the library (Epic 28)."""
+"""Wire shapes for the library (Epic 28) and its quotes (Epic 31)."""
 
 import datetime as dt
 import uuid
 
 from pydantic import BaseModel, Field
 
-from app.models.books import RATING_MAX, RATING_MIN, BookStatus
+from app.models.books import QUOTE_MAX_LENGTH, RATING_MAX, RATING_MIN, BookStatus
 
 
 class BookCreate(BaseModel):
@@ -53,6 +53,40 @@ class BookUpdate(BaseModel):
     finished_on: dt.date | None = None
 
 
+class BookQuoteCreate(BaseModel):
+    """A line kept from the book. The page is where it was found, or nothing."""
+
+    text: str = Field(min_length=1, max_length=QUOTE_MAX_LENGTH)
+    page: int | None = Field(default=None, ge=1)
+
+
+class BookQuoteUpdate(BaseModel):
+    """Only the keys present are written; ``page: null`` clears the page."""
+
+    text: str | None = Field(default=None, min_length=1, max_length=QUOTE_MAX_LENGTH)
+    page: int | None = Field(default=None, ge=1)
+
+
+class BookQuoteOut(BaseModel):
+    id: uuid.UUID
+    book_id: uuid.UUID
+    text: str
+    page: int | None
+    created_at: dt.datetime
+    updated_at: dt.datetime
+
+
+class BookQuoteDrawOut(BaseModel):
+    """One quote drawn at random, with enough of its book to be read on its own."""
+
+    id: uuid.UUID
+    book_id: uuid.UUID
+    text: str
+    page: int | None
+    title: str
+    author: str
+
+
 class BookOut(BaseModel):
     id: uuid.UUID
     title: str
@@ -70,6 +104,9 @@ class BookOut(BaseModel):
     added_on: dt.date
     started_on: dt.date | None
     finished_on: dt.date | None
+    # Carried on the row, in the order they were added, so the shelf draws them under the
+    # book with no second request. Never more than QUOTES_PER_BOOK (AD-47).
+    quotes: list[BookQuoteOut]
     created_at: dt.datetime
     updated_at: dt.datetime
 

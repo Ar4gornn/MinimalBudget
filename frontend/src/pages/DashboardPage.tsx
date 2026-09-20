@@ -16,6 +16,7 @@ import { Sparkline } from "../charts/Sparkline";
 import { ProgressBar } from "../charts/ProgressBar";
 import { TrendChart } from "../charts/TrendChart";
 import { MoodCheckin } from "../components/MoodCheckin";
+import { QuoteCard } from "../components/QuoteCard";
 import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
 import { DASHBOARD_VIEWS, ViewSwitch } from "../components/ViewSwitch";
 import { progress, subtractMoney, toChartNumber, toCents } from "../money";
@@ -357,6 +358,9 @@ export function DashboardPage() {
               </Card>
             </div>
           )}
+
+          {/* A line from a book, when one is kept (Epic 31). Absent otherwise. */}
+          <QuoteCard collapseKey="dashboard.quote" />
 
           {lowItems && lowItems.length > 0 && (
             <div style={{ marginTop: 16 }}>

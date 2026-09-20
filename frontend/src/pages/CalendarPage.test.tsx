@@ -185,6 +185,7 @@ function mockApi(options: Options = {}) {
       });
     }
     if (url.includes("/api/recurring/pending")) return json({ items: [] });
+    if (url.includes("/api/books/quotes/draw")) return json(null);
     if (url.includes("/api/meals")) return json({ items: meals });
     return json({ items: [] });
   });

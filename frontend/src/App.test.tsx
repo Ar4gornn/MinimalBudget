@@ -38,6 +38,7 @@ function renderAt(path: string) {
           created_at: "",
         });
       }
+      if (url.includes("/api/books/quotes/draw")) return json(null);
       return json({ items: [] });
     }),
   );

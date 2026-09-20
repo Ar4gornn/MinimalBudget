@@ -62,6 +62,7 @@ const book = (overrides: Record<string, unknown>) => ({
   added_on: "2026-09-01",
   started_on: null,
   finished_on: null,
+  quotes: [] as unknown[],
   created_at: "",
   updated_at: "",
   ...overrides,
@@ -348,5 +349,133 @@ describe("BooksPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "A book cannot be finished before it was started.",
     );
+  });
+
+  // --- quotes (Epic 31)
+
+  const quote = (overrides: Record<string, unknown>) => ({
+    id: "q1",
+    book_id: "b3",
+    text: "It is a truth universally acknowledged…",
+    page: 1,
+    created_at: "",
+    updated_at: "",
+    ...overrides,
+  });
+
+  const withQuotes = (...quotes: Record<string, unknown>[]) =>
+    shelf.map((b) => (b.id === "b3" ? { ...b, quotes } : b));
+
+  it("draws each book's quotes under it, with the page when one was given", async () => {
+    mockApi(withQuotes(quote({}), quote({ id: "q2", text: "Second line", page: null })));
+    render();
+    await screen.findByText("Emma");
+
+    const emma = screen.getByText("Emma").closest("li")!;
+    const list = within(emma).getByRole("list", { name: "Quotes from Emma" });
+    const lines = within(list).getAllByRole("listitem");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toHaveTextContent("It is a truth universally acknowledged… — p. 1");
+    expect(lines[1]).toHaveTextContent("Second line");
+    expect(lines[1]).not.toHaveTextContent("p.");
+    // The toggle counts them; a book with none offers to add the first.
+    expect(within(emma).getByRole("button", { name: "Edit quotes" })).toBeInTheDocument();
+    const dune = screen.getByText("Dune").closest("li")!;
+    expect(within(dune).getByRole("button", { name: "Add a quote" })).toBeInTheDocument();
+    expect(within(dune).queryByRole("list")).toBeNull();
+  });
+
+  it("adds a quote from the panel, sending an empty page as null", async () => {
+    const { calls } = mockApi();
+    const user = userEvent.setup();
+    render();
+    await screen.findByText("Dune");
+
+    const dune = screen.getByText("Dune").closest("li")!;
+    await user.click(within(dune).getByRole("button", { name: "Add a quote" }));
+    const panel = within(dune).getByRole("group", { name: "Quotes from Dune" });
+    await user.type(within(panel).getByLabelText("The line"), "  Fear is the mind-killer.  ");
+    await user.click(within(panel).getByRole("button", { name: "Add" }));
+
+    await waitFor(() => expect(bodies(calls, "POST")).toHaveLength(1));
+    expect(calls.find((c) => c.method === "POST")?.url).toMatch(/\/api\/books\/b2\/quotes$/);
+    expect(bodies(calls, "POST")[0]).toEqual({ text: "Fear is the mind-killer.", page: null });
+  });
+
+  it("edits a quote in place, and deletes it with an undo that puts it back", async () => {
+    const { calls } = mockApi(withQuotes(quote({})));
+    const user = userEvent.setup();
+    render();
+    await screen.findByText("Emma");
+
+    const emma = screen.getByText("Emma").closest("li")!;
+    await user.click(within(emma).getByRole("button", { name: "Edit quotes" }));
+    const panel = within(emma).getByRole("group", { name: "Quotes from Emma" });
+
+    await user.click(within(panel).getByRole("button", { name: "Edit quote" }));
+    const box = within(panel).getByLabelText("The line");
+    expect(box).toHaveValue("It is a truth universally acknowledged…");
+    expect(within(panel).getByLabelText("Page")).toHaveValue(1);
+    await user.clear(box);
+    await user.type(box, "It is a truth universally acknowledged, that…");
+    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(bodies(calls, "PATCH")).toHaveLength(1));
+    expect(calls.find((c) => c.method === "PATCH")?.url).toMatch(/\/api\/books\/b3\/quotes\/q1$/);
+    expect(bodies(calls, "PATCH")[0]).toEqual({
+      text: "It is a truth universally acknowledged, that…",
+      page: 1,
+    });
+
+    await user.click(within(panel).getByRole("button", { name: "Delete quote" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "DELETE")).toBe(true));
+    expect(calls.find((c) => c.method === "DELETE")?.url).toMatch(/\/api\/books\/b3\/quotes\/q1$/);
+
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(bodies(calls, "POST")).toHaveLength(1));
+    expect(calls.find((c) => c.method === "POST")?.url).toMatch(/\/api\/books\/b3\/quotes$/);
+    expect(bodies(calls, "POST")[0]).toEqual({
+      text: "It is a truth universally acknowledged…",
+      page: 1,
+    });
+  });
+
+  it("stops offering the form at ten, and says why", async () => {
+    const ten = Array.from({ length: 10 }, (_, n) =>
+      quote({ id: `q${n}`, text: `line ${n}`, page: null }),
+    );
+    mockApi(withQuotes(...ten));
+    const user = userEvent.setup();
+    render();
+    await screen.findByText("Emma");
+
+    const emma = screen.getByText("Emma").closest("li")!;
+    await user.click(within(emma).getByRole("button", { name: "Edit quotes" }));
+    const panel = within(emma).getByRole("group", { name: "Quotes from Emma" });
+    expect(within(panel).queryByLabelText("The line")).toBeNull();
+    expect(panel).toHaveTextContent("This book holds 10 quotes already. Remove one to add another.");
+    // Editing one of the ten is still allowed: the cap is a count, not a lock.
+    await user.click(within(panel).getAllByRole("button", { name: "Edit quote" })[0]!);
+    expect(within(panel).getByLabelText("The line")).toHaveValue("line 0");
+  });
+
+  it("brings a deleted book's quotes back with it on undo", async () => {
+    const { calls } = mockApi(withQuotes(quote({}), quote({ id: "q2", text: "Second", page: null })));
+    const user = userEvent.setup();
+    render();
+    await screen.findByText("Emma");
+
+    await user.click(screen.getByRole("button", { name: "Delete Emma" }));
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+
+    // The book first, then each quote under the id the server gave the restored book.
+    await waitFor(() => expect(bodies(calls, "POST")).toHaveLength(3));
+    const posts = calls.filter((c) => c.method === "POST");
+    expect(posts[0]?.url).toMatch(/\/api\/books$/);
+    expect(posts[1]?.url).toMatch(/\/api\/books\/b1\/quotes$/);
+    expect(JSON.parse(posts[1]?.body ?? "")).toEqual({
+      text: "It is a truth universally acknowledged…",
+      page: 1,
+    });
+    expect(JSON.parse(posts[2]?.body ?? "")).toEqual({ text: "Second", page: null });
   });
 });

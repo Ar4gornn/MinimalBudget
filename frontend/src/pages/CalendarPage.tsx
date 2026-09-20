@@ -17,6 +17,7 @@ import type {
   Workout,
 } from "../api/types";
 import { MoodFace, moodWord } from "../components/MoodFace";
+import { QuoteCard } from "../components/QuoteCard";
 import { Card, Empty, ErrorBanner } from "../components/ui";
 import { timeLabel } from "../schedule";
 import { DASHBOARD_VIEWS, ViewSwitch } from "../components/ViewSwitch";
@@ -595,6 +596,9 @@ export function CalendarPage() {
           />
         </Card>
       )}
+
+      {/* A line from a book, when one is kept (Epic 31). Absent otherwise. */}
+      <QuoteCard collapseKey="calendar.quote" />
 
       {loading && <p className="hint">{t("state.loading")}</p>}
     </>

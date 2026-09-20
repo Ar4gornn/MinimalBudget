@@ -157,4 +157,47 @@ export const books = {
     en: "A number in a series needs a series.",
     fr: "Un numéro dans une série nécessite une série.",
   },
+
+  // --- quotes (Epic 31). "Citation" rather than "devis": a quote from a book, not a price.
+  "quotes.add": { en: "Add a quote", fr: "Ajouter une citation" },
+  "quotes.manage": { en: "Edit quotes", fr: "Modifier les citations" },
+  "quotes.hide": { en: "Hide quotes", fr: "Masquer les citations" },
+  "quotes.panelFor": { en: "Quotes from {title}", fr: "Citations de {title}" },
+  "quotes.page": { en: "p. {page}", fr: "p. {page}" },
+  "quotes.fieldText": { en: "The line", fr: "La phrase" },
+  "quotes.fieldPage": { en: "Page", fr: "Page" },
+  "quotes.placeholder": {
+    en: "A line worth keeping…",
+    fr: "Une phrase à garder…",
+  },
+  "quotes.full": {
+    en: "This book holds {max} quotes already. Remove one to add another.",
+    fr: "Ce livre a déjà {max} citations. Retirez-en une pour en ajouter une autre.",
+  },
+  "quotes.edit": { en: "Edit quote", fr: "Modifier la citation" },
+  "quotes.delete": { en: "Delete quote", fr: "Supprimer la citation" },
+  "quotes.deleted": { en: "Quote removed.", fr: "Citation retirée." },
+  "quotes.couldNotSave": {
+    en: "The quote could not be saved.",
+    fr: "La citation n’a pas pu être enregistrée.",
+  },
+  "quotes.couldNotDelete": {
+    en: "The quote could not be removed.",
+    fr: "La citation n’a pas pu être retirée.",
+  },
+
+  // --- the card on the dashboard and the calendar
+  "quotes.cardTitle": { en: "A line from the shelf", fr: "Une phrase de l’étagère" },
+  "quotes.next": { en: "Next", fr: "Une autre" },
+  "quotes.from": { en: "{title}, {author}", fr: "{title}, {author}" },
+  "quotes.fromPage": { en: "{title}, {author}, p. {page}", fr: "{title}, {author}, p. {page}" },
+
+  "error.book_quotes_full": {
+    en: "This book already holds as many quotes as it can.",
+    fr: "Ce livre contient déjà autant de citations qu’il peut en avoir.",
+  },
+  "error.book_quote_empty": {
+    en: "A quote needs some words.",
+    fr: "Une citation a besoin de quelques mots.",
+  },
 } satisfies Record<string, Entry>;

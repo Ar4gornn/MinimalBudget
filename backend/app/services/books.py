@@ -16,6 +16,12 @@ names it (insert-or-return, AD-12) and deleted when the last book leaves it — 
 being deleted, by being moved to another series, or by having its series cleared. Nothing
 else creates or deletes one, so a series with no books does not exist, and the list of series
 is always the list of things there is at least one book in.
+
+**A quote is a line owned by its book** (Epic 31, AD-47). At most :data:`QUOTES_PER_BOOK`
+per book — counted here under a row lock on the book, because a CHECK cannot count. The
+draw for the dashboard is the server's: ``ORDER BY random()`` over the person's own quotes,
+with the one currently shown sorted last rather than excluded, so "Next" on a single quote
+shows it again rather than nothing.
 """
 
 import datetime as dt
@@ -25,8 +31,16 @@ from sqlalchemy import delete, exists, func, select, text
 from sqlalchemy.orm import Session
 
 from app.core import search
-from app.core.errors import Invalid, NotFound
-from app.models.books import RATING_MAX, RATING_MIN, Book, BookSeries, BookStatus
+from app.core.errors import Conflict, Invalid, NotFound
+from app.models.books import (
+    QUOTES_PER_BOOK,
+    RATING_MAX,
+    RATING_MIN,
+    Book,
+    BookQuote,
+    BookSeries,
+    BookStatus,
+)
 
 # Sort keys the list accepts. Each is a full ordering, so a page is stable across reloads:
 # ties break on the row id, never on insertion luck.
@@ -379,3 +393,133 @@ def delete_book(session: Session, user_id: uuid.UUID, book_id: uuid.UUID) -> Non
     session.delete(book)
     session.flush()
     _prune_series(session, user_id, series_id)
+
+
+# ---------------------------------------------------------------- quotes
+
+
+def _quote_query(user_id: uuid.UUID):
+    return (
+        select(BookQuote)
+        .where(BookQuote.user_id == user_id)
+        .order_by(BookQuote.created_at, BookQuote.id)
+    )
+
+
+def quotes_by_book(session: Session, user_id: uuid.UUID) -> dict[uuid.UUID, list[BookQuote]]:
+    """Every quote the person has, grouped by book, in the order they were added."""
+    grouped: dict[uuid.UUID, list[BookQuote]] = {}
+    for quote in session.execute(_quote_query(user_id)).scalars():
+        grouped.setdefault(quote.book_id, []).append(quote)
+    return grouped
+
+
+def list_quotes(session: Session, user_id: uuid.UUID, book_id: uuid.UUID) -> list[BookQuote]:
+    query = _quote_query(user_id).where(BookQuote.book_id == book_id)
+    return list(session.execute(query).scalars())
+
+
+def _clean_quote(raw: str) -> str:
+    """Trimmed at both ends; inner line breaks are the person's and stay."""
+    cleaned = raw.strip()
+    if not cleaned:
+        raise Invalid("a quote needs some words", "book_quote_empty")
+    return cleaned
+
+
+def _get_quote(
+    session: Session, user_id: uuid.UUID, book_id: uuid.UUID, quote_id: uuid.UUID
+) -> BookQuote:
+    quote = session.execute(
+        _quote_query(user_id).where(BookQuote.book_id == book_id, BookQuote.id == quote_id)
+    ).scalar_one_or_none()
+    if quote is None:
+        raise NotFound("No quote with that id")
+    return quote
+
+
+def create_quote(
+    session: Session,
+    user_id: uuid.UUID,
+    book_id: uuid.UUID,
+    *,
+    text: str,
+    page: int | None = None,
+) -> BookQuote:
+    """Add a line under the book, refusing the eleventh (AD-47).
+
+    The book row is locked first, so two adds racing on the last free slot are serialised
+    and the second one counts ten rather than nine.
+    """
+    locked = session.execute(
+        _book_query(user_id).where(Book.id == book_id).with_for_update()
+    ).scalar_one_or_none()
+    if locked is None:
+        raise NotFound("No book with that id")
+    held = session.execute(
+        select(func.count(BookQuote.id)).where(
+            BookQuote.user_id == user_id, BookQuote.book_id == book_id
+        )
+    ).scalar_one()
+    if held >= QUOTES_PER_BOOK:
+        raise Conflict(f"a book holds at most {QUOTES_PER_BOOK} quotes", "book_quotes_full")
+    if page is not None and page <= 0:  # pragma: no cover — ge=1 on the wire
+        raise Invalid("a page is 1 or more", "book_quote_page_not_positive")
+    quote = BookQuote(user_id=user_id, book_id=book_id, body=_clean_quote(text), page=page)
+    session.add(quote)
+    session.flush()
+    session.refresh(quote)
+    return quote
+
+
+def update_quote(
+    session: Session,
+    user_id: uuid.UUID,
+    book_id: uuid.UUID,
+    quote_id: uuid.UUID,
+    fields: dict,
+) -> BookQuote:
+    """Write only the keys present. ``page: None`` clears the page."""
+    quote = _get_quote(session, user_id, book_id, quote_id)
+    unknown = set(fields) - {"text", "page"}
+    if unknown:  # pragma: no cover — the schema does not admit other keys
+        raise Invalid(f"cannot update {', '.join(sorted(unknown))}", "book_quote_field_unknown")
+    if "text" in fields and fields["text"] is not None:
+        quote.body = _clean_quote(fields["text"])
+    if "page" in fields:
+        if fields["page"] is not None and fields["page"] <= 0:  # pragma: no cover
+            raise Invalid("a page is 1 or more", "book_quote_page_not_positive")
+        quote.page = fields["page"]
+    quote.updated_at = func.now()
+    session.flush()
+    session.refresh(quote)
+    return quote
+
+
+def delete_quote(
+    session: Session, user_id: uuid.UUID, book_id: uuid.UUID, quote_id: uuid.UUID
+) -> None:
+    session.delete(_get_quote(session, user_id, book_id, quote_id))
+    session.flush()
+
+
+def draw_quote(
+    session: Session, user_id: uuid.UUID, *, exclude: uuid.UUID | None = None
+) -> tuple[BookQuote, Book] | None:
+    """One quote at random with its book, or None when the person has kept none.
+
+    ``exclude`` is the one on screen. It is sorted last rather than filtered out, so "Next"
+    on a library with a single quote draws that quote again instead of nothing.
+    """
+    query = (
+        select(BookQuote, Book)
+        .join(Book, (Book.user_id == BookQuote.user_id) & (Book.id == BookQuote.book_id))
+        .where(BookQuote.user_id == user_id)
+    )
+    if exclude is not None:
+        # false < true in Postgres, so the one on screen sorts after every other.
+        query = query.order_by((BookQuote.id == exclude).asc(), func.random())
+    else:
+        query = query.order_by(func.random())
+    row = session.execute(query.limit(1)).first()
+    return (row[0], row[1]) if row is not None else None

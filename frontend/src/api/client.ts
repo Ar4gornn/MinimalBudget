@@ -9,6 +9,9 @@
 import type {
   Book,
   BookInput,
+  BookQuote,
+  BookQuoteDraw,
+  BookQuoteInput,
   BookSeries,
   BookSort,
   BookStatus,
@@ -1026,4 +1029,30 @@ export const api = {
     request<Book>(`/api/books/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
 
   deleteBook: (id: string) => request<void>(`/api/books/${id}`, { method: "DELETE" }),
+
+  // --- quotes (Epic 31). A book carries its quotes, so there is no list call; these three
+  // change them and the shelf reloads the book.
+
+  /** The eleventh answers 409 `book_quotes_full`. */
+  addBookQuote: (bookId: string, body: BookQuoteInput) =>
+    request<BookQuote>(`/api/books/${bookId}/quotes`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateBookQuote: (bookId: string, quoteId: string, body: Partial<BookQuoteInput>) =>
+    request<BookQuote>(`/api/books/${bookId}/quotes/${quoteId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  deleteBookQuote: (bookId: string, quoteId: string) =>
+    request<void>(`/api/books/${bookId}/quotes/${quoteId}`, { method: "DELETE" }),
+
+  /**
+   * One quote at random, or null when none is kept. `exclude` is the one on screen: the
+   * server sorts it last rather than out, so "Next" on a single quote is that quote again.
+   */
+  drawBookQuote: (exclude?: string) =>
+    request<BookQuoteDraw | null>(`/api/books/quotes/draw${query({ exclude })}`),
 };

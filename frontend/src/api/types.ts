@@ -804,8 +804,40 @@ export interface Book {
   added_on: string;
   started_on: string | null;
   finished_on: string | null;
+  /** In the order they were added; at most `QUOTES_PER_BOOK` (Epic 31). */
+  quotes: BookQuote[];
   created_at: string;
   updated_at: string;
+}
+
+/** How many quotes a book holds. The server's number; the client only says it. */
+export const QUOTES_PER_BOOK = 10;
+export const QUOTE_MAX_LENGTH = 1000;
+
+/** A line kept from a book (Epic 31). Owned by the book: deleted with it. */
+export interface BookQuote {
+  id: string;
+  book_id: string;
+  text: string;
+  /** Where it was found, or null. Not checked against the book's page count. */
+  page: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookQuoteInput {
+  text: string;
+  page?: number | null;
+}
+
+/** One quote drawn at random by the server, with enough of its book to stand alone. */
+export interface BookQuoteDraw {
+  id: string;
+  book_id: string;
+  text: string;
+  page: number | null;
+  title: string;
+  author: string;
 }
 
 /** A series exists exactly as long as one book names it, so `books` is never zero. */
