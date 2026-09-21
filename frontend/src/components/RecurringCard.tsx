@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 
 import { api } from "../api/client";
 import {
@@ -15,6 +15,7 @@ import { todayIso } from "../months";
 import { useT } from "../i18n";
 import type { MessageKey } from "../i18n/catalogue";
 import { errorMessage } from "../i18n/errors";
+import { useLoad } from "../useLoad";
 import { Card, Empty, ErrorBanner, TableWrap } from "./ui";
 import { useToast } from "./Toast";
 
@@ -26,16 +27,19 @@ import { useToast } from "./Toast";
  * materialised on read, and an entry appears only when a person says yes — or when the
  * template opted in to automatic creation.
  */
+const NOTHING = {
+  pending: [] as PendingEntry[],
+  templates: [] as RecurringTemplate[],
+  categories: [] as Category[],
+};
+
 export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
   const money = useMoney();
   const t = useT();
   const toast = useToast();
 
-  const [templates, setTemplates] = useState<RecurringTemplate[]>([]);
-  const [pending, setPending] = useState<PendingEntry[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  // Failures of the card's own actions. The load's failure is `failure`, from the hook.
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
   const [kind, setKind] = useState<EntryKind>("expense");
@@ -51,28 +55,20 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
   // quite the template's figure, and editing the template would be the wrong fix.
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [nextPending, nextTemplates, nextCategories] = await Promise.all([
-        api.listPending(),
-        api.listTemplates(),
-        api.listCategories(),
-      ]);
-      setPending(nextPending);
-      setTemplates(nextTemplates);
-      setCategories(nextCategories);
-    } catch (caught) {
-      setError(errorMessage(t, caught, "recurring.couldNotLoad"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data: { pending, templates, categories },
+    loading,
+    failure,
+    reload: load,
+  } = useLoad(
+    () =>
+      Promise.all([api.listPending(), api.listTemplates(), api.listCategories()]).then(
+        ([pending, templates, categories]) => ({ pending, templates, categories }),
+      ),
+    NOTHING,
+    [],
+    "recurring.couldNotLoad",
+  );
 
   const nameOf = useMemo(() => {
     const lookup = new Map(categories.map((category) => [category.id, category.name]));
@@ -166,7 +162,7 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
           : t.n("recurring.templates", templates.length)
       }
     >
-      <ErrorBanner message={error} />
+      <ErrorBanner message={error ?? failure} />
 
       {pending.length > 0 && (
         <TableWrap>

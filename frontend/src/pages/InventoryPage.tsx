@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -14,9 +14,11 @@ import { useMoney } from "../useMoney";
 import { useT } from "../i18n";
 import type { MessageKey } from "../i18n/catalogue";
 import { errorMessage } from "../i18n/errors";
+import { useLoad } from "../useLoad";
 import { useDates } from "../useDates";
 
 const RESTOCK_MONTHS = 6;
+const NOTHING = { spaces: [] as Space[], items: [] as InventoryItem[], restocks: null as Restocks | null };
 
 type Filter = "all" | "restock" | string; // a space id is also a filter
 
@@ -34,11 +36,8 @@ export function InventoryPage() {
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [spaces, setSpaces] = useState<Space[]>([]);
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [restocks, setRestocks] = useState<Restocks | null>(null);
+  // Failures of the page's own actions. The load's failure is `failure`, from the hook.
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>(
     searchParams.get("filter") === "restock" ? "restock" : "all",
   );
@@ -78,28 +77,22 @@ export function InventoryPage() {
   // same closure state, so state alone would let both through.
   const inFlight = useRef<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [nextSpaces, nextItems, nextRestocks] = await Promise.all([
+  const {
+    data: { spaces, items, restocks },
+    loading,
+    failure,
+    reload: load,
+  } = useLoad(
+    () =>
+      Promise.all([
         api.listSpaces(),
         api.listItems(search.trim() ? { q: search.trim() } : {}),
         api.restocks(RESTOCK_MONTHS),
-      ]);
-      setSpaces(nextSpaces);
-      setItems(nextItems);
-      setRestocks(nextRestocks);
-    } catch (caught) {
-      setError(errorMessage(t, caught, "stock.couldNotLoad"));
-    } finally {
-      setLoading(false);
-    }
-  }, [search, t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+      ]).then(([spaces, items, restocks]) => ({ spaces, items, restocks })),
+    NOTHING,
+    [search],
+    "stock.couldNotLoad",
+  );
 
   // The dashboard links here with ?filter=restock; once read, drop it so a refresh is
   // a normal visit.
@@ -326,7 +319,7 @@ export function InventoryPage() {
 
   return (
     <>
-      <ErrorBanner message={error} />
+      <ErrorBanner message={error ?? failure} />
 
       {/* Above the spaces: what to buy is the thing you act on, the shelves are reference. */}
       <ShoppingList onChanged={() => void load()} />

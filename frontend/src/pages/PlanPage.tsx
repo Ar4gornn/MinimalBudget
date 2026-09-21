@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { api } from "../api/client";
 import type { Budget, Category, Contribution, SavingsType, Target } from "../api/types";
@@ -11,52 +11,53 @@ import { todayIso } from "../months";
 import { useT, type Translate } from "../i18n";
 import type { MessageKey } from "../i18n/catalogue";
 import { errorMessage } from "../i18n/errors";
+import { useLoad } from "../useLoad";
+
+const NOTHING = {
+  types: [] as SavingsType[],
+  contributions: [] as Contribution[],
+  targets: [] as Target[],
+  categories: [] as Category[],
+  budgets: [] as Budget[],
+};
 
 /** Savings and budgets: what the user intends, and what they have actually put aside. */
 export function PlanPage() {
   const money = useMoney();
   const t = useT();
   const toast = useToast();
-  const [types, setTypes] = useState<SavingsType[]>([]);
-  const [contributions, setContributions] = useState<Contribution[]>([]);
-  const [targets, setTargets] = useState<Target[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [budgets, setBudgets] = useState<Budget[]>([]);
+  // Failures of the page's own actions. The load's failure is `failure`, from the hook.
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const [newType, setNewType] = useState("");
   const [contributionType, setContributionType] = useState("");
   const [contributionAmount, setContributionAmount] = useState("");
   const [contributionDate, setContributionDate] = useState(todayIso());
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [nextTypes, nextContributions, nextTargets, nextCategories, nextBudgets] =
-        await Promise.all([
-          api.listSavingsTypes(),
-          api.listContributions(),
-          api.listTargets(),
-          api.listCategories("expense"),
-          api.listBudgets(),
-        ]);
-      setTypes(nextTypes);
-      setContributions(nextContributions);
-      setTargets(nextTargets);
-      setCategories(nextCategories);
-      setBudgets(nextBudgets);
-    } catch (caught) {
-      setError(errorMessage(t, caught, "plan.couldNotLoad"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data: { types, contributions, targets, categories, budgets },
+    loading,
+    failure,
+    reload: load,
+  } = useLoad(
+    () =>
+      Promise.all([
+        api.listSavingsTypes(),
+        api.listContributions(),
+        api.listTargets(),
+        api.listCategories("expense"),
+        api.listBudgets(),
+      ]).then(([types, contributions, targets, categories, budgets]) => ({
+        types,
+        contributions,
+        targets,
+        categories,
+        budgets,
+      })),
+    NOTHING,
+    [],
+    "plan.couldNotLoad",
+  );
 
   const targetFor = useMemo(() => {
     const lookup = new Map(targets.map((t) => [t.savings_type_id, t.monthly_amount]));
@@ -125,7 +126,7 @@ export function PlanPage() {
 
   return (
     <>
-      <ErrorBanner message={error} />
+      <ErrorBanner message={error ?? failure} />
 
       <RecurringCard />
 

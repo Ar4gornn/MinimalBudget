@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { ApiError, api } from "../api/client";
@@ -24,7 +24,8 @@ import { DASHBOARD_VIEWS, ViewSwitch } from "../components/ViewSwitch";
 import { fromCents, toCents } from "../money";
 import { formatEnergy, sumEnergy, trim } from "../nutrition";
 import { useMoney } from "../useMoney";
-import { useT, type Translate } from "../i18n";
+import { type MessageKey, useT, type Translate } from "../i18n";
+import { useLoad } from "../useLoad";
 import { useDates } from "../useDates";
 import { budgetMonth, monthBounds, monthOf, shiftMonth } from "../months";
 
@@ -77,6 +78,9 @@ const LAYERS: { key: LayerKey; label: string; glyph: string; literal?: boolean }
 function layerName(layer: (typeof LAYERS)[number], t: Translate): string {
   return layer.literal ? layer.label : t(layer.label as Parameters<Translate>[0]);
 }
+
+/** What a failed layer is called in the partial-load notice: a key, or Mood's literal. */
+type MissingLabel = MessageKey | "Mood";
 
 const LAYER_KEY = "everything-everywhere.calendarLayers";
 
@@ -178,6 +182,9 @@ const NOTHING: Loaded = {
   expected: [],
 };
 
+/** The month's load, before it has answered. */
+const UNLOADED = { layers: NOTHING, missing: [] as MissingLabel[], stale: false, allFailed: false };
+
 export function CalendarPage() {
   const money = useMoney();
   const t = useT();
@@ -188,13 +195,8 @@ export function CalendarPage() {
   const [month, setMonth] = useState(() => budgetMonth(startDay));
   const [active, setActive] = useState<LayerKey[]>(readLayers);
   const [selected, setSelected] = useState<string | null>(null);
-  const [data, setData] = useState<Loaded>(NOTHING);
   const [categories, setCategories] = useState<Category[]>([]);
   const [savingsTypes, setSavingsTypes] = useState<SavingsType[]>([]);
-  const [missing, setMissing] = useState<string[]>([]);
-  const [stale, setStale] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   // Reference data changes rarely and is not month-shaped, so it is fetched once rather
   // than on every month change.
@@ -212,62 +214,67 @@ export function CalendarPage() {
     };
   }, []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    // allSettled, not all: this page is a composition of six independent modules, and one
-    // of them being down must cost that layer only. `Promise.all` would blank the month.
-    const results = await Promise.allSettled([
-      api.listEntries({ month }),
-      api.listContributions({ month }),
-      api.listWorkouts({ month, limit: 200 }),
-      api.stockChanges(month),
-      api.listCheckins({ month }),
-      api.moodDays(month),
-      api.listMeals({ month }),
-      api.listPending(),
-      api.expectedEntries(month),
-    ]);
-    const [entries, contributions, workouts, stock, checkins, moods, meals, due, expected] =
-      results;
-    const failed: string[] = [];
-    // Tracked separately from the labels: every one of these endpoints is a fixed path, so
-    // a 404 cannot mean "that row is missing" — it can only mean the route is not there,
-    // which is an API older than the page. Saying so turns a shrug into an instruction.
-    let allMissing = true;
-    const value = <T,>(
-      result: PromiseSettledResult<T[]>,
-      label: string,
-    ): T[] => {
-      if (result.status === "fulfilled") return result.value;
-      failed.push(label);
-      if (!(result.reason instanceof ApiError) || result.reason.status !== 404) {
-        allMissing = false;
-      }
-      return [];
-    };
-    setData({
-      entries: value(entries, t("cal.layerMoney")),
-      contributions: value(contributions, t("cal.layerSavings")),
-      workouts: value(workouts, t("cal.layerGym")),
-      stock: value(stock, t("cal.layerStock")),
-      checkins: value(checkins, t("cal.layerHabits")),
-      moods: value(moods, "Mood"),
-      meals: value(meals, t("cal.layerMeals")),
-      due: value(due, t("cal.layerWhatIsDue")),
-      expected: value(expected, t("cal.layerForecast")),
-    });
-    setMissing(failed);
-    setStale(failed.length > 0 && allMissing);
-    if (failed.length === results.length) {
-      setError(t("cal.couldNotLoad"));
-    }
-    setLoading(false);
-  }, [month, t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data: { layers: data, missing, stale, allFailed },
+    loading,
+    failure,
+  } = useLoad(
+    async () => {
+      // allSettled, not all: this page is a composition of six independent modules, and one
+      // of them being down must cost that layer only. `Promise.all` would blank the month.
+      const results = await Promise.allSettled([
+        api.listEntries({ month }),
+        api.listContributions({ month }),
+        api.listWorkouts({ month, limit: 200 }),
+        api.stockChanges(month),
+        api.listCheckins({ month }),
+        api.moodDays(month),
+        api.listMeals({ month }),
+        api.listPending(),
+        api.expectedEntries(month),
+      ]);
+      const [entries, contributions, workouts, stock, checkins, moods, meals, due, expected] =
+        results;
+      // Labels are kept as keys and put into words at render, so the notice follows the
+      // language without the month being fetched again.
+      const failed: MissingLabel[] = [];
+      // Tracked separately from the labels: every one of these endpoints is a fixed path, so
+      // a 404 cannot mean "that row is missing" — it can only mean the route is not there,
+      // which is an API older than the page. Saying so turns a shrug into an instruction.
+      let allMissing = true;
+      const value = <T,>(result: PromiseSettledResult<T[]>, label: MissingLabel): T[] => {
+        if (result.status === "fulfilled") return result.value;
+        failed.push(label);
+        if (!(result.reason instanceof ApiError) || result.reason.status !== 404) {
+          allMissing = false;
+        }
+        return [];
+      };
+      const layers: Loaded = {
+        entries: value(entries, "cal.layerMoney"),
+        contributions: value(contributions, "cal.layerSavings"),
+        workouts: value(workouts, "cal.layerGym"),
+        stock: value(stock, "cal.layerStock"),
+        checkins: value(checkins, "cal.layerHabits"),
+        moods: value(moods, "Mood"),
+        meals: value(meals, "cal.layerMeals"),
+        due: value(due, "cal.layerWhatIsDue"),
+        expected: value(expected, "cal.layerForecast"),
+      };
+      return {
+        layers,
+        missing: failed,
+        stale: failed.length > 0 && allMissing,
+        allFailed: failed.length === results.length,
+      };
+    },
+    UNLOADED,
+    [month],
+    "cal.couldNotLoad",
+  );
+  // Nothing above throws (allSettled), so `failure` is only ever a bug's; the page's own
+  // "could not load" is every layer having failed.
+  const error = failure ?? (allFailed ? t("cal.couldNotLoad") : null);
 
   const categoryName = useMemo(() => {
     const lookup = new Map(categories.map((c) => [c.id, c.name]));
@@ -426,7 +433,9 @@ export function CalendarPage() {
       <ErrorBanner message={error} />
       {missing.length > 0 && !error && (
         <div className="error" role="status">
-          {t("cal.partial", { layers: missing.join(", ") })}
+          {t("cal.partial", {
+            layers: missing.map((label) => (label === "Mood" ? label : t(label))).join(", "),
+          })}
           {stale && t("cal.partialStale")}
         </div>
       )}

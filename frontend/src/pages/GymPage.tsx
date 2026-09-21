@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 
 import { api } from "../api/client";
 import type {
@@ -17,6 +17,7 @@ import { todayIso } from "../months";
 import { useT } from "../i18n";
 import type { MessageKey } from "../i18n/catalogue";
 import { errorMessage } from "../i18n/errors";
+import { useLoad } from "../useLoad";
 
 /**
  * Routines and the workout log (Epic 19).
@@ -25,17 +26,16 @@ import { errorMessage } from "../i18n/errors";
  * session from a routine prefills the form, it does not write sets. A set exists once it
  * was actually done.
  */
+const NOTHING = { routines: [] as Routine[], workouts: [] as Workout[], exercises: [] as Exercise[] };
+
 export function GymPage() {
   const { user } = useAuth();
   const t = useT();
   const toast = useToast();
   const unit = user?.weight_unit ?? "kg";
 
-  const [routines, setRoutines] = useState<Routine[]>([]);
-  const [workouts, setWorkouts] = useState<Workout[]>([]);
-  const [exercises, setExercises] = useState<Exercise[]>([]);
+  // Failures of the page's own actions. The load's failure is `failure`, from the hook.
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   // The session being logged, and the routine open for editing. Only one of each at a time:
   // at the gym you are in one session, and a routine is edited rarely.
@@ -53,28 +53,26 @@ export function GymPage() {
   const [setWeight, setSetWeight] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [nextRoutines, nextWorkouts, nextExercises] = await Promise.all([
-        api.listRoutines(),
-        api.listWorkouts({ limit: 20 }),
-        api.listExercises(),
-      ]);
-      setRoutines(nextRoutines);
-      setWorkouts(nextWorkouts);
-      setExercises(nextExercises);
-    } catch (caught) {
-      setError(errorMessage(t, caught, "gym.couldNotLoad"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data: { routines, workouts, exercises },
+    setData,
+    loading,
+    failure,
+    reload: load,
+  } = useLoad(
+    () =>
+      Promise.all([api.listRoutines(), api.listWorkouts({ limit: 20 }), api.listExercises()]).then(
+        ([routines, workouts, exercises]) => ({ routines, workouts, exercises }),
+      ),
+    NOTHING,
+    [],
+    "gym.couldNotLoad",
+  );
+  /** A write may have coined a new exercise name; only that list needs re-reading. */
+  const refreshExercises = async () => {
+    const exercises = await api.listExercises();
+    setData((was) => ({ ...was, exercises }));
+  };
 
   async function run(action: () => Promise<unknown>, fallback: MessageKey) {
     setBusy(true);
@@ -119,7 +117,7 @@ export function GymPage() {
       setLineSets("");
       setLineReps("");
       setRoutine(await api.readRoutine(routine.id));
-      setExercises(await api.listExercises());
+      await refreshExercises();
     }, "gym.couldNotAddExercise");
   }
 
@@ -164,7 +162,7 @@ export function GymPage() {
       });
       setSetReps("");
       setCurrent(await api.readWorkout(current.id));
-      setExercises(await api.listExercises());
+      await refreshExercises();
       toast.show(t("gym.setLogged"));
     }, "gym.couldNotLogSet");
   }
@@ -176,7 +174,7 @@ export function GymPage() {
   return (
     <>
       <h1 style={{ fontSize: 18, margin: "0 0 16px" }}>{t("gym.title")}</h1>
-      <ErrorBanner message={error} />
+      <ErrorBanner message={error ?? failure} />
 
       {current ? (
         <Card

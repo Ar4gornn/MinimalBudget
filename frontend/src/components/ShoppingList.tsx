@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { api } from "../api/client";
 import type { Category, ShoppingList as List, ShoppingRow } from "../api/types";
@@ -7,6 +7,7 @@ import { useMoney } from "../useMoney";
 import { todayIso } from "../months";
 import { useT } from "../i18n";
 import { errorMessage } from "../i18n/errors";
+import { useLoad } from "../useLoad";
 import { Card, ErrorBanner, TableWrap } from "./ui";
 import { useToast } from "./Toast";
 
@@ -36,35 +37,32 @@ function writeCategory(name: string): void {
  * — one request, one transaction, per AD-31. Leaving the amount blank still restocks: a
  * thing that cost nothing, or that someone else paid for, is still on the shelf.
  */
+const NOTHING = { list: null as List | null, categories: [] as Category[] };
+
 export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
   const money = useMoney();
   const t = useT();
   const toast = useToast();
 
-  const [list, setList] = useState<List | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
+  // Failures of the list's own actions. The load's failure is `failure`, from the hook.
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [category, setCategory] = useState(readCategory);
   const [drafts, setDrafts] = useState<Record<string, { quantity: string; amount: string }>>({});
 
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const [nextList, nextCategories] = await Promise.all([
-        api.shoppingList(),
-        api.listCategories("expense"),
-      ]);
-      setList(nextList);
-      setCategories(nextCategories);
-    } catch (caught) {
-      setError(errorMessage(t, caught, "shopping.couldNotLoad"));
-    }
-  }, [t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data: { list, categories },
+    failure,
+    reload: load,
+  } = useLoad(
+    () =>
+      Promise.all([api.shoppingList(), api.listCategories("expense")]).then(
+        ([list, categories]) => ({ list, categories }),
+      ),
+    NOTHING,
+    [],
+    "shopping.couldNotLoad",
+  );
 
   const draftFor = useMemo(
     () => (row: ShoppingRow) =>
@@ -133,7 +131,7 @@ export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
       collapseKey="inventory.shopping"
       summary={`${list.items.length} · ${money.plain(list.estimate)}`}
     >
-      <ErrorBanner message={error} />
+      <ErrorBanner message={error ?? failure} />
 
       <div className="row" style={{ marginBottom: 8 }}>
         <label style={{ flex: "1 1 200px" }}>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -22,7 +22,7 @@ import { DASHBOARD_VIEWS, ViewSwitch } from "../components/ViewSwitch";
 import { progress, subtractMoney, toChartNumber, toCents } from "../money";
 import { useMoney } from "../useMoney";
 import { useT } from "../i18n";
-import { errorMessage } from "../i18n/errors";
+import { useLoad } from "../useLoad";
 import { useDates } from "../useDates";
 import { budgetMonth, shiftMonth } from "../months";
 
@@ -44,6 +44,7 @@ function readPeriod(): Period {
 }
 
 const TREND_WINDOWS = [6, 12] as const;
+const NOTHING = { summary: null as Summary | null, trends: null as Trends | null };
 const TREND_KEY = "everything-everywhere.trendMonths";
 
 /** Remembered per device, like the collapsed sections. */
@@ -68,10 +69,6 @@ export function DashboardPage() {
   // Month, year or everything. Remembered per device, like the trend window.
   const [period, setPeriod] = useState<Period>(readPeriod);
   const [trendMonths, setTrendMonths] = useState(readTrendMonths);
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [trends, setTrends] = useState<Trends | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   // AD-31: the inventory is its own module, composed here by calling its own endpoint —
   // the same one the inventory page filters on, so the count can never disagree with
   // the list (AD-30). It is allowed to fail on its own: a broken inventory must not
@@ -84,26 +81,19 @@ export function DashboardPage() {
   // card rather than showing an empty one.
   const [reading, setReading] = useState<Book[] | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [nextSummary, nextTrends] = await Promise.all([
-        api.summary(month, period),
-        api.trends(trendMonths, month),
-      ]);
-      setSummary(nextSummary);
-      setTrends(nextTrends);
-    } catch (caught) {
-      setError(errorMessage(t, caught, "dash.couldNotLoad"));
-    } finally {
-      setLoading(false);
-    }
-  }, [month, period, trendMonths, t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data: { summary, trends },
+    loading,
+    failure: error,
+  } = useLoad(
+    () =>
+      Promise.all([api.summary(month, period), api.trends(trendMonths, month)]).then(
+        ([summary, trends]) => ({ summary, trends }),
+      ),
+    NOTHING,
+    [month, period, trendMonths],
+    "dash.couldNotLoad",
+  );
 
   // Proposals from recurring templates. Reading the list is what materialises them, so the
   // dashboard is where a family member finds out there is something to confirm.

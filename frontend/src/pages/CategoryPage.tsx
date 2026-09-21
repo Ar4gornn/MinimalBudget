@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -10,6 +10,7 @@ import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { useT } from "../i18n";
 import { errorMessage } from "../i18n/errors";
+import { useLoad } from "../useLoad";
 import { useDates } from "../useDates";
 import { addMonths, budgetMonth } from "../months";
 import { toChartNumber } from "../money";
@@ -17,6 +18,13 @@ import { formatQuantity, formatRate, unitSingular } from "../quantity";
 import { useMoney } from "../useMoney";
 
 const TREND_MONTHS = 6;
+const NOTHING = {
+  category: null as Category | null,
+  entries: [] as Entry[],
+  trends: null as Trends | null,
+  unitPrices: null as UnitPrices | null,
+  vendorPrices: null as VendorPrices | null,
+};
 
 /**
  * One category: what was spent on it, and when.
@@ -39,19 +47,17 @@ export function CategoryPage() {
   const startDay = useOptionalAuth()?.user?.budget_start_day ?? 1;
   const toast = useToast();
 
-  const [category, setCategory] = useState<Category | null>(null);
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [trends, setTrends] = useState<Trends | null>(null);
-  const [unitPrices, setUnitPrices] = useState<UnitPrices | null>(null);
-  const [vendorPrices, setVendorPrices] = useState<VendorPrices | null>(null);
   const [month, setMonth] = useState(() => budgetMonth(startDay));
+  // Failures of the page's own actions. The load's failure is `failure`, from the hook.
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const {
+    data: { category, entries, trends, unitPrices, vendorPrices },
+    loading,
+    failure,
+    reload: load,
+  } = useLoad(
+    async () => {
       // The unit-price series is an addition to this page, not its reason to exist: if
       // that one request fails the entries and the spend chart still render.
       const [categories, rows, nextTrends, unitPricesResult, vendorResult] = await Promise.all([
@@ -68,21 +74,18 @@ export function CategoryPage() {
           () => null,
         ),
       ]);
-      setCategory(categories.find((c) => c.id === categoryId) ?? null);
-      setEntries(rows);
-      setTrends(nextTrends);
-      setUnitPrices(unitPricesResult);
-      setVendorPrices(vendorResult);
-    } catch (caught) {
-      setError(errorMessage(t, caught, "category.couldNotLoad"));
-    } finally {
-      setLoading(false);
-    }
-  }, [categoryId, month, t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+      return {
+        category: categories.find((c) => c.id === categoryId) ?? null,
+        entries: rows,
+        trends: nextTrends,
+        unitPrices: unitPricesResult,
+        vendorPrices: vendorResult,
+      };
+    },
+    NOTHING,
+    [categoryId, month],
+    "category.couldNotLoad",
+  );
 
   async function remove(entry: Entry) {
     setError(null);
@@ -120,7 +123,7 @@ export function CategoryPage() {
 
   return (
     <>
-      <ErrorBanner message={error} />
+      <ErrorBanner message={error ?? failure} />
 
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 16 }}>
         <div>

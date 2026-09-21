@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -6,7 +6,8 @@ import type { Food, Nutrition, RecipeDetail } from "../api/types";
 import { Card, Empty, ErrorBanner } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { useT, type Translate } from "../i18n";
-import { errorMessage, loadErrorMessage } from "../i18n/errors";
+import { errorMessage } from "../i18n/errors";
+import { useLoad } from "../useLoad";
 import {
   NUTRIENTS,
   NUTRIENT_LABEL,
@@ -69,16 +70,16 @@ function NutritionTable({ value, t }: { value: Nutrition; t: Translate }) {
  * list that no longer adds up to the figure above it — and recomputing the totals here would
  * be the second implementation of the arithmetic that AD-30 forbids.
  */
+const NOTHING = { recipe: null as RecipeDetail | null, foods: [] as Food[] };
+
 export function RecipePage() {
   const { recipeId = "" } = useParams();
   const t = useT();
   const toast = useToast();
   const navigate = useNavigate();
 
-  const [recipe, setRecipe] = useState<RecipeDetail | null>(null);
-  const [foods, setFoods] = useState<Food[]>([]);
+  // Failures of the page's own actions. The load's failure is `failure`, from the hook.
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const [foodId, setFoodId] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -88,30 +89,31 @@ export function RecipePage() {
   const [ateOn, setAteOn] = useState(today);
   const [ateServings, setAteServings] = useState("1");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [detail, pantry] = await Promise.all([api.readRecipe(recipeId), api.listFoods()]);
-      setRecipe(detail);
-      setFoods(pantry);
-      setFoodId((was) => was || (pantry[0]?.id ?? ""));
-      setError(null);
-    } catch (caught) {
-      setError(loadErrorMessage(t, caught, "rec.couldNotLoadOne"));
-    } finally {
-      setLoading(false);
-    }
-  }, [recipeId, t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data: { recipe, foods },
+    setData,
+    loading,
+    failure,
+    reload: load,
+  } = useLoad(
+    async () => {
+      const [recipe, foods] = await Promise.all([api.readRecipe(recipeId), api.listFoods()]);
+      // The ingredient picker starts on the first food once the pantry is known; a choice
+      // already made stays.
+      setFoodId((was) => was || (foods[0]?.id ?? ""));
+      return { recipe, foods };
+    },
+    NOTHING,
+    [recipeId],
+    "rec.couldNotLoadOne",
+  );
 
   const chosen = foods.find((food) => food.id === foodId) ?? null;
 
   async function run(work: () => Promise<RecipeDetail>, fallback: "rec.couldNotSave") {
     try {
-      setRecipe(await work());
+      const recipe = await work();
+      setData((was) => ({ ...was, recipe }));
       setError(null);
     } catch (caught) {
       toast.show(errorMessage(t, caught, fallback), { tone: "error" });
@@ -199,7 +201,7 @@ export function RecipePage() {
   }
 
   if (loading && !recipe) return <main className="shell" />;
-  if (!recipe) return <ErrorBanner message={error} />;
+  if (!recipe) return <ErrorBanner message={error ?? failure} />;
 
   return (
     <>
@@ -264,7 +266,7 @@ export function RecipePage() {
         </button>
       </div>
 
-      <ErrorBanner message={error} />
+      <ErrorBanner message={error ?? failure} />
 
       <Card title={t("rec.perServing")}>
         <NutritionTable value={recipe.per_serving} t={t} />

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -33,8 +33,11 @@ import { useMoney } from "../useMoney";
 import { useT } from "../i18n";
 import type { MessageKey } from "../i18n/catalogue";
 import { errorMessage } from "../i18n/errors";
+import { useLoad } from "../useLoad";
 import { useDates } from "../useDates";
 import { budgetMonth, todayIso } from "../months";
+
+const NOTHING = { entries: [] as Entry[], categories: [] as Category[], vendors: [] as Vendor[] };
 
 export function EntriesPage() {
   const money = useMoney();
@@ -47,11 +50,8 @@ export function EntriesPage() {
   const tour = useTutorial();
   const [searchParams, setSearchParams] = useSearchParams();
   const amountRef = useRef<HTMLInputElement>(null);
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [vendors, setVendors] = useState<Vendor[]>([]);
+  // Failures of the page's own actions. The load's failure is `failure`, from the hook.
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const [kindFilter, setKindFilter] = useState<EntryKind | "">("");
   const [monthFilter, setMonthFilter] = useState(() => budgetMonth(startDay));
@@ -92,11 +92,14 @@ export function EntriesPage() {
     unit: Unit | "";
   } | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [nextEntries, nextCategories, nextVendors] = await Promise.all([
+  const {
+    data: { entries, categories, vendors },
+    loading,
+    failure,
+    reload: load,
+  } = useLoad(
+    () =>
+      Promise.all([
         api.listEntries({
           ...(kindFilter ? { kind: kindFilter } : {}),
           ...(monthFilter ? { month: monthFilter } : {}),
@@ -105,20 +108,11 @@ export function EntriesPage() {
         }),
         api.listCategories(),
         api.listVendors(),
-      ]);
-      setEntries(nextEntries);
-      setCategories(nextCategories);
-      setVendors(nextVendors);
-    } catch (caught) {
-      setError(errorMessage(t, caught, "entries.couldNotLoad"));
-    } finally {
-      setLoading(false);
-    }
-  }, [kindFilter, monthFilter, categoryFilter, search, t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+      ]).then(([entries, categories, vendors]) => ({ entries, categories, vendors })),
+    NOTHING,
+    [kindFilter, monthFilter, categoryFilter, search],
+    "entries.couldNotLoad",
+  );
 
   // Arriving from the quick-add button: focus the amount so the keyboard opens straight
   // onto the first thing you would type, then drop the parameter so a refresh is normal.
@@ -331,7 +325,7 @@ export function EntriesPage() {
 
   return (
     <>
-      <ErrorBanner message={error} />
+      <ErrorBanner message={error ?? failure} />
 
       <Card title={t("entries.record")} tour="record-form">
         <form className="row" onSubmit={submit} aria-label={t("entries.record")}>

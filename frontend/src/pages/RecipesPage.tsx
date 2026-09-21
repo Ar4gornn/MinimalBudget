@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -8,7 +8,8 @@ import { useOptionalAuth } from "../auth/AuthContext";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { useT } from "../i18n";
-import { errorMessage, loadErrorMessage } from "../i18n/errors";
+import { errorMessage } from "../i18n/errors";
+import { useLoad } from "../useLoad";
 import { budgetMonth } from "../months";
 import { NUTRIENTS, basisLabel, formatNutrient, quantityLabel, trim } from "../nutrition";
 
@@ -24,16 +25,15 @@ import { NUTRIENTS, basisLabel, formatNutrient, quantityLabel, trim } from "../n
  * because the arithmetic lives in one place on the server and a second copy in the client is
  * exactly the drift AD-30 exists to prevent.
  */
+const NOTHING = { recipes: [] as Recipe[], foods: [] as Food[], meals: [] as Meal[] };
+
 export function RecipesPage() {
   const t = useT();
   const toast = useToast();
   const startDay = useOptionalAuth()?.user?.budget_start_day ?? 1;
 
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [foods, setFoods] = useState<Food[]>([]);
-  const [meals, setMeals] = useState<Meal[]>([]);
+  // Failures of the page's own actions. The load's failure is `failure`, from the hook.
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const [name, setName] = useState("");
   const [servings, setServings] = useState("2");
@@ -50,29 +50,23 @@ export function RecipesPage() {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [draftBasis, setDraftBasis] = useState<FoodBasis>("per_100g");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [list, pantry, eaten] = await Promise.all([
+  const {
+    data: { recipes, foods, meals },
+    loading,
+    failure,
+    reload: load,
+  } = useLoad(
+    () =>
+      Promise.all([
         api.listRecipes(),
         api.listFoods(),
         // The account's month, the window every other month-shaped view uses (AD-10).
         api.listMeals({ month: budgetMonth(startDay) }),
-      ]);
-      setRecipes(list);
-      setFoods(pantry);
-      setMeals(eaten);
-      setError(null);
-    } catch (caught) {
-      setError(loadErrorMessage(t, caught, "rec.couldNotLoad"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t, startDay]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+      ]).then(([recipes, foods, meals]) => ({ recipes, foods, meals })),
+    NOTHING,
+    [startDay],
+    "rec.couldNotLoad",
+  );
 
   async function addRecipe(event: FormEvent) {
     event.preventDefault();
@@ -160,7 +154,7 @@ export function RecipesPage() {
   return (
     <>
       <h1 style={{ fontSize: 18, marginTop: 0 }}>{t("rec.title")}</h1>
-      <ErrorBanner message={error} />
+      <ErrorBanner message={error ?? failure} />
 
       <Card title={t("rec.yours")}>
         {loading ? null : recipes.length === 0 ? (

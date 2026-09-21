@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -16,7 +16,8 @@ import { Card, Empty, ErrorBanner } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { HABITS_VIEWS, ViewSwitch } from "../components/ViewSwitch";
 import { useT, type MessageKey } from "../i18n";
-import { errorMessage, loadErrorMessage } from "../i18n/errors";
+import { errorMessage } from "../i18n/errors";
+import { useLoad } from "../useLoad";
 import { useDates } from "../useDates";
 
 /**
@@ -151,6 +152,7 @@ function inputOf(book: Book): BookInput {
 }
 
 const STARS = [1, 2, 3, 4, 5] as const;
+const NOTHING = { books: [] as Book[], series: [] as BookSeries[] };
 
 function Stars({ book, onRate }: { book: Book; onRate: (rating: number | null) => void }) {
   const t = useT();
@@ -183,10 +185,8 @@ export function BooksPage() {
   const dates = useDates();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [books, setBooks] = useState<Book[]>([]);
-  const [series, setSeries] = useState<BookSeries[]>([]);
+  // Failures of the page's own actions. The load's failure is `failure`, from the hook.
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   // The dashboard links here with ?status=reading; the chip starts there.
   const fromUrl = searchParams.get("status");
@@ -205,10 +205,14 @@ export function BooksPage() {
   // keystroke — it is sent on blur or Enter.
   const [pageDrafts, setPageDrafts] = useState<Record<string, string>>({});
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [shelf, groups] = await Promise.all([
+  const {
+    data: { books, series },
+    loading,
+    failure,
+    reload: load,
+  } = useLoad(
+    () =>
+      Promise.all([
         api.listBooks({
           q,
           status: status === "all" ? undefined : status,
@@ -216,20 +220,11 @@ export function BooksPage() {
           sort,
         }),
         api.listBookSeries(),
-      ]);
-      setBooks(shelf);
-      setSeries(groups);
-      setError(null);
-    } catch (caught) {
-      setError(loadErrorMessage(t, caught, "books.couldNotLoad"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t, q, status, seriesId, sort]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+      ]).then(([books, series]) => ({ books, series })),
+    NOTHING,
+    [q, status, seriesId, sort],
+    "books.couldNotLoad",
+  );
 
   // Once the ?status= from the dashboard has been read, drop it so a refresh is a normal
   // visit — the same handling Stock gives ?filter=restock.
@@ -340,7 +335,7 @@ export function BooksPage() {
         <ViewSwitch label="view.habitsView" views={HABITS_VIEWS} current="/books" />
       </div>
 
-      <ErrorBanner message={error} />
+      <ErrorBanner message={error ?? failure} />
 
       <Card title={t("books.shelf")}>
         <div className="row" style={{ marginBottom: 12 }}>
@@ -404,7 +399,7 @@ export function BooksPage() {
           <p className="hint">{t("state.loading")}</p>
         ) : books.length === 0 ? (
           // Only when the list really came back empty — not beside a red banner.
-          error ? null : (
+          error || failure ? null : (
             <Empty>{filtered ? t("books.noneMatching") : t("books.none")}</Empty>
           )
         ) : (

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -17,7 +17,8 @@ import { HABITS_VIEWS, ViewSwitch } from "../components/ViewSwitch";
 import { useToast } from "../components/Toast";
 import { useT, type Translate } from "../i18n";
 import type { MessageKey } from "../i18n/catalogue";
-import { errorMessage, loadErrorMessage } from "../i18n/errors";
+import { errorMessage } from "../i18n/errors";
+import { useLoad } from "../useLoad";
 import { useDates } from "../useDates";
 import {
   SCHEDULE_KINDS,
@@ -49,6 +50,8 @@ import {
 
 const HEATMAP_WEEKS = 12;
 const MOOD_DAYS = 30;
+/** What the page shows before the first load answers. One object, so its identity is stable. */
+const NOTHING = { habits: [] as Habit[], progress: [] as HabitProgress[] };
 
 const NTH = [
   { value: 1, key: "habits.nth.1" },
@@ -303,12 +306,25 @@ export function HabitsPage() {
   const dates = useDates();
   const toast = useToast();
 
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [progress, setProgress] = useState<HabitProgress[]>([]);
   const [showArchived, setShowArchived] = useState(false);
+  const {
+    data: { habits, progress },
+    setData,
+    loading,
+    failure,
+    reload: load,
+  } = useLoad(
+    () =>
+      Promise.all([api.listHabits(showArchived), api.habitProgress()]).then(
+        ([habits, progress]) => ({ habits, progress }),
+      ),
+    NOTHING,
+    [showArchived],
+    "habits.couldNotLoad",
+  );
   const [heatmap, setHeatmap] = useState<Heatmap | null>(null);
+  // Failures of the page's own actions. The load's failure is `failure`, from the hook.
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   // Mood is its own module and its own card. It is fetched separately from the habits on
@@ -316,8 +332,14 @@ export function HabitsPage() {
   // that fails costs its own layer and nothing else (AD-31, AD-37). A `Promise.all`
   // alongside the habits would let a broken mood endpoint blank the check-in list, which is
   // the thing this page exists for.
-  const [mood, setMood] = useState<MoodHistory | null>(null);
-  const [moodError, setMoodError] = useState<string | null>(null);
+  // A fixed path, so a 404 can only mean the route is absent — an API older than this
+  // page — never "no moods recorded"; `useLoad` says so.
+  const { data: mood, failure: moodError } = useLoad(
+    () => api.moodHistory(MOOD_DAYS),
+    null as MoodHistory | null,
+    [],
+    "error.generic",
+  );
 
   const [name, setName] = useState("");
   const [schedule, setSchedule] = useState<Schedule>(BLANK);
@@ -361,49 +383,6 @@ export function HabitsPage() {
       ? t.n("habits.streakWeeks", row.streak)
       : t.n("habits.streak", row.streak);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [nextHabits, nextProgress] = await Promise.all([
-        api.listHabits(showArchived),
-        api.habitProgress(),
-      ]);
-      setHabits(nextHabits);
-      setProgress(nextProgress);
-    } catch (caught) {
-      // `/api/habits` and `/api/habits/progress` are fixed paths, so a 404 here cannot mean
-      // "no such habit" — it can only mean the route is absent, i.e. an API older than this
-      // page. Passing the server's bare "Not Found" through told the reader nothing at all;
-      // it happened for real against a stale uvicorn that predated the habits router.
-      setError(loadErrorMessage(t, caught, "habits.couldNotLoad"));
-    } finally {
-      setLoading(false);
-    }
-  }, [showArchived, t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void api.moodHistory(MOOD_DAYS).then(
-      (value) => {
-        if (!cancelled) setMood(value);
-      },
-      (caught: unknown) => {
-        if (cancelled) return;
-        // A fixed path, so a 404 can only mean the route is absent — an API older than this
-        // page — never "no moods recorded". Same reasoning as the habits load above.
-        setMoodError(loadErrorMessage(t, caught, "error.generic"));
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [t]);
-
   async function run(action: () => Promise<unknown>, fallback: MessageKey) {
     setBusy(true);
     setError(null);
@@ -434,7 +413,8 @@ export function HabitsPage() {
   }
 
   async function refresh(habitId: string) {
-    setProgress(await api.habitProgress());
+    const next = await api.habitProgress();
+    setData((was) => ({ ...was, progress: next }));
     if (heatmap?.habit_id === habitId) {
       setHeatmap(await api.habitHeatmap(habitId, HEATMAP_WEEKS));
     }
@@ -555,7 +535,7 @@ export function HabitsPage() {
         </div>
       </div>
 
-      <ErrorBanner message={error} />
+      <ErrorBanner message={error ?? failure} />
 
       <Card title={t("habits.today")}>
         {loading && progress.length === 0 ? (
@@ -565,7 +545,7 @@ export function HabitsPage() {
           // empty because nothing arrived, not because there is nothing — and "No habits
           // yet" beside a red banner saying the load failed is the page inventing an answer
           // it does not have.
-          error ? null : (
+          error || failure ? null : (
             <Empty>{t("habits.none")}</Empty>
           )
         ) : (
@@ -693,7 +673,7 @@ export function HabitsPage() {
         </p>
 
         {habits.length === 0 ? (
-          error ? null : <Empty>{t("state.empty")}</Empty>
+          error || failure ? null : <Empty>{t("state.empty")}</Empty>
         ) : (
           <ul className="habit-list" style={{ marginTop: 12 }}>
             {habits.map((habit) => (
