@@ -20,7 +20,7 @@ export function migrateLegacyStorage(storage: Storage = window.localStorage): nu
     const legacy: string[] = [];
     for (let i = 0; i < storage.length; i++) {
       const key = storage.key(i);
-      if (key && key.startsWith(LEGACY_PREFIX)) legacy.push(key);
+      if (key?.startsWith(LEGACY_PREFIX)) legacy.push(key);
     }
     for (const key of legacy) {
       const target = PREFIX + key.slice(LEGACY_PREFIX.length);

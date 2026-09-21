@@ -85,6 +85,7 @@ export function StepChart({
       />
       {changes.map((change, index) => (
         <circle
+          // biome-ignore lint/suspicious/noArrayIndexKey: a change has no id, and two can share a timestamp
           key={change.changed_at + index}
           cx={x(times[index] ?? first)}
           cy={y(change.quantity_after)}

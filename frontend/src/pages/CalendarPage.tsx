@@ -299,7 +299,10 @@ export function CalendarPage() {
     const map = new Map<string, DayBucket>();
     const at = (iso: string): DayBucket => {
       let bucket = map.get(iso);
-      if (!bucket) map.set(iso, (bucket = emptyBucket()));
+      if (!bucket) {
+        bucket = emptyBucket();
+        map.set(iso, bucket);
+      }
       return bucket;
     };
     for (const row of data.entries) at(row.occurred_on).entries.push(row);
@@ -453,14 +456,17 @@ export function CalendarPage() {
           role="grid"
           aria-label={t("cal.gridAria", { month: dates.month(month) })}
         >
+          {/* biome-ignore lint/a11y/useFocusableInteractive: the cells are the buttons; a row only groups them */}
           <div className="cal-head" role="row">
             {[0, 1, 2, 3, 4, 5, 6].map((weekday) => (
+              // biome-ignore lint/a11y/useFocusableInteractive: a weekday heading has nothing to do on focus
               <div key={weekday} role="columnheader" className="cal-weekday">
                 {dates.weekdayShort(weekday)}
               </div>
             ))}
           </div>
           {weeks.map((row) => (
+            // biome-ignore lint/a11y/useFocusableInteractive: the cells are the buttons; a row only groups them
             <div key={isoOf(row[0] as Date)} className="cal-week" role="row">
               {row.map((day) => {
                 const iso = isoOf(day);
@@ -519,7 +525,7 @@ export function CalendarPage() {
                       .filter(Boolean)
                       .join(" ")}
                     aria-label={label}
-                    aria-pressed={selected === iso}
+                    aria-selected={selected === iso}
                     onClick={() => {
                       if (!inPeriod) {
                         setSelected(null);
@@ -544,6 +550,7 @@ export function CalendarPage() {
                         {labelsFor(bucket)
                           .slice(0, 2)
                           .map((line, index) => (
+                            // biome-ignore lint/suspicious/noArrayIndexKey: two lines can read the same; at most two, never reordered
                             <span key={`${line}-${index}`} className="cal-line">
                               {line}
                             </span>

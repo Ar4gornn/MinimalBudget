@@ -398,7 +398,7 @@ describe("quantity and unit price (AD-29)", () => {
         ([url, init]) =>
           String(url).includes("/api/entries") && (init as RequestInit)?.method === "POST",
       );
-      expect(JSON.parse(String((posted?.[1] as RequestInit).body))).toMatchObject({
+      expect(JSON.parse(String((posted![1] as RequestInit).body))).toMatchObject({
         category_name: "Fuel",
         vendor_name: "Shell",
       });

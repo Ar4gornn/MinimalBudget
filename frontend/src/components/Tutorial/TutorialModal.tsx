@@ -18,8 +18,8 @@ export function TutorialModal() {
   // The dimmed screens take focus so Enter and Escape work without a click. The panel
   // steps do not: on the entry step the page has just put focus in the amount field.
   useEffect(() => {
-    if (modal) primary.current?.focus();
-  }, [modal, step]);
+    if (step !== null && STEPS[step].modal) primary.current?.focus();
+  }, [step]);
 
   if (step === null) return null;
 

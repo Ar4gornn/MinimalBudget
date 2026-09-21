@@ -1,0 +1,114 @@
+# Runs on every push, so a feature branch gets a verdict before it is merged rather than
+# after. Two independent jobs: a red frontend does not hide a green backend, and neither
+# waits on the other's install.
+#
+# The backend job tests against a real Postgres 18, not a mock or SQLite — RLS policies,
+# composite foreign keys and the owner/app role split are the point of the schema and none of
+# them exist anywhere else. The roles are created by the same db/init script the compose
+# stack runs on first boot, so CI cannot drift from the shape a fresh install has.
+#
+# Every credential below is a throwaway for a database that lives for one job on a runner
+# nobody else can reach. The signing key is generated per run and never printed.
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (lint, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm test
+
+      # `build` runs tsc -b first, so this is the type check too.
+      - run: npm run build
+
+  backend:
+    name: Backend (ruff, pytest on Postgres 18)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: everything_everywhere
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d everything_everywhere"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: everything_everywhere
+      DB_OWNER: everything_everywhere_owner
+      DB_OWNER_PASSWORD: ci-owner
+      DB_APP_USER: everything_everywhere_app
+      DB_APP_PASSWORD: ci-app
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install
+        run: python -m pip install --quiet -e "backend[dev]"
+
+      - name: Lint
+        run: ruff check backend
+
+      # The same script the Postgres container runs from docker-entrypoint-initdb.d on a
+      # fresh volume. Here the server is the service container, reached through PGHOST.
+      - name: Create the owner and app roles
+        run: |
+          command -v psql >/dev/null || sudo apt-get install -y --no-install-recommends postgresql-client
+          sh db/init/01-init-roles.sh
+
+      # The test suite reads the two connection strings from the repo .env (and swaps the
+      # database name for its own throwaway one); the application reads the rest of its
+      # settings from the same file.
+      - name: Write the test .env
+        run: |
+          {
+            echo "DATABASE_URL=postgresql+psycopg://${DB_APP_USER}:${DB_APP_PASSWORD}@localhost:5432/${POSTGRES_DB}"
+            echo "MIGRATION_DATABASE_URL=postgresql+psycopg://${DB_OWNER}:${DB_OWNER_PASSWORD}@localhost:5432/${POSTGRES_DB}"
+            echo "SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+            echo "CORS_ORIGINS=http://localhost:5173"
+          } > .env
+
+      - name: Test
+        working-directory: backend
+        run: python -m pytest -q

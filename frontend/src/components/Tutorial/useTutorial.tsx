@@ -129,13 +129,14 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
 
   // Take the person to the step's page. Not re-run when the path changes: wandering off
   // mid-step is allowed, and the next step brings them back.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: not pathname or navigate — see above
   useEffect(() => {
     if (!step) return;
     const path = STEPS[step].path;
     if (!path) return;
     // The entry step always navigates, even from /entries, so `?add=1` focuses the amount.
     if (path.includes("?") || path !== pathname) navigate(path);
-  }, [step]); // not pathname — see above
+  }, [step]);
 
   // Ring the step's control and bring it into view once the page has drawn it. The ring
   // itself is CSS keyed off this attribute, so it survives the page mounting late; only

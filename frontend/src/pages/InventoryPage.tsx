@@ -628,9 +628,12 @@ export function InventoryPage() {
                                 >
                                   −
                                 </button>
-                                <span aria-label={t("stock.quantityOf", { name: item.name })}>
+                                {/* An <output> rather than a span: a plain span cannot carry a
+                                    name, and this is the value the two buttons beside it change, so
+                                    a screen reader hears the new quantity after each press. */}
+                                <output aria-label={t("stock.quantityOf", { name: item.name })}>
                                   {item.quantity}
-                                </span>
+                                </output>
                                 <button
                                   type="button"
                                   className="quiet"

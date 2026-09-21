@@ -1,0 +1,42 @@
+// Linter only. Types are tsc's job (strict, noUnusedLocals, noUncheckedIndexedAccess) and the
+// formatter stays off: the code sits at ~100 columns with no formatter config, and turning one
+// on would rewrite every file in the same commit as whatever the commit was actually for.
+//
+// Each rule switched off below is a matter of taste that would cost diff noise, not a bug class:
+// the ones left on (hooks dependencies, unsafe optional chains, index keys, ARIA support,
+// focusable roles) are the ones tsc cannot see and a page test rarely exercises.
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "files": { "includes": ["src/**", "vite.config.ts"] },
+  "formatter": { "enabled": false },
+  "assist": { "enabled": false },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "correctness": {
+        "useExhaustiveDependencies": "error",
+        "useHookAtTopLevel": "error"
+      },
+      "a11y": {
+        // Wants <fieldset> for every role="group" and <table> for the calendar's ARIA grid.
+        // The grid pattern is deliberate (focusable cells, roving selection), and a fieldset
+        // brings a border, padding and min-inline-size that every segmented control would
+        // then undo in CSS.
+        "useSemanticElements": "off"
+      },
+      "complexity": {
+        // The few !important rules are the intended overrides (e.g. the tour ring).
+        "noImportantStyles": "off",
+        // obj["key"] vs obj.key — taste.
+        "useLiteralKeys": "off"
+      },
+      "style": {
+        // With noUncheckedIndexedAccess on, a `!` is a deliberate, visible assertion.
+        "noNonNullAssertion": "off",
+        // "a" + b vs `${a}${b}` — taste.
+        "useTemplate": "off"
+      }
+    }
+  }
+}

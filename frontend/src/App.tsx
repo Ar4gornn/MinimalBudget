@@ -1,23 +1,42 @@
+import { type ComponentType, lazy, Suspense } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
 import { TutorialModal } from "./components/Tutorial/TutorialModal";
 import { TutorialProvider } from "./components/Tutorial/useTutorial";
 import { useT } from "./i18n";
-import { BooksPage } from "./pages/BooksPage";
-import { CalendarPage } from "./pages/CalendarPage";
-import { CategoryPage } from "./pages/CategoryPage";
-import { DashboardPage } from "./pages/DashboardPage";
-import { EntriesPage } from "./pages/EntriesPage";
-import { HabitsPage } from "./pages/HabitsPage";
-import { InventoryPage } from "./pages/InventoryPage";
-import { PlanPage } from "./pages/PlanPage";
-import { GymPage } from "./pages/GymPage";
-import { ProjectionsPage } from "./pages/ProjectionsPage";
-import { RecipePage } from "./pages/RecipePage";
-import { RecipesPage } from "./pages/RecipesPage";
-import { SettingsPage } from "./pages/SettingsPage";
 import { SignInPage } from "./pages/SignInPage";
+
+/**
+ * Every page is its own chunk, fetched the first time its route is visited. Before this,
+ * one 488 KB script carried all fourteen pages plus the charts, and the sign-in screen —
+ * which renders none of them — paid for the lot before it could draw a form. The sign-in
+ * page stays in the main chunk for that reason: it is the first paint for anyone signed
+ * out, and a second round trip there would undo the gain.
+ *
+ * The pages are named exports, so each import is unwrapped into the `default` that
+ * `lazy` wants. Vite still sees the `import()` and splits on it.
+ */
+function page<K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) {
+  return lazy(async () => {
+    const component: ComponentType = (await load())[name];
+    return { default: component };
+  });
+}
+
+const DashboardPage = page(() => import("./pages/DashboardPage"), "DashboardPage");
+const CalendarPage = page(() => import("./pages/CalendarPage"), "CalendarPage");
+const EntriesPage = page(() => import("./pages/EntriesPage"), "EntriesPage");
+const CategoryPage = page(() => import("./pages/CategoryPage"), "CategoryPage");
+const PlanPage = page(() => import("./pages/PlanPage"), "PlanPage");
+const ProjectionsPage = page(() => import("./pages/ProjectionsPage"), "ProjectionsPage");
+const HabitsPage = page(() => import("./pages/HabitsPage"), "HabitsPage");
+const BooksPage = page(() => import("./pages/BooksPage"), "BooksPage");
+const GymPage = page(() => import("./pages/GymPage"), "GymPage");
+const InventoryPage = page(() => import("./pages/InventoryPage"), "InventoryPage");
+const RecipesPage = page(() => import("./pages/RecipesPage"), "RecipesPage");
+const RecipePage = page(() => import("./pages/RecipePage"), "RecipePage");
+const SettingsPage = page(() => import("./pages/SettingsPage"), "SettingsPage");
 
 /**
  * The navigation answer, in full, because it is the constraint two new features collided
@@ -164,6 +183,10 @@ export function App() {
       </header>
 
       <main>
+        {/* Nothing is drawn while a chunk loads: the bars above and below are already there,
+            and a spinner for a fetch that is usually served from the worker's cache would
+            flash more than it informs. */}
+        <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
@@ -180,6 +203,7 @@ export function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </main>
 
       {/* Quick add: recording a transaction is the loop people repeat, so on a phone it

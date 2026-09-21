@@ -63,6 +63,7 @@ export function RateChart({
     >
       {segments.map((points, index) => (
         <polyline
+          // biome-ignore lint/suspicious/noArrayIndexKey: segments are redrawn wholesale from the series and hold no state
           key={index}
           points={points}
           fill="none"

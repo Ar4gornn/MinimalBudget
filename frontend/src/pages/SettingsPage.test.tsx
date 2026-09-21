@@ -145,7 +145,7 @@ describe("SettingsPage", () => {
     expect(created).toEqual(["blob:fake"]);
     // A plain link could not carry this, which is why it is fetched.
     const call = fetchMock.mock.calls.find((c) => String(c[0]).includes("/api/export/"));
-    expect(new Headers((call?.[1] as RequestInit).headers).get("Authorization")).toBe(
+    expect(new Headers((call![1] as RequestInit).headers).get("Authorization")).toBe(
       "Bearer test-token",
     );
     click.mockRestore();
@@ -164,7 +164,7 @@ describe("SettingsPage", () => {
         String(c[0]).includes("/api/auth/me/budget-start-day"),
       );
       expect(call).toBeDefined();
-      expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({
+      expect(JSON.parse(String((call![1] as RequestInit).body))).toEqual({
         budget_start_day: 26,
       });
     });
