@@ -1,4 +1,4 @@
-# PRD — MinimalBudget v1
+# PRD — Everything Everywhere v1
 
 Companion to [`brief.md`](./brief.md). Epics are ordered as vertical slices; each slice is
 independently runnable and gets its own commit.

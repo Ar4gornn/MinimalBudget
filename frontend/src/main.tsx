@@ -7,7 +7,11 @@ import { AuthProvider } from "./auth/AuthContext";
 import { LanguageProvider } from "./i18n";
 import { ToastProvider } from "./components/Toast";
 import { registerServiceWorker } from "./pwa";
+import { migrateLegacyStorage } from "./storage";
 import "./styles.css";
+
+// Before anything reads a key: the providers below read the tokens and the language on mount.
+migrateLegacyStorage();
 
 const container = document.getElementById("root");
 if (!container) throw new Error("#root is missing from index.html");

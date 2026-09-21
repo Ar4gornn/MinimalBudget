@@ -31,7 +31,7 @@ from app.core.months import InvalidMonth
 settings = get_settings()
 
 app = FastAPI(
-    title="MinimalBudget",
+    title="Everything Everywhere",
     version="0.1.0",
     description="Personal finance tracker. Per-user isolation is enforced by Postgres RLS.",
 )

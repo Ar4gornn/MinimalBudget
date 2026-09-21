@@ -1,7 +1,7 @@
 [project]
-name = "minimalbudget"
+name = "everything-everywhere"
 version = "0.1.0"
-description = "MinimalBudget — a personal finance tracker with per-user isolation enforced by Postgres RLS"
+description = "Everything Everywhere — a personal finance tracker with per-user isolation enforced by Postgres RLS"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi==0.141.1",

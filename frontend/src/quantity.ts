@@ -99,7 +99,7 @@ export function formatQuantity(quantity: Quantity): string {
 
 // The unit a category was last quantified in, remembered per device so the form can
 // pre-fill it. Fuel is litres every time; asking again is one tap too many at the pump.
-const UNIT_MEMORY = "minimalbudget.unit.";
+const UNIT_MEMORY = "everything-everywhere.unit.";
 
 export function rememberUnit(categoryName: string, unit: Unit): void {
   try {

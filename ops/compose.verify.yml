@@ -1,6 +1,6 @@
 # Smoke-test the PRODUCTION stack locally, without a domain (Story 7.5).
 #
-#   docker compose -p minimalbudget-verify -f docker-compose.prod.yml -f ops/compose.verify.yml up -d --build
+#   docker compose -p everything-everywhere-verify -f docker-compose.prod.yml -f ops/compose.verify.yml up -d --build
 #
 # A Caddy site address of ":8080" is a bare port, which turns automatic HTTPS off — so
 # everything except certificate issuance can be exercised on a laptop: the real built

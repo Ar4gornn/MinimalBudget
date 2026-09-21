@@ -111,7 +111,7 @@ def test_the_response_is_a_dated_attachment(client, user_a):
     response = _csv(client, user_a)
     disposition = response.headers["content-disposition"]
     assert disposition.startswith("attachment;")
-    assert "minimalbudget-entries-" in disposition and disposition.endswith('.csv"')
+    assert "everything-everywhere-entries-" in disposition and disposition.endswith('.csv"')
     assert response.headers["content-type"].startswith("text/csv")
     assert response.headers["cache-control"] == "no-store"
 

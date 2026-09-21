@@ -1,9 +1,9 @@
-# MinimalBudget
+# Everything Everywhere
 
 A small personal finance tracker. Manual entry, no bank linking, one question:
 **did I earn, spend and save what I meant to this month?**
 
-![The MinimalBudget dashboard: monthly totals, budget versus actual per category, savings progress, and six months of trend](docs/images/dashboard.png)
+![The Everything Everywhere dashboard: monthly totals, budget versus actual per category, savings progress, and six months of trend](docs/images/dashboard.png)
 
 Per-user isolation is enforced by Postgres row-level security, and is proven by tests that run
 queries as a second user rather than by reading a policy and believing it.
@@ -222,7 +222,7 @@ an in-process scheduler would die with it and double up if a second ever ran. On
 plenty:
 
 ```bash
-0 8 * * *  cd /srv/minimalbudget/backend && python notify.py
+0 8 * * *  cd /srv/everything-everywhere/backend && python notify.py
 ```
 
 It sends at most one notification per device per day, nothing at all to someone with nothing
@@ -261,14 +261,14 @@ defeat the point.
 ```
 
 Writes a timestamped, compressed dump and prunes past `RETENTION_DAYS` (30 by default). Put it on
-a schedule — `0 3 * * * cd /srv/minimalbudget && ./ops/backup.sh` — and then **copy the output off
+a schedule — `0 3 * * * cd /srv/everything-everywhere && ./ops/backup.sh` — and then **copy the output off
 the machine**. A backup on the same disk as the database survives a mistake and does not survive
 the disk dying. That is the step people skip.
 
 Restoring, into a scratch database, which is how you check that the backups are real:
 
 ```bash
-./ops/restore.sh backups/minimalbudget-20260830-030000Z.dump minimalbudget_verify
+./ops/restore.sh backups/everything-everywhere-20260830-030000Z.dump everything_everywhere_verify
 ```
 
 Without a target database it restores over the live one and asks you to type its name first.

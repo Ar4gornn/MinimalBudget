@@ -24,7 +24,7 @@ function json(body: unknown): Response {
 }
 
 function renderAt(path: string) {
-  window.localStorage.setItem("minimalbudget.token", "test-token");
+  window.localStorage.setItem("everything-everywhere.token", "test-token");
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {

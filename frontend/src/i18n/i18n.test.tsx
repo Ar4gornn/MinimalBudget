@@ -203,7 +203,7 @@ describe("the translator's identity", () => {
     // object changed identity — which it does on every sign-in and every profile refresh —
     // made each of those refetch the whole page for a reason unrelated to its data. Made to
     // fail by folding the translator back into the memo that also holds `setLanguage`.
-    window.localStorage.setItem("minimalbudget.token", "test-token");
+    window.localStorage.setItem("everything-everywhere.token", "test-token");
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -262,7 +262,7 @@ describe("choosing a language", () => {
   it("renders in the stored language before anyone has signed in", () => {
     // The sign-in page and the first paint read this; without it the app renders English
     // for a moment and then flips, on every load.
-    window.localStorage.setItem("minimalbudget.language", "fr");
+    window.localStorage.setItem("everything-everywhere.language", "fr");
     render(
       <MemoryRouter>
         <LanguageProvider>
@@ -300,11 +300,11 @@ describe("choosing a language", () => {
       expect(screen.getByText("Résumé")).toBeInTheDocument();
     });
     expect(screen.queryByText("Summary")).toBeNull();
-    expect(window.localStorage.getItem("minimalbudget.language")).toBe("fr");
+    expect(window.localStorage.getItem("everything-everywhere.language")).toBe("fr");
   });
 
   it("stamps the language on the document, for screen readers and the browser itself", () => {
-    window.localStorage.setItem("minimalbudget.language", "fr");
+    window.localStorage.setItem("everything-everywhere.language", "fr");
     render(
       <MemoryRouter>
         <LanguageProvider>
@@ -316,7 +316,7 @@ describe("choosing a language", () => {
   });
 
   it("ignores a stored value that is not a language this build has", () => {
-    window.localStorage.setItem("minimalbudget.language", "de");
+    window.localStorage.setItem("everything-everywhere.language", "de");
     render(
       <MemoryRouter>
         <LanguageProvider>

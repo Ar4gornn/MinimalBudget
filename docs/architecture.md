@@ -1,10 +1,10 @@
 ---
-name: 'MinimalBudget'
+name: 'Everything Everywhere'
 type: architecture-spine
 purpose: build-substrate
 altitude: feature
 paradigm: 'layered service application with the database as the isolation authority'
-scope: 'MinimalBudget v1 — React SPA, FastAPI JSON API, Postgres with row-level security'
+scope: 'Everything Everywhere v1 — React SPA, FastAPI JSON API, Postgres with row-level security'
 status: final
 created: '2026-08-29'
 updated: '2026-09-08'
@@ -13,7 +13,7 @@ sources: [docs/brief.md, docs/prd.md]
 companions: [docs/architecture.md]
 ---
 
-# Architecture Spine — MinimalBudget
+# Architecture Spine — Everything Everywhere
 
 ## Design Paradigm
 
@@ -979,7 +979,7 @@ owner credentials before the API starts; the API image never carries owner crede
 ### Source tree
 
 ```text
-MinimalBudget/
+Everything Everywhere/
   docker-compose.yml     # postgres + api, local and test
   backend/
     app/

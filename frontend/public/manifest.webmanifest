@@ -1,6 +1,6 @@
 {
-  "name": "MinimalBudget",
-  "short_name": "Budget",
+  "name": "Everything Everywhere",
+  "short_name": "Everywhere",
   "description": "Track what you earn, spend and save.",
   "start_url": "/",
   "scope": "/",

@@ -121,7 +121,6 @@ a {
 .nav-extra {
   display: flex;
   gap: 4px;
-  margin-left: auto;
 }
 
 .nav a,
@@ -153,6 +152,24 @@ a {
   gap: 10px;
   font-size: 13px;
   color: var(--muted);
+  /* The pill takes whatever the row has left and sits at its right edge — `flex: 1 1 0`
+     rather than a `margin-left: auto` on .nav-extra. Flex line-breaking uses an item's
+     *base* size, not its minimum, so a content-sized pill wraps onto a second row as soon
+     as the row is full; a zero basis keeps it on the first row and lets the email
+     ellipsise instead. The phone needed this since Epic 23; the desktop needed it the day
+     the name grew from "MinimalBudget" to "Everything Everywhere" (173px against 117px at
+     17px), which at 1024px in French was the 24px that pushed the pill to a second row.
+     The three extra links now sit beside the main nav rather than at the far edge. */
+  flex: 1 1 0;
+  min-width: 44px;
+  justify-content: flex-end;
+}
+
+.identity .email {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .identity a {
@@ -164,6 +181,10 @@ a {
   padding: 6px 10px;
   border: 1px solid var(--border);
   border-radius: 999px;
+  /* The pill shrinks with its row, and stops at a tap target: the email may vanish, the
+     way into Settings may not. Without this the pill kept its content width and overflowed
+     leftwards over the last nav link. */
+  min-width: 44px;
 }
 
 .identity a:hover,
@@ -656,7 +677,7 @@ tr.history td {
   /* The app's name is read by a screen reader and takes no space on a phone.
      
      Measured, not assumed: the phone top bar's content box is 335px at a 375px viewport,
-     and "MinimalBudget" is 110px of it. With three links beside Plan and Grow (Epic 27)
+     and the name (then "MinimalBudget") was 110px of it. With three links beside Plan and Grow (Epic 27)
      the French bar needs 110 + 8 + 193 + 8 + 44 = 363, so it wrapped to two rows on every
      French phone — which is exactly what the Epic 23 note above refused. Of the four things
      in the bar the name is the one a phone does not need: the bottom tab says which section
@@ -679,9 +700,6 @@ tr.history td {
   }
 
   /* .nav-extra stays: it holds the sections the bottom bar has no room for. */
-  .nav-extra {
-    margin-left: 0;
-  }
 
   .nav-extra a {
     padding: 4px 8px;
@@ -691,13 +709,7 @@ tr.history td {
   .identity {
     font-size: 12px;
     gap: 6px;
-    /* `flex: 1 1 0` rather than `margin-left: auto`. Flex line-breaking uses an item's
-       *base* size, not its minimum, so a content-sized pill wrapped onto a second row as
-       soon as the top bar gained Plan alongside Grow (Epic 23). A zero basis puts it back
-       on the first row and lets it grow into whatever is left, so the email shows as much
-       of itself as the phone has room for and ellipsises the rest. */
-    flex: 1 1 0;
-    justify-content: flex-end;
+    /* `flex: 1 1 0` and the ellipsis are set at the base level now; see .identity above. */
   }
 
   /* The pill shrinks, and it stops at a tap target.
@@ -714,11 +726,6 @@ tr.history td {
      the only way into Settings became untappable. The email may vanish; the way in may not.
      So the floor is 44px, the tap target this project already works to, and it fits on one
      row: 110 (brand) + 8 + 193 + 8 + 44 is 363 of the 375 available. */
-  .identity,
-  .identity a {
-    min-width: 44px;
-  }
-
   .identity a {
     justify-content: center;
   }
@@ -729,9 +736,6 @@ tr.history td {
 
   .identity .email {
     max-width: 40vw;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   /* Two across rather than one: the entire summary fits one screen. */

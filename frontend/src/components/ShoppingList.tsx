@@ -10,7 +10,7 @@ import { errorMessage } from "../i18n/errors";
 import { Card, ErrorBanner, TableWrap } from "./ui";
 import { useToast } from "./Toast";
 
-const CATEGORY_KEY = "minimalbudget.shopping.category";
+const CATEGORY_KEY = "everything-everywhere.shopping.category";
 
 /** Remembered per device: the category is nearly always the same one, shop after shop. */
 function readCategory(): string {

@@ -81,8 +81,8 @@ import type {
 // the dev server's /api proxy provides.
 const BASE = (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "";
 
-const TOKEN_KEY = "minimalbudget.token";
-const REFRESH_KEY = "minimalbudget.refresh";
+const TOKEN_KEY = "everything-everywhere.token";
+const REFRESH_KEY = "everything-everywhere.refresh";
 
 export class ApiError extends Error {
   constructor(
@@ -712,7 +712,7 @@ export const api = {
     request<void>(`/api/recurring/occurrences/${id}/skip`, { method: "POST" }),
 
   exportCsv: (kind: "entries" | "savings" | "inventory" | "books") =>
-    download(`/api/export/${kind}.csv`, `minimalbudget-${kind}.csv`),
+    download(`/api/export/${kind}.csv`, `everything-everywhere-${kind}.csv`),
 
   summary: (month: string, period: Period = "month") =>
     request<Summary>(

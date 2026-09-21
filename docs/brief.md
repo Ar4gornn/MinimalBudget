@@ -1,4 +1,4 @@
-# Project Brief — MinimalBudget
+# Project Brief — Everything Everywhere
 
 > BMAD-shaped artifact. The BMAD CLI installer is interactive and cannot be driven headlessly in
 > this environment, so the analyst → PM → architect documents were authored directly in the same
@@ -17,7 +17,7 @@ this month?*
 
 ## Product
 
-**MinimalBudget** — a single-page dashboard over manually entered income, expenses and savings
+**Everything Everywhere** — a single-page dashboard over manually entered income, expenses and savings
 contributions, with per-category monthly budgets and per-type monthly savings targets.
 
 Numbers-first. Muted palette. No gamification, no advice, no predictions.

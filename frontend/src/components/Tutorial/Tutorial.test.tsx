@@ -100,7 +100,7 @@ function mockApi(me: Profile, tutorialWrites: "ok" | "fail" = "ok") {
 }
 
 function renderApp(me: Profile, path = "/", tutorialWrites: "ok" | "fail" = "ok") {
-  window.localStorage.setItem("minimalbudget.token", "test-token");
+  window.localStorage.setItem("everything-everywhere.token", "test-token");
   const fetchMock = mockApi(me, tutorialWrites);
   render(
     <AuthProvider>
@@ -146,7 +146,7 @@ describe("the guided tour", () => {
   it("opens on a new account, dimmed, with the first step focused", async () => {
     renderApp(profile());
     await screen.findByRole("dialog");
-    expect(within(dialog()).getByText("Welcome to MinimalBudget")).toBeInTheDocument();
+    expect(within(dialog()).getByText("Welcome to Everything Everywhere")).toBeInTheDocument();
     expect(within(dialog()).getByText("Step 1 of 5")).toBeInTheDocument();
     expect(dialog()).toHaveAttribute("aria-modal", "true");
     expect(within(dialog()).getByRole("button", { name: "Let’s go" })).toHaveFocus();
@@ -273,7 +273,7 @@ describe("the guided tour", () => {
     await screen.findByRole("heading", { name: "Help" });
     await expect(screen.findByRole("dialog", {}, { timeout: 300 })).rejects.toThrow();
     await user.click(screen.getByRole("button", { name: "Show the tour again" }));
-    expect(within(dialog()).getByText("Welcome to MinimalBudget")).toBeInTheDocument();
+    expect(within(dialog()).getByText("Welcome to Everything Everywhere")).toBeInTheDocument();
   });
 
   it("is offered once per sign-in, not once per profile refresh", async () => {

@@ -6,7 +6,7 @@ import type { Money } from "../api/types";
 /** Collapsed sections are remembered per person, per device. */
 function readCollapsed(key: string): boolean {
   try {
-    return window.localStorage.getItem(`minimalbudget.collapsed.${key}`) === "1";
+    return window.localStorage.getItem(`everything-everywhere.collapsed.${key}`) === "1";
   } catch {
     // Private windows and blocked site data throw. A section that will not remember being
     // collapsed is a smaller problem than a page that will not render.
@@ -16,8 +16,8 @@ function readCollapsed(key: string): boolean {
 
 function writeCollapsed(key: string, collapsed: boolean): void {
   try {
-    if (collapsed) window.localStorage.setItem(`minimalbudget.collapsed.${key}`, "1");
-    else window.localStorage.removeItem(`minimalbudget.collapsed.${key}`);
+    if (collapsed) window.localStorage.setItem(`everything-everywhere.collapsed.${key}`, "1");
+    else window.localStorage.removeItem(`everything-everywhere.collapsed.${key}`);
   } catch {
     /* see readCollapsed */
   }

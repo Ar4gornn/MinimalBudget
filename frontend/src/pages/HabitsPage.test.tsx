@@ -134,7 +134,7 @@ const moodHistory = {
 };
 
 function mockApi(mood: unknown = moodHistory) {
-  window.localStorage.setItem("minimalbudget.token", "test-token");
+  window.localStorage.setItem("everything-everywhere.token", "test-token");
   const calls: { url: string; method: string; body: string }[] = [];
   // Today's occurrences, held by the fake server so the page reads them back rather than
   // guessing — the same contract as the real one.
@@ -356,7 +356,7 @@ describe("HabitsPage", () => {
     // This happened for real: the page was served by a uvicorn that predated the habits
     // router, and the only thing on screen was the word "Not Found". These paths are fixed,
     // so a 404 cannot mean "no such habit" — it can only mean the route is absent.
-    window.localStorage.setItem("minimalbudget.token", "test-token");
+    window.localStorage.setItem("everything-everywhere.token", "test-token");
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {

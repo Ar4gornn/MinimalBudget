@@ -22,7 +22,7 @@ function json(body: unknown, status = 200): Response {
 const unanswered = { on: "2026-09-06", mood: null, day_ok: null, note: null };
 
 function mockApi(initial: unknown = unanswered) {
-  window.localStorage.setItem("minimalbudget.token", "test-token");
+  window.localStorage.setItem("everything-everywhere.token", "test-token");
   const puts: Record<string, unknown>[] = [];
   let day = initial as Record<string, unknown>;
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {

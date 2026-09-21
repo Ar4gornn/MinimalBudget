@@ -2,7 +2,7 @@
 
 ## Context
 
-MinimalBudget is a personal tracker in production use by one family, each member on an
+Everything Everywhere is a personal tracker in production use by one family, each member on an
 independent account. FastAPI + Postgres, React + Vite + TypeScript, mobile-first and
 installable as a PWA. It began as a budgeting app and has grown past that: a ledger,
 savings, budgets, an inventory with a shopping list, recurring entries, a gym log, a

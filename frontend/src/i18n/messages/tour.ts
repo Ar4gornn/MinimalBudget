@@ -8,7 +8,7 @@ export const tour = {
   "tour.begin": { en: "Let’s go", fr: "C’est parti" },
   "tour.finish": { en: "Done", fr: "Terminer" },
 
-  "tour.welcome.title": { en: "Welcome to MinimalBudget", fr: "Bienvenue dans MinimalBudget" },
+  "tour.welcome.title": { en: "Welcome to Everything Everywhere", fr: "Bienvenue dans Everything Everywhere" },
   "tour.welcome.body": {
     en: "Let’s add your first expense and see it tracked. It takes about two minutes, and you can leave at any point.",
     fr: "Ajoutons votre première dépense et voyons-la suivie. Cela prend environ deux minutes, et vous pouvez quitter à tout moment.",

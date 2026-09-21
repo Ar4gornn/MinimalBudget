@@ -42,7 +42,7 @@ const drawn = {
 };
 
 function mockDraws(draws: (unknown | null)[]) {
-  window.localStorage.setItem("minimalbudget.token", "test-token");
+  window.localStorage.setItem("everything-everywhere.token", "test-token");
   const urls: string[] = [];
   let n = 0;
   vi.stubGlobal(

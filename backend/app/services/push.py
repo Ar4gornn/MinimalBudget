@@ -160,7 +160,7 @@ class Digest:
 
     @property
     def title(self) -> str:
-        return "MinimalBudget"
+        return "Everything Everywhere"
 
     def _say(self, key: str, count: int) -> str:
         return _WORDS[self.language][f"{key}_{_plural(self.language, count)}"].format(count=count)

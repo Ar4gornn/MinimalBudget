@@ -99,7 +99,7 @@ const shelf = [
 const series = [{ id: "s1", name: "Discworld", books: 1 }];
 
 function mockApi(books = shelf) {
-  window.localStorage.setItem("minimalbudget.token", "test-token");
+  window.localStorage.setItem("everything-everywhere.token", "test-token");
   const calls: { url: string; method: string; body: string }[] = [];
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";

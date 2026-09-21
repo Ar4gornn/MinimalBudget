@@ -32,7 +32,7 @@ import { LANGUAGES, translator, type Lang } from "./catalogue";
 
 export { LANGUAGES, translator, type Lang, type MessageKey, type Translate } from "./catalogue";
 
-const STORAGE_KEY = "minimalbudget.language";
+const STORAGE_KEY = "everything-everywhere.language";
 
 function isLang(value: unknown): value is Lang {
   return typeof value === "string" && (LANGUAGES as readonly string[]).includes(value);

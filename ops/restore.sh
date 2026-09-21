@@ -1,7 +1,7 @@
 #!/bin/sh
-# Restore a MinimalBudget backup (Story 7.4).
+# Restore a Everything Everywhere backup (Story 7.4).
 #
-#   ./ops/restore.sh backups/minimalbudget-20260830-101500Z.dump [target-database]
+#   ./ops/restore.sh backups/everything-everywhere-20260830-101500Z.dump [target-database]
 #
 # With no target it restores over the live database, which is destructive and asks first.
 # Pass a target to restore into a scratch database instead — which is how you should be

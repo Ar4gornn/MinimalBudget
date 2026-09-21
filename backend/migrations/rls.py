@@ -9,8 +9,8 @@ import os
 
 from alembic import op
 
-APP_ROLE = os.environ.get("DB_APP_USER", "minimalbudget_app")
-OWNER_ROLE = os.environ.get("DB_OWNER", "minimalbudget_owner")
+APP_ROLE = os.environ.get("DB_APP_USER", "everything_everywhere_app")
+OWNER_ROLE = os.environ.get("DB_OWNER", "everything_everywhere_owner")
 
 _DML = "SELECT, INSERT, UPDATE, DELETE"
 

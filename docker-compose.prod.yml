@@ -7,7 +7,7 @@
 # internal network and from nowhere else, so an exposed Postgres or an unencrypted API
 # port is not something you can leave switched on by accident.
 
-name: minimalbudget
+name: everything-everywhere
 
 # Docker's default json-file driver never rotates. On a small VPS disk, months of proxy
 # access logs will fill it and take Postgres down with it — a disk-full database is a much

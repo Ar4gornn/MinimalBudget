@@ -1,5 +1,5 @@
 #!/bin/sh
-# Take a backup of the MinimalBudget database (Story 7.4).
+# Take a backup of the Everything Everywhere database (Story 7.4).
 #
 #   ./ops/backup.sh [destination-directory]
 #
@@ -76,7 +76,7 @@ fi
 #
 # It is deliberately not a full restore. That would double the cost of every scheduled
 # backup, and a restore into a scratch database is a thing you should do periodically and
-# deliberately — `ops/restore.sh <dump> minimalbudget_verify` — rather than continuously
+# deliberately — `ops/restore.sh <dump> everything_everywhere_verify` — rather than continuously
 # and inattentively.
 if [ "$(head -c 5 "$TMP")" != "PGDMP" ]; then
     rm -f "$TMP"

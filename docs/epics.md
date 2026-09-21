@@ -3,11 +3,11 @@ stepsCompleted: [step-01-validate-prerequisites, step-02-design-epics, step-03-c
 inputDocuments: [docs/brief.md, docs/prd.md, docs/architecture.md]
 ---
 
-# MinimalBudget - Epic Breakdown
+# Everything Everywhere - Epic Breakdown
 
 ## Overview
 
-This document provides the complete epic and story breakdown for MinimalBudget, decomposing the
+This document provides the complete epic and story breakdown for Everything Everywhere, decomposing the
 requirements from the PRD and the Architecture decisions (`AD-n`, in `docs/architecture.md`) into
 implementable stories.
 

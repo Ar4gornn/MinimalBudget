@@ -225,4 +225,4 @@ def books_csv(session: Session, user_id: uuid.UUID) -> Iterator[str]:
 
 def filename(kind: str, today: dt.date | None = None) -> str:
     """Dated, so two exports do not overwrite each other in a downloads folder."""
-    return f"minimalbudget-{kind}-{(today or dt.date.today()).isoformat()}.csv"
+    return f"everything-everywhere-{kind}-{(today or dt.date.today()).isoformat()}.csv"

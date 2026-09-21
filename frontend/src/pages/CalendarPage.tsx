@@ -78,7 +78,7 @@ function layerName(layer: (typeof LAYERS)[number], t: Translate): string {
   return layer.literal ? layer.label : t(layer.label as Parameters<Translate>[0]);
 }
 
-const LAYER_KEY = "minimalbudget.calendarLayers";
+const LAYER_KEY = "everything-everywhere.calendarLayers";
 
 /** Remembered per device, like the collapsed sections and the trend window. */
 function readLayers(): LayerKey[] {

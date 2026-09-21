@@ -112,7 +112,7 @@ const foods = [
 ];
 
 function mockApi(pantry = foods) {
-  window.localStorage.setItem("minimalbudget.token", "test-token");
+  window.localStorage.setItem("everything-everywhere.token", "test-token");
   const calls: { url: string; method: string; body: string }[] = [];
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";

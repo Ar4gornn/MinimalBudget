@@ -10,7 +10,7 @@ import type { Entry } from "../catalogue";
  */
 export const common = {
   // The product name is a name. It is not translated, in either direction.
-  "app.name": { en: "MinimalBudget", fr: "MinimalBudget" },
+  "app.name": { en: "Everything Everywhere", fr: "Everything Everywhere" },
 
   "nav.sections": { en: "Sections", fr: "Sections" },
   "nav.more": { en: "More", fr: "Plus" },

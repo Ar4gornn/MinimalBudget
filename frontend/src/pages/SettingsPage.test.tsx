@@ -35,7 +35,7 @@ const me = {
 };
 
 function mockApi(overrides: { currencyStatus?: number; currencyDetail?: string } = {}) {
-  window.localStorage.setItem("minimalbudget.token", "test-token");
+  window.localStorage.setItem("everything-everywhere.token", "test-token");
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     if (url.includes("/api/auth/me/currency")) {
@@ -55,7 +55,7 @@ function mockApi(overrides: { currencyStatus?: number; currencyDetail?: string }
         status: 200,
         headers: {
           "Content-Type": "text/csv; charset=utf-8",
-          "Content-Disposition": 'attachment; filename="minimalbudget-entries-2026-09-05.csv"',
+          "Content-Disposition": 'attachment; filename="everything-everywhere-entries-2026-09-05.csv"',
         },
       });
     }
@@ -114,7 +114,7 @@ describe("SettingsPage", () => {
     await screen.findByText("sam@example.com");
 
     await user.click(screen.getByRole("button", { name: "Sign out" }));
-    await waitFor(() => expect(window.localStorage.getItem("minimalbudget.token")).toBeNull());
+    await waitFor(() => expect(window.localStorage.getItem("everything-everywhere.token")).toBeNull());
   });
 
   it("downloads an export with the token, under the name the server gives it", async () => {
@@ -140,7 +140,7 @@ describe("SettingsPage", () => {
 
     await waitFor(() => expect(clicked).toHaveLength(1));
     // Named by the server's Content-Disposition, not by the client.
-    expect(clicked[0]?.download).toBe("minimalbudget-entries-2026-09-05.csv");
+    expect(clicked[0]?.download).toBe("everything-everywhere-entries-2026-09-05.csv");
     // The blob URL is released rather than held for the life of the page.
     expect(created).toEqual(["blob:fake"]);
     // A plain link could not carry this, which is why it is fetched.

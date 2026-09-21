@@ -10,7 +10,7 @@ argument behind both — every answer with the alternative that was rejected.
 
 ### Problem
 
-MinimalBudget records what a household spends, keeps, owns, lifts and does. It records nothing
+Everything Everywhere records what a household spends, keeps, owns, lifts and does. It records nothing
 about the person doing it. "Was that a bad month or just an expensive one" is a question the
 data cannot touch, and the cheapest honest instrument for it is the one every clinic and every
 journal already uses: ask, daily, in one tap, and keep the answer.

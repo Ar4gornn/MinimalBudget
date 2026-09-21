@@ -112,12 +112,12 @@ self.addEventListener("push", (event) => {
   if (!payload.body) return;
 
   event.waitUntil(
-    self.registration.showNotification(payload.title || "MinimalBudget", {
+    self.registration.showNotification(payload.title || "Everything Everywhere", {
       body: payload.body,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       // One tag, so a second digest replaces the first instead of stacking up.
-      tag: "minimalbudget-digest",
+      tag: "everything-everywhere-digest",
       renotify: false,
       data: { url: payload.url || "/" },
     }),

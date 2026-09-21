@@ -120,7 +120,7 @@ interface Options {
 }
 
 function mockApi(options: Options = {}) {
-  window.localStorage.setItem("minimalbudget.token", "test-token");
+  window.localStorage.setItem("everything-everywhere.token", "test-token");
   const seen: string[] = [];
   const fetchMock = vi.fn(async (url: string) => {
     seen.push(url);

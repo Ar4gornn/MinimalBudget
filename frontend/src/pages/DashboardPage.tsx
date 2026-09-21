@@ -32,7 +32,7 @@ const PERIODS = [
   { value: "year", label: "dash.year" },
   { value: "all", label: "dash.allTime" },
 ] as const;
-const PERIOD_KEY = "minimalbudget.period";
+const PERIOD_KEY = "everything-everywhere.period";
 
 function readPeriod(): Period {
   try {
@@ -44,7 +44,7 @@ function readPeriod(): Period {
 }
 
 const TREND_WINDOWS = [6, 12] as const;
-const TREND_KEY = "minimalbudget.trendMonths";
+const TREND_KEY = "everything-everywhere.trendMonths";
 
 /** Remembered per device, like the collapsed sections. */
 function readTrendMonths(): number {

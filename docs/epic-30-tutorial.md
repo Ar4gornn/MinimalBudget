@@ -10,7 +10,7 @@
 ## 1. PRD (Product Requirements)
 
 ### Goal
-Guide new users through MinimalBudget core features on first login. Get them to "add an entry and see it tracked" within 2 minutes.
+Guide new users through Everything Everywhere core features on first login. Get them to "add an entry and see it tracked" within 2 minutes.
 
 ### Success Criteria
 - Shown once per new account, on first login

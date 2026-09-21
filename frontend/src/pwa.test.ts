@@ -21,7 +21,7 @@ const sw = readFileSync(join(PUBLIC, "sw.js"), "utf-8");
 
 describe("web app manifest", () => {
   it("declares what an install needs", () => {
-    expect(manifest.name).toBe("MinimalBudget");
+    expect(manifest.name).toBe("Everything Everywhere");
     // Truncated on a home screen beyond ~12 characters.
     expect(String(manifest.short_name).length).toBeLessThanOrEqual(12);
     expect(manifest.start_url).toBe("/");
