@@ -35,7 +35,13 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-filterwarnings = ["error::DeprecationWarning"]
+filterwarnings = [
+    "error::DeprecationWarning",
+    # anyio 4.15 deprecated the anyio.abc.BlockingPortal alias and starlette 1.6's testclient
+    # still imports it, so a fresh install could not even collect the suite. Upstream's to
+    # fix; a test-client alias is not this application's code.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]
 
 [tool.ruff]
 line-length = 100
