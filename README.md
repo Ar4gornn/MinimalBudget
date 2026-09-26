@@ -14,8 +14,10 @@ queries as a second user rather than by reading a policy and believing it.
 
 - Record **income** and **expense** entries — amount, category, date, optional note. Typing a
   category that does not exist yet creates it.
-- Record **savings contributions** against savings types (`startup`, `vacation` and `investment`
-  are seeded; add your own).
+- Keep **savings pots** (`startup`, `vacation` and `investment` are seeded; add your own): put
+  money in or take it out, with a running balance that can never go below zero. A pot can carry
+  a monthly target and an optional goal amount and date; each budget month proposes what is due,
+  to put aside, edit or skip.
 - Set a **standing monthly budget** per expense category and a **monthly target** per savings type.
 - Change your password, and generate one-time **recovery codes** so a forgotten password is not a
   trip to the operator.
@@ -45,10 +47,28 @@ queries as a second user rather than by reading a policy and believing it.
   "N items need restocking"; every quantity change is logged, and each item has a quantity-over-time
   chart. The inventory never writes to the ledger and the ledger never writes to it.
 
-### Not in v1
+- A **calendar** that lays every module's records on the days they happened. It reads; it
+  never writes.
+- **Habits** on a schedule — daily, weekly, every N days or on chosen weekdays — with
+  check-ins that are separate rows, so changing a schedule never rewrites a recorded day.
+- A daily **mood** and a verdict on the day, recorded from the dashboard.
+- **Recipes** built from foods, with nutrition derived from per-basis rates, and meals eaten
+  drawn on the calendar.
+- **Books**: to read, reading, read, and the series a book belongs to. **Quotes** live under
+  their book, and one is drawn on demand for the dashboard.
+- **Notes**: a few words or a sketch (pen, eraser, undo), pinned and searchable, drafted
+  locally and synced on reconnect. Home-screen shortcuts open a note, a sketch, an expense or
+  the mood.
+- **English or French**, chosen on the account rather than the browser.
+- **Make it yours**: turn modules off (the data stays), reorder tabs and choose which sit in
+  the bottom bar, show, hide and reorder dashboard cards — separately for phone and desktop.
+  Light, dark, OLED, high-contrast and sepia themes, and a choice of accents, per device.
+- A short **guided tour** on a new account.
 
-Bank sync, recurring transactions, multi-currency, CSV export, native mobile, and self-service
-password reset (there is an operator command instead — see below). A React Native client reusing
+### Not built
+
+Bank sync, multi-currency, native mobile, and self-service password reset (there is an
+operator command instead — see below). A React Native client reusing
 this same API is the v2 plan, which is why the API is plain JSON with bearer tokens and no cookie
 or template coupling.
 
