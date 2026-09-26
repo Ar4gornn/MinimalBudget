@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
 import { useOptionalAuth } from "../auth/AuthContext";
@@ -66,6 +66,13 @@ export function DashboardPage() {
   // whole page for want of context is worse than falling back to the calendar month.
   const startDay = useOptionalAuth()?.user?.budget_start_day ?? 1;
   const [month, setMonth] = useState(() => budgetMonth(startDay));
+  // The home-screen "Mood" shortcut (Epic 32) lands here as `?mood=1`: the popover opens on
+  // arrival, and the flag leaves the address so a reload or a shared link does not reopen it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [moodShortcut] = useState(() => searchParams.get("mood") === "1");
+  useEffect(() => {
+    if (searchParams.has("mood")) setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
   // Month, year or everything. Remembered per device, like the trend window.
   const [period, setPeriod] = useState<Period>(readPeriod);
   const [trendMonths, setTrendMonths] = useState(readTrendMonths);
@@ -205,7 +212,7 @@ export function DashboardPage() {
                 edge of a 375px screen and put a horizontal scrollbar on the page. First in
                 the row, the anchor is at the shell's left padding whatever the month is
                 called. */}
-            <MoodCheckin />
+            <MoodCheckin startOpen={moodShortcut} />
             <h1 style={{ fontSize: 18, margin: 0 }}>
               {periodLabel()}
             </h1>

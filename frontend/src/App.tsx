@@ -1,10 +1,11 @@
-import { type ComponentType, lazy, Suspense } from "react";
+import { type ComponentType, lazy, Suspense, useEffect } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
 import { TutorialModal } from "./components/Tutorial/TutorialModal";
 import { TutorialProvider } from "./components/Tutorial/useTutorial";
 import { useT } from "./i18n";
+import { flushDrafts } from "./notes/drafts";
 import { SignInPage } from "./pages/SignInPage";
 
 /**
@@ -37,6 +38,8 @@ const InventoryPage = page(() => import("./pages/InventoryPage"), "InventoryPage
 const RecipesPage = page(() => import("./pages/RecipesPage"), "RecipesPage");
 const RecipePage = page(() => import("./pages/RecipePage"), "RecipePage");
 const SettingsPage = page(() => import("./pages/SettingsPage"), "SettingsPage");
+const NotesPage = page(() => import("./pages/NotesPage"), "NotesPage");
+const NotePage = page(() => import("./pages/NotePage"), "NotePage");
 
 /**
  * The navigation answer, in full, because it is the constraint two new features collided
@@ -113,7 +116,8 @@ const TOP_ONLY = [
 const SECTIONS = [
   // The Dashboard tab covers both of its views, so the calendar does not look like a place
   // outside the app while you are standing in it.
-  { to: "/", label: "nav.dashboard", glyph: "◪", end: true, also: ["/calendar"] },
+  // Notes (Epic 32) are reached from the Dashboard's note button, so the tab stays lit there.
+  { to: "/", label: "nav.dashboard", glyph: "◪", end: true, also: ["/calendar", "/notes"] },
   { to: "/entries", label: "nav.entries", glyph: "≡", end: false, also: [] as string[] },
   // The Habits tab covers the books too (Epic 28): a second view of the same section, the
   // way the calendar is the Dashboard's.
@@ -138,6 +142,17 @@ export function App() {
   /** A section owns more than its own path when it has two views (Dashboard / Calendar). */
   const extra = (section: (typeof SECTIONS)[number]) =>
     section.also.some((path) => pathname.startsWith(path)) ? "on" : "";
+
+  // Notes written with no network are sent when it comes back, and when the app opens —
+  // whichever page is showing (Epic 32, AD-48).
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) return;
+    const flush = () => void flushDrafts(userId).catch(() => 0);
+    flush();
+    window.addEventListener("online", flush);
+    return () => window.removeEventListener("online", flush);
+  }, [userId]);
 
   // Without this the sign-in page flashes on every reload before /me answers.
   if (loading) return <main className="shell" />;
@@ -201,6 +216,10 @@ export function App() {
           <Route path="/recipes" element={<RecipesPage />} />
           <Route path="/recipes/:recipeId" element={<RecipePage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/notes" element={<NotesPage />} />
+          {/* One route for new and existing: `/notes/new` becomes `/notes/<id>` in place
+              once there is something to keep, and the editor must not remount when it does. */}
+          <Route path="/notes/:noteId" element={<NotePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
@@ -217,6 +236,21 @@ export function App() {
           onClick={() => navigate("/entries?add=1")}
         >
           +
+        </button>
+      )}
+
+      {/* Notes (Epic 32): quick capture from the Dashboard, a second button above the
+          entry one rather than a menu behind it. A speed dial was the alternative, and it
+          would have put a tap in front of recording an expense — the loop people repeat
+          most — to make room for one that is used less. Phone only, like the other. */}
+      {pathname === "/" && (
+        <button
+          type="button"
+          className="fab fab-note"
+          aria-label={t("nav.addNote")}
+          onClick={() => navigate("/notes/new")}
+        >
+          <span aria-hidden="true">✎</span>
         </button>
       )}
 

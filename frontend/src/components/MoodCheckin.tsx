@@ -59,12 +59,19 @@ import { todayIso } from "../months";
  */
 const VERDICT_FROM_HOUR = 18;
 
-export function MoodCheckin({ onSaved }: { onSaved?: () => void }) {
+export function MoodCheckin({
+  onSaved,
+  startOpen = false,
+}: {
+  onSaved?: () => void;
+  /** Open on arrival — the home-screen "Mood" shortcut lands on `/?mood=1` (Epic 32). */
+  startOpen?: boolean;
+}) {
   const panelId = useId();
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [day, setDay] = useState<MoodDay | null>(null);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);

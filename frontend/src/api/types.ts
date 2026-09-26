@@ -863,3 +863,37 @@ export interface BookInput {
   started_on?: string | null;
   finished_on?: string | null;
 }
+
+// --- notes (Epic 32)
+
+export type NoteKind = "text" | "sketch";
+
+/**
+ * One pen movement: `c` is an ink index (0 is the text colour, so it follows the theme),
+ * `w` a nib index, `p` the points as a flat `[x0, y0, x1, y1, …]` in integers on the
+ * logical 750×1000 canvas. See `notes/sketch.ts`.
+ */
+export interface Stroke {
+  c: number;
+  w: number;
+  p: number[];
+}
+
+export interface Sketch {
+  strokes: Stroke[];
+}
+
+/** The whole note, as `PUT /api/notes/{id}` takes it — it replaces rather than merges. */
+export interface NoteInput {
+  kind: NoteKind;
+  title: string | null;
+  body: string | null;
+  sketch: Sketch | null;
+  pinned: boolean;
+}
+
+export interface Note extends NoteInput {
+  id: string;
+  created_at: string;
+  updated_at: string;
+}

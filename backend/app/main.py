@@ -18,6 +18,7 @@ from app.api import (
     habits,
     inventory,
     mood,
+    notes,
     push,
     recipes,
     recurring,
@@ -139,6 +140,7 @@ app.include_router(recipes.router)
 app.include_router(recipes.foods_router)
 app.include_router(recipes.meals_router)
 app.include_router(books.router)
+app.include_router(notes.router)
 
 
 @app.get("/health", tags=["meta"])

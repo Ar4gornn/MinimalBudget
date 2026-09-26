@@ -54,6 +54,25 @@ describe("web app manifest", () => {
   });
 });
 
+describe("home-screen shortcuts (Epic 32)", () => {
+  const app = readFileSync(join(__dirname, "App.tsx"), "utf-8");
+  const shortcuts = (manifest.shortcuts ?? []) as { short_name: string; url: string }[];
+
+  it("offers Note, Sketch, Expense and Mood, in that order", () => {
+    expect(shortcuts.map((s) => s.short_name)).toEqual(["Note", "Sketch", "Expense", "Mood"]);
+  });
+
+  it("points each at a route the app actually has", () => {
+    // A shortcut to a path the router does not know lands on the catch-all redirect to "/",
+    // which looks like it worked and did nothing.
+    for (const shortcut of shortcuts) {
+      const path = shortcut.url.split("?")[0] ?? "";
+      const route = path === "/notes/new" ? "/notes/:noteId" : path;
+      expect(app, shortcut.url).toContain(`path="${route}"`);
+    }
+  });
+});
+
 describe("service worker", () => {
   it("never caches the API", () => {
     // The guard clause, verbatim. Financial data behind a bearer token must not outlive the

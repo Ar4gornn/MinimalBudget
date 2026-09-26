@@ -2362,3 +2362,88 @@ single quote, the same one comes back rather than nothing
 **And** the card is absent — not empty, not an error — when nothing is kept or the request
 fails
 **And** the definition of "random" lives once, in `GET /api/books/quotes/draw`
+
+## Epic 32: Notes — a few words or a sketch, kept quickly
+
+Quick capture that does not feel bloated. Scoped 2026-09-26 in one interview, the options and
+the rejected ones in `LOG.md`: text **or** a sketch per note (not text-only, not ink over
+text); reached from a note button on the Dashboard (not a view under Plan, not a sixth tab);
+pins and search only (no colours, no tags); a local draft synced on reconnect (not
+online-only, not a full offline store); pen, eraser, undo, three inks, two nibs, as vector
+strokes (not pen-only, not shapes or a highlighter); standalone (no calendar pin, no
+dashboard card); home-screen shortcuts for Note, Sketch, Expense and Mood (not notes-only,
+not a share target). "Notes" in both languages. Home-screen widgets were asked about and
+ruled out: neither iOS nor Android offers one to an installed web app.
+
+**A note is written under the client's id** (AD-48). `PUT /api/notes/{id}` creates or
+replaces, so a draft retried after a lost response writes the same row. Every change is on
+the device at once and on the server a moment later; the line under the title says which.
+
+**The Dashboard's second floating button** opens a new note: above the entry button on a
+phone, alone on a desktop, where nothing else leads to the notes. A speed dial behind the
+one button was rejected — it would put a tap in front of recording an expense, the loop
+people repeat most. `/notes` lights the Dashboard tab, like `/calendar`.
+
+**Explicitly out, and recorded as choices:** notes in the CSV export (a sketch is not a
+cell; `pg_dump` has them); a tour step; sharing; handwriting search; attachments or photos
+(the Epic 11 argument, unchanged); merging two devices' offline edits (last write wins).
+
+### Story 32.1: A note under its own id, and the rules the schema can hold
+
+As someone who writes things down,
+I want a note stored the moment I have one, text or a drawing,
+So that it is there when I look for it.
+
+**Acceptance Criteria:**
+
+**Given** an id I minted
+**When** I PUT a text note with a title and/or a body, or a sketch with strokes
+**Then** it is created (201) or replaced (200) under that id, the title trimmed and a blank
+body stored as null
+**And** an empty note is 422 `note_empty`, text with strokes or a sketch with a body is 422
+`note_kind_mismatch`, changing a note's kind is 422 `note_kind_changed`
+**And** a stroke off the 750×1000 canvas, a fourth ink, a third nib, half a point, or more
+than 20000 points in a sketch is a 422
+**And** the list is pinned first, then most recently changed, and pinning does not move a
+note in "recent"
+**And** `q` matches title and body, case-blind, with `%` and `_` as letters
+**And** another account sees none of mine, a PUT under my id from them is a 404 that changes
+nothing, and they cannot read, change or delete one (AD-8, AD-24)
+
+### Story 32.2: Writing a note, with or without a network
+
+As someone who writes things down on the move,
+I want what I typed kept even when the signal is gone,
+So that I never lose a line to a tunnel.
+
+**Acceptance Criteria:**
+
+**Given** the Dashboard's note button, or a Note/Sketch shortcut on the home screen
+**When** I type or draw
+**Then** the note is kept on the device at once, sent to the server shortly after I stop and
+when I leave or hide the app, and the line says "Saved" only once the server has it
+**And** with no network it says "On this device — will sync when online", and the note is
+sent when the browser is back online or the app next opens, once
+**And** Text/Sketch can be switched only until something is written
+**And** the pad has pen, eraser (whole strokes), undo, three inks and two nibs, and does not
+lose points or erasures to events that arrive faster than the page draws
+**And** an explicit sign-out removes every draft on the device
+
+### Story 32.3: The list
+
+As someone with notes,
+I want to find one, pin the ones that matter and delete the rest,
+So that the list stays useful.
+
+**Acceptance Criteria:**
+
+**Given** `/notes`
+**When** it loads
+**Then** notes are listed pinned first, each named by its title or first line, with a
+thumbnail for a sketch; a note still on the device is shown from its draft, marked "not
+synced yet"
+**And** search is sent to the server, not applied locally
+**And** a delete offers an undo that puts the note back under the id it had
+**And** both languages fit at 320 and 375 without horizontal scroll
+**And** the Mood shortcut (`/?mood=1`) opens the day's mood popover on the Dashboard and
+leaves the address clean
