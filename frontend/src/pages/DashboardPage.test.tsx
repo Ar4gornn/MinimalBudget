@@ -106,6 +106,14 @@ describe("DashboardPage", () => {
     expect(stat("Saved")).toBe("$400.00");
   });
 
+  it("links to the notes from the heading line (Epic 32)", async () => {
+    mockApi();
+    render(<DashboardPage />);
+
+    const link = await screen.findByRole("link", { name: /Notes/ });
+    expect(link).toHaveAttribute("href", "/notes");
+  });
+
   it("keeps a budgeted category with no spending on screen", async () => {
     mockApi();
     render(<DashboardPage />);

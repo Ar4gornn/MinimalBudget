@@ -216,6 +216,13 @@ export function DashboardPage() {
             <h1 style={{ fontSize: 18, margin: 0 }}>
               {periodLabel()}
             </h1>
+            {/* Notes (Epic 32), in words, where the page is read. The corner button alone
+                was missed twice on a desktop: it sits below the fold of a screenshot and,
+                in dark mode, close to the page colour. After the heading is safe here,
+                unlike the mood trigger — a link anchors no panel. */}
+            <Link to="/notes" className="chip notes-link">
+              <span aria-hidden="true">✎</span> {t("notes.title")}
+            </Link>
           </div>
           {/* Spelled out, because "September" meaning 26 Aug - 25 Sep is exactly the sort
               of thing a person should never have to infer from a total. The server sends
