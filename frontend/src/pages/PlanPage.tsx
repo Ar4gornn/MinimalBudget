@@ -4,7 +4,7 @@ import { api } from "../api/client";
 import type { Budget, Category, Contribution, SavingsType, Target } from "../api/types";
 import { RecurringCard } from "../components/RecurringCard";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
-import { isNonNegativeMoney, isPositiveMoney } from "../money";
+import { isNonNegativeMoney, isPositiveMoney, normalizeMoney } from "../money";
 import { useToast } from "../components/Toast";
 import { useMoney } from "../useMoney";
 import { todayIso } from "../months";
@@ -26,8 +26,11 @@ export function PlanPage() {
   const money = useMoney();
   const t = useT();
   const toast = useToast();
-  // Failures of the page's own actions. The load's failure is `failure`, from the hook.
-  const [error, setError] = useState<string | null>(null);
+  // Failures of the page's own actions, shown inside the card that failed: at the top of
+  // the page they landed above the fold, and a refused amount looked like a dead button.
+  // The load's failure is `failure`, from the hook.
+  const [error, setError] = useState<{ at: Place; message: string } | null>(null);
+  const errorIn = (at: Place) => (error?.at === at ? error.message : null);
 
   const [newType, setNewType] = useState("");
   const [contributionType, setContributionType] = useState("");
@@ -74,13 +77,13 @@ export function PlanPage() {
     return (id: string) => lookup.get(id) ?? "—";
   }, [types]);
 
-  async function guard(action: () => Promise<unknown>, fallback: MessageKey) {
+  async function guard(action: () => Promise<unknown>, fallback: MessageKey, at: Place) {
     setError(null);
     try {
       await action();
       await load();
     } catch (caught) {
-      setError(errorMessage(t, caught, fallback));
+      setError({ at, message: errorMessage(t, caught, fallback) });
     }
   }
 
@@ -90,35 +93,37 @@ export function PlanPage() {
     await guard(async () => {
       await api.createSavingsType(newType.trim());
       setNewType("");
-    }, "plan.couldNotCreateType");
+    }, "plan.couldNotCreateType", "targets");
   }
 
   async function addContribution(event: FormEvent) {
     event.preventDefault();
     if (!isPositiveMoney(contributionAmount)) {
-      setError(t("entries.badAmount"));
+      setError({ at: "contributions", message: t("entries.badAmount") });
       return;
     }
     await guard(async () => {
       await api.createContribution({
         savings_type_id: contributionType || types[0]?.id || "",
-        amount: contributionAmount.trim(),
+        amount: normalizeMoney(contributionAmount),
         occurred_on: contributionDate,
       });
       setContributionAmount("");
-    }, "plan.couldNotRecordContribution");
+    }, "plan.couldNotRecordContribution", "contributions");
   }
 
   /** AD-11: PUT, so saving twice updates the standing amount rather than adding a second. */
   async function saveAmount(kind: "target" | "budget", id: string, raw: string) {
-    const value = raw.trim();
+    const value = normalizeMoney(raw);
+    const at = kind === "target" ? "targets" : "budgets";
     if (!isNonNegativeMoney(value)) {
-      setError(t("plan.badAmountZeroOrMore"));
+      setError({ at, message: t("plan.badAmountZeroOrMore") });
       return;
     }
     await guard(
       () => (kind === "target" ? api.setTarget(id, value) : api.setBudget(id, value)),
       "plan.couldNotSaveAmount",
+      at,
     );
   }
 
@@ -126,13 +131,14 @@ export function PlanPage() {
 
   return (
     <>
-      <ErrorBanner message={error ?? failure} />
+      <ErrorBanner message={failure} />
 
       <RecurringCard />
 
       <div className="columns">
         <div>
           <Card title={t("plan.savingsTargets")}>
+            <ErrorBanner message={errorIn("targets")} />
             {types.length === 0 ? (
               <Empty>{t("plan.noTypes")}</Empty>
             ) : (
@@ -159,6 +165,7 @@ export function PlanPage() {
                           guard(
                             () => api.deleteSavingsType(type.id),
                             "plan.couldNotDeleteType",
+                            "targets",
                           )
                         }
                       />
@@ -182,6 +189,7 @@ export function PlanPage() {
           </Card>
 
           <Card title={t("plan.recordContribution")}>
+            <ErrorBanner message={errorIn("contributions")} />
             <form className="row" onSubmit={addContribution}>
               <label style={{ flex: "1 1 150px" }}>
                 {t("dash.colType")}
@@ -271,7 +279,7 @@ export function PlanPage() {
                                   },
                                   },
                                 );
-                              }, "plan.couldNotDeleteContribution")
+                              }, "plan.couldNotDeleteContribution", "contributions")
                             }
                           >
                             {t("action.delete")}
@@ -287,6 +295,7 @@ export function PlanPage() {
         </div>
 
         <Card title={t("plan.budgets")} tour="budgets">
+          <ErrorBanner message={errorIn("budgets")} />
           <p className="hint" style={{ marginTop: 0 }}>
             {t("plan.budgetsHint")}
           </p>
@@ -316,6 +325,7 @@ export function PlanPage() {
                         guard(
                           () => api.deleteCategory(category.id),
                           "plan.couldNotDeleteCategory",
+                          "budgets",
                         )
                       }
                     />
@@ -329,6 +339,8 @@ export function PlanPage() {
     </>
   );
 }
+
+type Place = "targets" | "contributions" | "budgets";
 
 function AmountRow({
   name,

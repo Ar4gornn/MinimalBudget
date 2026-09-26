@@ -3,7 +3,7 @@ import { Fragment, useMemo, useState } from "react";
 import { GrowthChart } from "../charts/GrowthChart";
 import type { GrowthSeries } from "../charts/GrowthChart";
 import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
-import { isNonNegativeMoney, subtractMoney, toCents } from "../money";
+import { isNonNegativeMoney, normalizeMoney, subtractMoney, toCents } from "../money";
 import { useMoney } from "../useMoney";
 import { project, yearlyPoints } from "../interest";
 import { useT, type Translate } from "../i18n";
@@ -54,8 +54,8 @@ function isUsable(scenario: Scenario): boolean {
 function run(scenario: Scenario, years: number): Projection | null {
   if (!isUsable(scenario)) return null;
   return project({
-    initial: Number(scenario.initial).toFixed(2),
-    monthlyContribution: Number(scenario.monthly).toFixed(2),
+    initial: Number(normalizeMoney(scenario.initial)).toFixed(2),
+    monthlyContribution: Number(normalizeMoney(scenario.monthly)).toFixed(2),
     annualRatePercent: Number(scenario.rate),
     years,
     compounding: scenario.compounding,

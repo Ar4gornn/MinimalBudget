@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 
 import { api } from "../api/client";
 import type { Category, ShoppingList as List, ShoppingRow } from "../api/types";
-import { isPositiveMoney } from "../money";
+import { isPositiveMoney, normalizeMoney } from "../money";
 import { useMoney } from "../useMoney";
 import { todayIso } from "../months";
 import { useT } from "../i18n";
@@ -80,7 +80,7 @@ export function ShoppingList({ onChanged }: { onChanged?: () => void }) {
       setError(t("shopping.howManyError"));
       return;
     }
-    const amount = draft.amount.trim();
+    const amount = normalizeMoney(draft.amount);
     if (amount && !isPositiveMoney(amount)) {
       setError(t("entries.badAmount"));
       return;

@@ -65,15 +65,28 @@ export function formatAmount(value: Money, currency: Currency): string {
 
 const MONEY_SHAPE = /^\d{1,12}(\.\d{1,2})?$/;
 
+/**
+ * What was typed, in the shape the API speaks: trimmed, and a decimal comma read as a dot.
+ *
+ * A French keyboard types "12,50", and refusing it made the Add button look dead. Only a
+ * single comma with at most two digits after it is a decimal separator; anything else is
+ * left alone, so the validators below still refuse it rather than guessing ("1,200" is a
+ * thousands separator somewhere, and a wrong amount is worse than an error).
+ */
+export function normalizeMoney(value: string): string {
+  const text = value.trim();
+  return /^\d+,\d{1,2}$/.test(text) ? text.replace(",", ".") : text;
+}
+
 /** Amounts on entries and contributions must be above zero — the sign lives in `kind`. */
 export function isPositiveMoney(value: string): boolean {
-  const text = value.trim();
+  const text = normalizeMoney(value);
   return MONEY_SHAPE.test(text) && toCents(text) > 0;
 }
 
 /** Budgets and targets may be zero: "I intend to spend nothing here". */
 export function isNonNegativeMoney(value: string): boolean {
-  return MONEY_SHAPE.test(value.trim());
+  return MONEY_SHAPE.test(normalizeMoney(value));
 }
 
 /** Percentage of a target reached, clamped for display. Returns null if there is no target. */

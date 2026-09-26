@@ -131,4 +131,37 @@ describe("PlanPage", () => {
       "That savings type still has contributions",
     );
   });
+
+  it("records a contribution typed with a decimal comma as a dotted amount", async () => {
+    const fetchMock = mockApi();
+    const user = userEvent.setup();
+    render(<PlanPage />);
+
+    await user.type(await screen.findByLabelText("Contribution amount"), "12,50");
+    const card = screen.getByRole("heading", { name: "Record a contribution" }).closest("section");
+    await user.click(within(card as HTMLElement).getByRole("button", { name: "Add" }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        ([url, init]) => String(url) === "/api/savings/contributions" && init?.method === "POST",
+      );
+      expect(post).toBeDefined();
+      expect(JSON.parse(String(post?.[1]?.body)).amount).toBe("12.50");
+    });
+  });
+
+  it("shows a refused contribution amount inside the contribution card, not above the page", async () => {
+    mockApi();
+    const user = userEvent.setup();
+    render(<PlanPage />);
+
+    await user.type(await screen.findByLabelText("Contribution amount"), "1,2,3");
+    const card = screen.getByRole("heading", { name: "Record a contribution" }).closest("section");
+    await user.click(within(card as HTMLElement).getByRole("button", { name: "Add" }));
+
+    expect(await within(card as HTMLElement).findByRole("alert")).toHaveTextContent(
+      "at most two decimal places",
+    );
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
 });
