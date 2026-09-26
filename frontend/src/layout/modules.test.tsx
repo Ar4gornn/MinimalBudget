@@ -7,6 +7,7 @@ import { App, navFor } from "../App";
 import type { ModuleId, Preferences } from "../api/types";
 import { AuthProvider } from "../auth/AuthContext";
 import { ToastProvider } from "../components/Toast";
+import { TutorialProvider, useTutorial } from "../components/Tutorial/useTutorial";
 import { LanguageProvider } from "../i18n";
 import { ThemeProvider } from "../theme";
 import { DEFAULT_PREFERENCES, MODULES } from "./preferences";
@@ -388,12 +389,100 @@ describe("Settings → Layout → tabs (story 33.4)", () => {
     const moved = { ...DEFAULT_PREFERENCES, phone: { ...DEFAULT_PREFERENCES.phone, tabs: reversed } };
     renderAt("/settings", ALL_ON, echo, moved);
     await waitFor(() => expect(tabs()[0]).toBe("Recipes"));
-    await userEvent.click(screen.getByRole("button", { name: "Reset these tabs" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset this layout" }));
     expect(
-      screen.getByText("Put the phone tabs back in their original order?"),
+      screen.getByText("Put the phone tabs and cards back as they were?"),
     ).toBeInTheDocument();
     expect(firstPatch()).toBeUndefined();
     await userEvent.click(screen.getByRole("button", { name: "Reset" }));
     expect(tabs()).toEqual(["Dashboard", "Entries", "Habits", "Stock", "Gym"]);
+  });
+});
+
+describe("Settings → Layout → dashboard cards (story 33.5)", () => {
+  const echo = (body: unknown) =>
+    json({
+      id: "u1",
+      email: "sam@example.com",
+      currency: "USD",
+      created_at: "",
+      preferences: { ...DEFAULT_PREFERENCES, ...(body as object) },
+    });
+  const firstPatch = () =>
+    requests.find((r) => r.method === "PATCH")?.body as Record<string, { cards: unknown }>;
+
+  beforeEach(() => window.localStorage.clear());
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("hides a card for this layout only", async () => {
+    renderAt("/settings", ALL_ON, echo);
+    const savings = await screen.findByRole("checkbox", { name: "Show Savings progress" });
+    expect(savings).toBeChecked();
+    await userEvent.click(savings);
+    expect(screen.getByRole("checkbox", { name: "Show Savings progress" })).not.toBeChecked();
+    await waitFor(() => expect(firstPatch()).toBeDefined());
+    // jsdom has no matchMedia, so this screen is a desktop: only its layout is sent.
+    expect(Object.keys(firstPatch())).toEqual(["desktop"]);
+    expect(firstPatch().desktop?.cards).toContainEqual({ id: "savings", on: false });
+  });
+
+  it("moves a card, and not past either end", async () => {
+    renderAt("/settings", ALL_ON, echo);
+    expect(await screen.findByRole("button", { name: "Move Totals up" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Move Expense by category down" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Move Budget vs actual up" }));
+    await waitFor(() => expect(firstPatch()).toBeDefined());
+    const ids = ((firstPatch().desktop?.cards ?? []) as { id: string }[]).map((c) => c.id);
+    expect(ids.indexOf("budgets")).toBe(ids.indexOf("restock") - 1);
+  });
+
+  it("greys a card whose module is off, keeping its place", async () => {
+    renderAt("/settings", off("books"), echo);
+    const list = await screen.findByRole("list", { name: "Dashboard cards" });
+    expect(within(list).getByText(/Reading now · La rubrique|Reading now · Books is turned off/))
+      .toBeInTheDocument();
+    expect(within(list).queryByRole("checkbox", { name: "Show Reading now" })).toBeNull();
+    expect(within(list).getByRole("button", { name: "Move Reading now up" })).toBeEnabled();
+  });
+});
+
+describe("the tour and a hidden budget card (story 33.5)", () => {
+  beforeEach(() => window.localStorage.clear());
+  afterEach(() => vi.unstubAllGlobals());
+
+  function Count() {
+    const { numbered } = useTutorial();
+    return <p>steps {numbered.join(",")}</p>;
+  }
+
+  async function stepsFor(budgetsOn: boolean) {
+    const cards = DEFAULT_PREFERENCES.desktop.cards.map((c) =>
+      c.id === "budgets" ? { ...c, on: budgetsOn } : c,
+    );
+    window.localStorage.setItem("everything-everywhere.token", "test-token");
+    vi.stubGlobal("fetch", vi.fn(async () =>
+      json({ id: "u1", email: "sam@example.com", currency: "USD", created_at: "",
+        tutorial_completed: true,
+        preferences: { ...DEFAULT_PREFERENCES, desktop: { ...DEFAULT_PREFERENCES.desktop, cards } } }),
+    ));
+    render(
+      <AuthProvider>
+        <MemoryRouter>
+          <TutorialProvider>
+            <Count />
+          </TutorialProvider>
+        </MemoryRouter>
+      </AuthProvider>,
+    );
+    return (await screen.findByText(/^steps .*history/)).textContent;
+  }
+
+  it("counts the progress step only while the budget card is shown", async () => {
+    expect(await stepsFor(true)).toBe("steps welcome,entry,history,budget,progress");
+  });
+
+  it("skips it, and counts it out, when the card is hidden", async () => {
+    await waitFor(async () => undefined);
+    expect(await stepsFor(false)).toBe("steps welcome,entry,history,budget");
   });
 });

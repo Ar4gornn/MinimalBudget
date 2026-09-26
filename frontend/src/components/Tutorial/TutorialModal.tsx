@@ -1,7 +1,7 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 
 import { useT } from "../../i18n";
-import { NUMBERED, STEPS, useTutorial, type TourStep } from "./useTutorial";
+import { STEPS, useTutorial, type TourStep } from "./useTutorial";
 
 /**
  * The tour's one dialog, drawn two ways: dimmed and centred for the welcome and the
@@ -24,7 +24,7 @@ export function TutorialModal() {
   if (step === null) return null;
 
   const advance = step === "done" ? tour.finish : tour.next;
-  const number = NUMBERED.indexOf(step) + 1;
+  const number = tour.numbered.indexOf(step) + 1;
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape") {
@@ -51,7 +51,7 @@ export function TutorialModal() {
         data-step={step}
       >
         {number > 0 && (
-          <p className="tour-step">{t("tour.stepOf", { n: number, total: NUMBERED.length })}</p>
+          <p className="tour-step">{t("tour.stepOf", { n: number, total: tour.numbered.length })}</p>
         )}
         <h2 id="tour-title">{t(`tour.${step}.title`)}</h2>
         {/* Polite: a step change is announced after whatever the reader is on, not over it. */}

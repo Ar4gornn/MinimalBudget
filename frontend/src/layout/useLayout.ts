@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import type { Layout, LayoutName, Preferences, PreferencesPatch } from "../api/types";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth, useOptionalAuth } from "../auth/AuthContext";
 import { preferencesOf } from "./preferences";
 
 /** The breakpoint every phone rule in styles.css uses. One number, two places. */
@@ -41,4 +41,12 @@ export function usePreferences(): PreferencesState {
   const layout = useLayout();
   const preferences = preferencesOf(user);
   return { preferences, layout, current: preferences[layout], update: updatePreferences };
+}
+
+/**
+ * The layout this screen draws from, without requiring an auth provider: defaults outside
+ * one, like `useModules`. For pages and providers that only read.
+ */
+export function useCurrentLayout(): Layout {
+  return preferencesOf(useOptionalAuth()?.user)[useLayout()];
 }

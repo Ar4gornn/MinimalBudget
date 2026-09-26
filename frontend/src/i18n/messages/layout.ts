@@ -40,12 +40,21 @@ export const layout = {
     fr: "Placer {name} dans la barre d'onglets, et {other} dans la barre du haut",
   },
   "layout.hidden": { en: "turned off", fr: "rubrique désactivée" },
-  "layout.reset": { en: "Reset these tabs", fr: "Rétablir ces onglets" },
+  "layout.reset": { en: "Reset this layout", fr: "Rétablir cette disposition" },
   "layout.resetConfirm": {
-    en: "Put the {layout} tabs back in their original order?",
-    fr: "Remettre les onglets ({layout}) dans leur ordre d'origine ?",
+    en: "Put the {layout} tabs and cards back as they were?",
+    fr: "Remettre les onglets et les cartes ({layout}) comme à l'origine ?",
   },
   "layout.resetYes": { en: "Reset", fr: "Rétablir" },
+
+  "layout.cards": { en: "Dashboard cards", fr: "Cartes du tableau de bord" },
+  "layout.cardsHint": {
+    en: "Shown in this order. A hidden card is not loaded at all.",
+    fr: "Affichées dans cet ordre. Une carte masquée n'est pas chargée du tout.",
+  },
+  "layout.show": { en: "Show {name}", fr: "Afficher {name}" },
+  "card.stats": { en: "Totals", fr: "Totaux" },
+  "card.trends": { en: "Month by month", fr: "Mois par mois" },
 
   "module.habits": { en: "Habits", fr: "Habitudes" },
   "module.books": { en: "Books", fr: "Livres" },

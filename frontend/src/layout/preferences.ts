@@ -192,3 +192,18 @@ export function switchSlot(tabs: Tab[], id: SectionId, layout: LayoutName): Tab[
   }
   return normalizeTabs([...list.filter((t) => t.id !== id), { id, slot: other(tab.slot) }]);
 }
+
+type Card = Layout["cards"][number];
+
+/** One dashboard card one place up (-1) or down (+1). Unchanged at either end. */
+export function moveCard(cards: Card[], id: CardId, step: -1 | 1): Card[] {
+  const list = [...cards];
+  const from = list.findIndex((c) => c.id === id);
+  const to = from + step;
+  const card = list[from];
+  const neighbour = list[to];
+  if (!card || !neighbour) return list;
+  list[from] = neighbour;
+  list[to] = card;
+  return list;
+}

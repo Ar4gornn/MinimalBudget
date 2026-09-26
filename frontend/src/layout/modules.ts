@@ -1,4 +1,4 @@
-import type { ModuleId, SectionId } from "../api/types";
+import type { CardId, ModuleId, SectionId } from "../api/types";
 import { useOptionalAuth } from "../auth/AuthContext";
 import type { MessageKey } from "../i18n";
 import { preferencesOf } from "./preferences";
@@ -44,6 +44,26 @@ export const SECTION_LABEL: Record<SectionId, MessageKey> = {
   plan: "nav.plan",
   grow: "nav.grow",
   recipes: "nav.recipes",
+};
+
+/** A dashboard card's name in the editor (Epic 33): its own title where it has one. */
+export const CARD_LABEL: Record<CardId, MessageKey> = {
+  stats: "card.stats",
+  pending: "dash.toConfirm",
+  reading: "dash.readingNow",
+  quote: "quotes.cardTitle",
+  restock: "dash.restock",
+  budgets: "dash.budgetVsActual",
+  savings: "dash.savingsProgress",
+  trends: "card.trends",
+  categories: "dash.expenseByCategory",
+};
+
+/** Cards that belong to a module, and go when it is off. */
+export const CARD_MODULE: Partial<Record<CardId, ModuleId>> = {
+  reading: "books",
+  quote: "books",
+  restock: "stock",
 };
 
 /** The module that hides a section, if any. Habits is special-cased: Books can keep it. */

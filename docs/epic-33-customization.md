@@ -190,6 +190,13 @@ order. Card state that the page shares (month, period, trend window) stays in th
 request, and hiding all of them skips both calls. Collapsed stays per device and independent
 of hidden: a collapsed card is still fetched, because it shows a summary line.
 
+**Built 2026-09-26.** Neighbouring cards of one family are grouped as before: budgets
+beside savings (a lone one takes the full width), trends above categories. The period note
+sits before the monthly group. One consequence is recorded rather than hidden: reading the
+pending list is what materialises recurring proposals, so with the "To confirm" card hidden
+the dashboard no longer does that, and the Plan page and the calendar still do.
+"Reset this layout" restores the tabs **and** the cards of the layout being edited.
+
 **Editor:** Settings → Layout, a "Dashboard" list under each layout tab. Each row has a
 show/hide switch plus ↑/↓. Cards of a module that is off are listed greyed out, with
 "Gym is turned off" in place of the switch, so turning the module back on restores the card

@@ -25,5 +25,5 @@ export function ModuleOff({ module }: { module: ModuleId }) {
 
 /** The page when its module is on, the notice when it is off. */
 export function ModuleGate({ module, children }: { module: ModuleId; children: ReactNode }) {
-  return useModule(module) ? <>{children}</> : <ModuleOff module={module} />;
+  return useModule(module) ? children : <ModuleOff module={module} />;
 }

@@ -4,7 +4,9 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DashboardPage } from "./DashboardPage";
-import type { Summary, Trends } from "../api/types";
+import type { Layout, Summary, Trends } from "../api/types";
+import { AuthProvider, useAuth } from "../auth/AuthContext";
+import { DEFAULT_PREFERENCES } from "../layout/preferences";
 
 // Category names link to their detail page, so the component needs a router.
 function render(ui: React.ReactElement) {
@@ -515,5 +517,169 @@ describe("reading now on the dashboard (Epic 28, AD-37)", () => {
     await screen.findByRole("link", { name: "1 book open" });
     const urls = fetchMock.mock.calls.map((call) => String(call[0]));
     expect(urls.some((url) => url.endsWith("/api/books?status=reading"))).toBe(true);
+  });
+});
+
+
+/**
+ * Epic 33, story 33.5: the default card order is the dashboard as it was before cards became
+ * configurable. Written against the page before the refactor and kept green through it.
+ */
+describe("the default card order", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+  });
+
+  /** Each card on the page, in document order, by its title — "stats" for the totals row. */
+  function cardOrder(): string[] {
+    const found: string[] = [];
+    for (const el of document.querySelectorAll(".grid, section.card")) {
+      if (el.classList.contains("grid")) found.push("stats");
+      else found.push(el.querySelector("h2")?.textContent ?? "?");
+    }
+    return found;
+  }
+
+  it("is totals, to confirm, reading, quote, restock, budgets, savings, trends, categories", async () => {
+    mockApi({
+      pending: [{ id: "o1", category_name: "Rent", due_on: "2026-09-01" }],
+      reading: [
+        {
+          id: "b1", title: "Dune", author: "Herbert", series_id: null, series_name: null,
+          series_order: null, status: "reading", rating: null, page_count: null,
+          current_page: null, tags: "", note: null, added_on: "2026-09-01",
+          started_on: "2026-09-01", finished_on: null, created_at: "", updated_at: "",
+        },
+      ],
+      quote: { id: "q1", book_id: "b1", text: "Fear is the mind-killer.", page: 8,
+        title: "Dune", author: "Herbert" },
+      lowItems: [
+        {
+          id: "i1", space_id: "sp1", name: "Milk", quantity: 0, restock_below: 1, cost: null,
+          note: null, needs_restock: true, restocked_at: null, created_at: "", updated_at: "",
+        },
+      ],
+    });
+    render(<DashboardPage />);
+    await screen.findByText("A line from the shelf");
+    await screen.findByText("Restock");
+    await screen.findByText("Reading now");
+    await screen.findByText("To confirm");
+    expect(cardOrder()).toEqual([
+      "stats",
+      "To confirm",
+      "Reading now",
+      "A line from the shelf",
+      "Restock",
+      "Budget vs actual",
+      "Savings progress",
+      "Last 6 months",
+      "Expense by category",
+    ]);
+  });
+});
+
+describe("cards chosen by the account (Epic 33, story 33.5)", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+  });
+
+  /** The dashboard for an account whose desktop layout has these cards. */
+  function withCards(cards: Layout["cards"], data: Parameters<typeof mockApi>[0] = {}) {
+    const inner = mockApi(data);
+    const preferences = { ...DEFAULT_PREFERENCES, desktop: { ...DEFAULT_PREFERENCES.desktop, cards } };
+    const wrapped = vi.fn(async (url: string) =>
+      url.includes("/api/auth/me")
+        ? new Response(
+            JSON.stringify({ id: "u1", email: "sam@example.com", currency: "USD", created_at: "",
+              preferences }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          )
+        : inner(url),
+    );
+    vi.stubGlobal("fetch", wrapped);
+    window.localStorage.setItem("everything-everywhere.token", "test-token");
+    render(
+      <AuthProvider>
+        <SignedIn>
+          <DashboardPage />
+        </SignedIn>
+      </AuthProvider>,
+    );
+    return () => wrapped.mock.calls.map(([url]) => String(url));
+  }
+
+  /** As App does: nothing is drawn until the profile, and so the layout, is known. */
+  function SignedIn({ children }: { children: React.ReactNode }) {
+    return useAuth().user ? children : null;
+  }
+
+  const all = DEFAULT_PREFERENCES.desktop.cards;
+  const only = (...ids: string[]) => all.map((card) => ({ ...card, on: ids.includes(card.id) }));
+
+  function cardOrder(): string[] {
+    const found: string[] = [];
+    for (const el of document.querySelectorAll(".grid, section.card")) {
+      if (el.classList.contains("grid")) found.push("stats");
+      else found.push(el.querySelector("h2")?.textContent ?? "?");
+    }
+    return found;
+  }
+
+  it("draws the cards in the account's order", async () => {
+    const reordered: Layout["cards"] = [
+      { id: "categories", on: true },
+      { id: "savings", on: true },
+      { id: "stats", on: true },
+      ...all.filter((c) => !["categories", "savings", "stats"].includes(c.id)),
+    ];
+    withCards(reordered);
+    await screen.findByText("Expense by category");
+    await waitFor(() => expect(cardOrder()[0]).toBe("Expense by category"));
+    expect(cardOrder()).toEqual([
+      "Expense by category",
+      "Savings progress",
+      "stats",
+      "Budget vs actual",
+      "Last 6 months",
+    ]);
+  });
+
+  it("does not ask for a hidden card's own data", async () => {
+    const asked = withCards(only("stats", "budgets"), {
+      pending: [{ id: "o1", category_name: "Rent", due_on: "2026-09-01" }],
+    });
+    await screen.findByText("Budget vs actual");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const urls = asked();
+    for (const path of ["/api/recurring/pending", "/api/books", "/api/inventory", "/api/dashboard/trends"]) {
+      expect(urls.some((url) => url.includes(path)), path).toBe(false);
+    }
+    expect(urls.some((url) => url.includes("/api/dashboard/summary"))).toBe(true);
+    expect(screen.queryByText("To confirm")).toBeNull();
+  });
+
+  it("skips the summary when every card that reads it is hidden", async () => {
+    const asked = withCards(only("trends", "categories"));
+    await screen.findByText("Expense by category");
+    const urls = asked();
+    expect(urls.some((url) => url.includes("/api/dashboard/summary"))).toBe(false);
+    expect(urls.some((url) => url.includes("/api/dashboard/trends"))).toBe(true);
+    expect(document.querySelector(".grid")).toBeNull();
+  });
+
+  it("asks for every card's data with everything shown", async () => {
+    // The guard for the two tests above: same harness, all on, every request made.
+    const asked = withCards(all);
+    await screen.findByText("Budget vs actual");
+    await waitFor(() => {
+      const urls = asked();
+      for (const path of ["/api/recurring/pending", "/api/books", "/api/inventory",
+        "/api/dashboard/summary", "/api/dashboard/trends"]) {
+        expect(urls.some((url) => url.includes(path)), path).toBe(true);
+      }
+    });
   });
 });

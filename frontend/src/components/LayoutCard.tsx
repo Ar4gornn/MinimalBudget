@@ -1,12 +1,19 @@
 import { useState } from "react";
 
-import type { LayoutName, ModuleId, PreferencesPatch, SectionId } from "../api/types";
+import type { CardId, LayoutName, ModuleId, PreferencesPatch, SectionId } from "../api/types";
 import { useT } from "../i18n";
-import { MODULE_NAME, SECTION_LABEL, SECTION_MODULE } from "../layout/modules";
+import {
+  CARD_LABEL,
+  CARD_MODULE,
+  MODULE_NAME,
+  SECTION_LABEL,
+  SECTION_MODULE,
+} from "../layout/modules";
 import {
   DEFAULT_PREFERENCES,
   LAYOUTS,
   MODULES,
+  moveCard,
   moveTab,
   normalizeTabs,
   swapPartner,
@@ -96,6 +103,58 @@ export function LayoutCard() {
     );
   }
 
+  const setCards = (next: typeof current.cards) => save({ [editing]: { ...current, cards: next } });
+  const cardName = (id: CardId) => t(CARD_LABEL[id]);
+
+  function cardRow(card: (typeof current.cards)[number], index: number) {
+    const module = CARD_MODULE[card.id];
+    const off = module ? !preferences.modules[module] : false;
+    return (
+      <li key={card.id} className="row" style={{ alignItems: "center", gap: 6, margin: "4px 0" }}>
+        {off && module ? (
+          // Its module is off: no switch to offer, and the place is kept for when it is back.
+          <span style={{ flex: "1 1 auto", minWidth: 0 }} className="hint">
+            {cardName(card.id)} · {t("module.offTitle", { name: t(MODULE_NAME[module]) })}
+          </span>
+        ) : (
+          <label className="check" style={{ flex: "1 1 auto", minWidth: 0 }}>
+            <input
+              type="checkbox"
+              aria-label={t("layout.show", { name: cardName(card.id) })}
+              checked={card.on}
+              onChange={(event) =>
+                setCards(
+                  current.cards.map((c) =>
+                    c.id === card.id ? { ...c, on: event.target.checked } : c,
+                  ),
+                )
+              }
+            />
+            {cardName(card.id)}
+          </label>
+        )}
+        <button
+          type="button"
+          className="quiet"
+          aria-label={t("layout.up", { name: cardName(card.id) })}
+          disabled={index === 0}
+          onClick={() => setCards(moveCard(current.cards, card.id, -1))}
+        >
+          <span aria-hidden="true">↑</span>
+        </button>
+        <button
+          type="button"
+          className="quiet"
+          aria-label={t("layout.down", { name: cardName(card.id) })}
+          disabled={index === current.cards.length - 1}
+          onClick={() => setCards(moveCard(current.cards, card.id, 1))}
+        >
+          <span aria-hidden="true">↓</span>
+        </button>
+      </li>
+    );
+  }
+
   const bar = tabs.filter((tab) => tab.slot === "bar");
   const top = tabs.filter((tab) => tab.slot === "top");
 
@@ -154,6 +213,16 @@ export function LayoutCard() {
           {top.map((tab, index) => row(tab.id, index, top))}
         </ol>
 
+        <h4 style={{ margin: "14px 0 2px" }} id="layout-cards">
+          {t("layout.cards")}
+        </h4>
+        <p className="hint" style={{ margin: "0 0 4px" }}>
+          {t("layout.cardsHint")}
+        </p>
+        <ol aria-labelledby="layout-cards" style={{ margin: 0, paddingLeft: 20 }}>
+          {current.cards.map((card, index) => cardRow(card, index))}
+        </ol>
+
         <div className="row" style={{ marginTop: 12, alignItems: "center", gap: 8 }}>
           {confirming ? (
             <>
@@ -164,7 +233,7 @@ export function LayoutCard() {
                 type="button"
                 onClick={() => {
                   setConfirming(false);
-                  setTabs(DEFAULT_PREFERENCES[editing].tabs);
+                  save({ [editing]: DEFAULT_PREFERENCES[editing] });
                 }}
               >
                 {t("layout.resetYes")}
