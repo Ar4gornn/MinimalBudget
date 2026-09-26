@@ -62,7 +62,7 @@ function renderAt(
       if (url.includes("/api/auth/me")) return json(user);
       if (url.includes("/api/books/quotes/draw")) return json(null);
       if (url.includes("/api/dashboard") || url.includes("/api/summary")) return json(null);
-      return json([]);
+      return json({ items: [] });
     }),
   );
   return render(
