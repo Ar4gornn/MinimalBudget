@@ -9,7 +9,7 @@ import {
   type PendingEntry,
   type RecurringTemplate,
 } from "../api/types";
-import { isPositiveMoney } from "../money";
+import { isPositiveMoney, normalizeMoney } from "../money";
 import { useMoney } from "../useMoney";
 import { todayIso } from "../months";
 import { useT } from "../i18n";
@@ -90,7 +90,7 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
   }
 
   async function confirm(proposal: PendingEntry) {
-    const draft = (drafts[proposal.id] ?? "").trim();
+    const draft = normalizeMoney(drafts[proposal.id] ?? "");
     if (draft && !isPositiveMoney(draft)) {
       setError(t("entries.badAmount"));
       return;
@@ -133,7 +133,7 @@ export function RecurringCard({ onChanged }: { onChanged?: () => void }) {
     try {
       await api.createTemplate({
         kind,
-        amount: amount.trim(),
+        amount: normalizeMoney(amount),
         cadence,
         start_on: startOn,
         auto,

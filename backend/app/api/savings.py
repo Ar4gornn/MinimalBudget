@@ -10,8 +10,10 @@ from app.schemas.savings import (
     ContributionCreate,
     ContributionOut,
     ContributionUpdate,
+    OverviewOut,
     SavingsTypeCreate,
     SavingsTypeOut,
+    SavingsTypeUpdate,
     TargetOut,
 )
 from app.services import savings
@@ -31,6 +33,15 @@ def create_type(
 ) -> SavingsTypeOut:
     created = savings.get_or_create_type(session, user_id, name=payload.name)
     return SavingsTypeOut.model_validate(created)
+
+
+@router.patch("/types/{type_id}", response_model=SavingsTypeOut)
+def update_type(
+    type_id: uuid.UUID, payload: SavingsTypeUpdate, user_id: CurrentUserId, session: DbSession
+) -> SavingsTypeOut:
+    fields = {name: getattr(payload, name) for name in payload.model_fields_set}
+    updated = savings.update_type(session, user_id, type_id, fields=fields)
+    return SavingsTypeOut.model_validate(updated)
 
 
 @router.delete("/types/{type_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -63,6 +74,7 @@ def create_contribution(
         session,
         user_id,
         savings_type_id=payload.savings_type_id,
+        kind=payload.kind,
         amount=payload.amount,
         occurred_on=payload.occurred_on,
         note=payload.note,
@@ -82,6 +94,7 @@ def update_contribution(
         user_id,
         contribution_id,
         savings_type_id=payload.savings_type_id,
+        kind=payload.kind,
         amount=payload.amount,
         occurred_on=payload.occurred_on,
         note=payload.note,
@@ -95,6 +108,37 @@ def delete_contribution(
     contribution_id: uuid.UUID, user_id: CurrentUserId, session: DbSession
 ) -> Response:
     savings.delete_contribution(session, user_id, contribution_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/overview", response_model=OverviewOut)
+def overview(
+    user_id: CurrentUserId,
+    session: DbSession,
+    month: Annotated[str | None, Query(description="YYYY-MM; omitted: the current one")] = None,
+    start_day: StartDay = 1,
+) -> OverviewOut:
+    # AD-50: every pot as seen from one budget month — balance, month progress, what is
+    # due, and what the goal needs per month.
+    return OverviewOut.model_validate(
+        savings.overview(session, user_id, month=month, start_day=start_day)
+    )
+
+
+@router.put("/skips/{type_id}/{month}", status_code=status.HTTP_204_NO_CONTENT)
+def skip_month(
+    type_id: uuid.UUID, month: str, user_id: CurrentUserId, session: DbSession
+) -> Response:
+    # PUT: skipping a month twice is the same skip.
+    savings.skip_month(session, user_id, type_id, month)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/skips/{type_id}/{month}", status_code=status.HTTP_204_NO_CONTENT)
+def unskip_month(
+    type_id: uuid.UUID, month: str, user_id: CurrentUserId, session: DbSession
+) -> Response:
+    savings.unskip_month(session, user_id, type_id, month)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

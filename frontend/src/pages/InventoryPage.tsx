@@ -9,7 +9,7 @@ import { StepChart } from "../charts/StepChart";
 import { ShoppingList } from "../components/ShoppingList";
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
-import { isNonNegativeMoney } from "../money";
+import { isNonNegativeMoney, normalizeMoney } from "../money";
 import { useMoney } from "../useMoney";
 import { useT } from "../i18n";
 import type { MessageKey } from "../i18n/catalogue";
@@ -153,7 +153,7 @@ export function InventoryPage() {
         quantity: qty,
         space_name: spaceName.trim(),
         ...(threshold !== null ? { restock_below: threshold } : {}),
-        ...(cost.trim() ? { cost: cost.trim() } : {}),
+        ...(cost.trim() ? { cost: normalizeMoney(cost) } : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
       });
       setName("");
@@ -237,7 +237,9 @@ export function InventoryPage() {
     if (draft.name.trim() !== item.name) patch.name = draft.name.trim();
     if (qty !== item.quantity) patch.quantity = qty;
     if (threshold !== item.restock_below) patch.restock_below = threshold;
-    if ((draft.cost.trim() || null) !== item.cost) patch.cost = draft.cost.trim() || null;
+    if ((normalizeMoney(draft.cost) || null) !== item.cost) {
+      patch.cost = normalizeMoney(draft.cost) || null;
+    }
     if ((draft.note.trim() || null) !== item.note) patch.note = draft.note.trim() || null;
     if (draft.space_id !== item.space_id) patch.space_id = draft.space_id;
     if (Object.keys(patch).length === 0) {

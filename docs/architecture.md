@@ -932,6 +932,47 @@ security-definer function
 - **Consequence:** turning a module off hides its UI only; its data, endpoints and export are
   untouched. Rotating a tablet across 720px switches layouts.
 
+### AD-50 — A savings type is a pot: its balance never goes below zero, and what is due is proposed, never recorded
+
+- **Binds:** savings types, contributions, targets, the Plan page's savings cards, the
+  dashboard's savings figures, the savings export, the calendar.
+- **Extends:** AD-10 (the month is the account's budget month, not the calendar's), AD-11
+  (a target is still one standing amount per pot), AD-18 (the skip table's foreign key is
+  composite), AD-24 (the second-user proof), AD-44 (refusals carry a code).
+- **Numbered 50:** AD-49 is Epic 33's, on its own branch.
+- **Prevents:** three failures.
+
+  **A pot that holds less than nothing.** A withdrawal is a contribution with
+  `kind = 'withdrawal'`; the amount stays positive (the existing CHECK), the sign lives in the
+  kind, as it does on entries. The balance — deposits minus withdrawals, all time, whatever
+  their dates — may not go below zero, and a CHECK cannot see a sum over rows. So every write
+  that could lower one (a withdrawal; any edit, which can shrink a deposit, turn it into a
+  withdrawal, or move it to another pot; deleting a deposit) locks the pot rows it touches
+  `FOR UPDATE`, in id order, writes, re-reads the sums, and raises
+  `409 savings_balance_negative` if one is negative — the request's transaction rolls back
+  with it. The lock is what makes two concurrent withdrawals queue instead of both passing
+  the same check. A future-dated deposit counts: the balance is what the ledger holds, not a
+  point-in-time figure.
+
+  **A contribution nobody made.** A monthly target proposes what is left of it in each budget
+  month — `due = target − max(net saved, 0)`, so a withdrawal does not inflate the ask — and
+  "Put aside" writes one ordinary contribution, dated today in the current month or the
+  month's last day in a past one. "Skip" writes a row in `savings_skips`, keyed by the
+  month's *label*, because the proposal is computed per label. Nothing is written by a clock:
+  the recurring-entries rule (money that did not move must not appear to have moved) applies
+  unchanged, and there is no cron.
+
+  **A goal that is quietly a cent short.** `needed_per_month` is what is left of the goal
+  over the budget months from the current one through the goal date's, both included,
+  **rounded up** to the cent — rounding down promises a date the plan then misses. A date
+  already behind leaves one month: now. A goal date without an amount is refused (422, and a
+  CHECK beneath it).
+
+  Every sum over contributions — overview, dashboard summary and trends, target-vs-actual —
+  signs the amount by kind, so a month of withdrawals is a negative figure; the dashboard's
+  savings fields became `SignedMoney` for it (they were non-negative, and a withdrawal month
+  would have been a 500). The export gains a `kind` column before `amount`.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -1101,6 +1142,7 @@ Everything Everywhere/
 | Book quotes — lines under a book, one drawn for the dashboard | `api/books.py`, `services/books.py`, migration 0023, `frontend/src/components/BookQuotes.tsx`, `QuoteCard.tsx` | AD-47, AD-18, AD-30, AD-37, AD-24 |
 | Notes — text or a sketch, drafts on the device, shortcuts | `api/notes.py`, `services/notes.py`, migration 0024, `frontend/src/notes/`, `NotesPage.tsx`, `NotePage.tsx`, `public/manifest.webmanifest` | AD-48, AD-8, AD-30, AD-31, AD-24 |
 | Preferences — modules, tab order, dashboard cards, per layout | `services/preferences.py`, `api/auth.py`, migration 0025 | AD-49, AD-19, AD-24, AD-44 |
+| Savings pots — balances, withdrawals, goals, what is due | `api/savings.py`, `services/savings.py`, migration 0026, `frontend/src/components/SavingsCard.tsx` | AD-50, AD-10, AD-11, AD-18, AD-24 |
 | Test strategy | `backend/tests/` | AD-24 |
 
 ## Deferred

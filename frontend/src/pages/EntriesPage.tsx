@@ -15,7 +15,7 @@ import {
 import { Card, Empty, ErrorBanner, TableWrap } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { useTutorial } from "../components/Tutorial/useTutorial";
-import { isPositiveMoney } from "../money";
+import { isPositiveMoney, normalizeMoney } from "../money";
 import {
   formatQuantity,
   formatRate,
@@ -136,14 +136,16 @@ export function EntriesPage() {
   function onAmountChange(value: string) {
     setAmount(value);
     if (!isPositiveMoney(value)) return;
-    if (isQuantity(quantity)) setRate(solveRate(value.trim(), quantity.trim()));
-    else if (isRate(rate) && !quantity) setQuantity(solveQuantity(value.trim(), rate.trim()));
+    if (isQuantity(quantity)) setRate(solveRate(normalizeMoney(value), quantity.trim()));
+    else if (isRate(rate) && !quantity) {
+      setQuantity(solveQuantity(normalizeMoney(value), rate.trim()));
+    }
   }
 
   function onQuantityChange(value: string) {
     setQuantity(value);
     if (!isQuantity(value)) return;
-    if (isPositiveMoney(amount)) setRate(solveRate(amount.trim(), value.trim()));
+    if (isPositiveMoney(amount)) setRate(solveRate(normalizeMoney(amount), value.trim()));
     else if (isRate(rate) && !amount) setAmount(solveAmount(value.trim(), rate.trim()));
   }
 
@@ -152,7 +154,7 @@ export function EntriesPage() {
     if (!isRate(value)) return;
     if (isQuantity(quantity)) setAmount(solveAmount(quantity.trim(), value.trim()));
     else if (isPositiveMoney(amount) && !quantity) {
-      setQuantity(solveQuantity(amount.trim(), value.trim()));
+      setQuantity(solveQuantity(normalizeMoney(amount), value.trim()));
     }
   }
 
@@ -197,7 +199,7 @@ export function EntriesPage() {
       // creates the category, so recording a transaction never needs a detour.
       await api.createEntry({
         kind,
-        amount: amount.trim(),
+        amount: normalizeMoney(amount),
         occurred_on: occurredOn,
         category_name: categoryName.trim(),
         ...(vendorName.trim() ? { vendor_name: vendorName.trim() } : {}),
@@ -251,7 +253,7 @@ export function EntriesPage() {
     // Send only what changed. PATCH means "these fields"; including the untouched ones
     // would write a stale copy over anything edited elsewhere since this list loaded.
     const patch: Partial<EntryInput> = {};
-    if (draft.amount.trim() !== entry.amount) patch.amount = draft.amount.trim();
+    if (normalizeMoney(draft.amount) !== entry.amount) patch.amount = normalizeMoney(draft.amount);
     if (draft.occurred_on !== entry.occurred_on) patch.occurred_on = draft.occurred_on;
     if (draft.category_id !== entry.category_id) patch.category_id = draft.category_id;
     if (draft.note.trim() !== (entry.note ?? "")) {

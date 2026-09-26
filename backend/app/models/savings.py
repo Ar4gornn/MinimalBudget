@@ -30,6 +30,9 @@ class SavingsType(TimestampedMixin, Base):
         PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(80), nullable=False)
+    # Epic 34 (AD-50): an optional goal. A date needs an amount; the CHECK says so.
+    goal_amount: Mapped[decimal.Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    goal_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
 
 
 class SavingsContribution(TimestampedMixin, Base):
@@ -54,6 +57,8 @@ class SavingsContribution(TimestampedMixin, Base):
     amount: Mapped[decimal.Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     occurred_on: Mapped[dt.date] = mapped_column(Date, nullable=False)
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # AD-50: the amount is always positive; the direction lives here.
+    kind: Mapped[str] = mapped_column(String(10), nullable=False, server_default="deposit")
 
 
 class SavingsTarget(Base):
@@ -83,6 +88,33 @@ class SavingsTarget(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+
+class SavingsSkip(Base):
+    """AD-50: "not this month" for a proposed contribution, by budget-month label."""
+
+    __tablename__ = "savings_skips"
+    __table_args__ = (
+        PrimaryKeyConstraint("user_id", "savings_type_id", "month", name="savings_skips_pkey"),
+        ForeignKeyConstraint(
+            ["user_id", "savings_type_id"],
+            ["savings_types.user_id", "savings_types.id"],
+            name="savings_skips_type_fkey",
+            ondelete="CASCADE",
+        ),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    savings_type_id: Mapped[uuid.UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    month: Mapped[str] = mapped_column(String(7), nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+DEPOSIT = "deposit"
+WITHDRAWAL = "withdrawal"
 
 # Seeded for every new account at registration (FR-3).
 DEFAULT_SAVINGS_TYPES = ("startup", "vacation", "investment")

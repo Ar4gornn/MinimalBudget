@@ -686,9 +686,14 @@ function DayDetail({
     for (const row of bucket.contributions) {
       rows.push(
         <li key={`c-${row.id}`}>
-          <span className="tag">{t("cal.tagSaved")}</span>{" "}
+          {/* AD-50: a withdrawal is money out of the pot, never "saved". */}
+          <span className="tag">
+            {t(row.kind === "withdrawal" ? "pots.withdrawal" : "cal.tagSaved")}
+          </span>{" "}
           <Link to="/plan">{savingsName(row.savings_type_id)}</Link>{" "}
-          <strong>{money.amount(row.amount)}</strong>
+          <strong>
+            {money.amount(row.kind === "withdrawal" ? `-${row.amount}` : row.amount)}
+          </strong>
         </li>,
       );
     }

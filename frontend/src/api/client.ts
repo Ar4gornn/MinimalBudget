@@ -39,6 +39,7 @@ import type {
   MoodDay,
   MoodHistory,
   MoodPoint,
+  MovementKind,
   Note,
   NoteInput,
   Cadence,
@@ -58,6 +59,7 @@ import type {
   Routine,
   RoutineDetail,
   RoutineLine,
+  SavingsOverview,
   SavingsType,
   ShoppingList,
   Space,
@@ -638,11 +640,31 @@ export const api = {
   deleteSavingsType: (id: string) =>
     request<void>(`/api/savings/types/${id}`, { method: "DELETE" }),
 
+  /** Rename, or set/clear the goal. An omitted field is left alone; `null` clears it. */
+  updateSavingsType: (
+    id: string,
+    patch: { name?: string; goal_amount?: Money | null; goal_date?: string | null },
+  ) =>
+    request<SavingsType>(`/api/savings/types/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+
+  savingsOverview: (month?: string) =>
+    request<SavingsOverview>(`/api/savings/overview${query(month ? { month } : {})}`),
+
+  skipSavingsMonth: (typeId: string, month: string) =>
+    request<void>(`/api/savings/skips/${typeId}/${month}`, { method: "PUT" }),
+
+  unskipSavingsMonth: (typeId: string, month: string) =>
+    request<void>(`/api/savings/skips/${typeId}/${month}`, { method: "DELETE" }),
+
   listContributions: (filters: { month?: string; savings_type_id?: string } = {}) =>
     items(request<Page<Contribution>>(`/api/savings/contributions${query(filters)}`)),
 
   createContribution: (input: {
     savings_type_id: string;
+    kind?: MovementKind;
     amount: Money;
     occurred_on: string;
     note?: string | null;

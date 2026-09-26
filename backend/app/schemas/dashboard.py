@@ -24,7 +24,7 @@ class TargetVsActual(BaseModel):
     savings_type_id: uuid.UUID
     savings_type_name: str
     target: NonNegativeMoney | None
-    actual: NonNegativeMoney
+    actual: SignedMoney  # AD-50: a month of withdrawals is negative
 
 
 class SummaryOut(BaseModel):
@@ -43,7 +43,7 @@ class SummaryOut(BaseModel):
     expense: NonNegativeMoney
     # The one figure that can go below zero: the month you spent more than you earned.
     net: SignedMoney
-    saved: NonNegativeMoney
+    saved: SignedMoney  # AD-50: net of withdrawals
     budgets: list[BudgetVsActual]
     savings: list[TargetVsActual]
 
@@ -60,7 +60,7 @@ class TrendsOut(BaseModel):
     months: list[str]
     income: list[NonNegativeMoney]
     expense: list[NonNegativeMoney]
-    saved: list[NonNegativeMoney]
+    saved: list[SignedMoney]  # AD-50: net of withdrawals
     expense_by_category: list[CategorySeries]
 
 

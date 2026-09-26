@@ -7,6 +7,7 @@ import {
   fromCents,
   isNonNegativeMoney,
   isPositiveMoney,
+  normalizeMoney,
   progress,
   subtractMoney,
   toCents,
@@ -86,5 +87,23 @@ describe("currency", () => {
   it("still formats zero and small amounts", () => {
     expect(formatAmount("0.00", "USD")).toBe("$0.00");
     expect(formatAmount("0.05", "EUR")).toBe("€0.05");
+  });
+});
+
+describe("decimal comma", () => {
+  it("reads a decimal comma as a dot, the way a French keyboard types it", () => {
+    expect(normalizeMoney(" 12,50 ")).toBe("12.50");
+    expect(normalizeMoney("12,5")).toBe("12.5");
+    expect(isPositiveMoney("12,50")).toBe(true);
+    expect(isNonNegativeMoney("0,00")).toBe(true);
+  });
+
+  it("leaves anything that is not a plain decimal comma for the validators to refuse", () => {
+    // "1,200" is a thousands separator somewhere; guessing would record a wrong amount.
+    expect(normalizeMoney("1,200")).toBe("1,200");
+    expect(isPositiveMoney("1,200")).toBe(false);
+    expect(isPositiveMoney("1,2,3")).toBe(false);
+    expect(isPositiveMoney("1.200,50")).toBe(false);
+    expect(isPositiveMoney("0,00")).toBe(false);
   });
 });

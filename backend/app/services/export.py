@@ -107,11 +107,12 @@ def savings_csv(session: Session, user_id: uuid.UUID) -> Iterator[str]:
             yield [
                 contribution.occurred_on.isoformat(),
                 name,
+                contribution.kind,
                 f"{contribution.amount:.2f}",
                 contribution.note or "",
             ]
 
-    return _rows_to_csv(["date", "savings_type", "amount", "note"], rows())
+    return _rows_to_csv(["date", "savings_type", "kind", "amount", "note"], rows())
 
 
 def inventory_csv(session: Session, user_id: uuid.UUID) -> Iterator[str]:
