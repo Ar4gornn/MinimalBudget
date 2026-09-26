@@ -117,6 +117,8 @@ const meals = [
 interface Options {
   startDay?: number;
   failStock?: boolean;
+  /** One deposit and one withdrawal on 2026-09-03 (Epic 34). */
+  savings?: boolean;
 }
 
 function mockApi(options: Options = {}) {
@@ -150,8 +152,21 @@ function mockApi(options: Options = {}) {
         ],
       });
     }
-    if (url.includes("/api/savings/types")) return json({ items: [] });
-    if (url.includes("/api/savings/contributions")) return json({ items: [] });
+    if (url.includes("/api/savings/types")) {
+      return json({
+        items: options.savings ? [{ id: "p1", name: "Holidays", created_at: "" }] : [],
+      });
+    }
+    if (url.includes("/api/savings/contributions")) {
+      if (!options.savings) return json({ items: [] });
+      const row = { savings_type_id: "p1", occurred_on: "2026-09-03", note: null, created_at: "" };
+      return json({
+        items: [
+          { ...row, id: "k1", kind: "deposit", amount: "50.00" },
+          { ...row, id: "k2", kind: "withdrawal", amount: "20.00" },
+        ],
+      });
+    }
     if (url.includes("/api/gym/workouts")) return json({ items: [] });
     if (url.includes("/api/habits/checkins")) {
       return json({
@@ -323,6 +338,23 @@ describe("CalendarPage", () => {
     expect(within(forecast).getByText("expected")).toBeInTheDocument();
     expect(forecast.textContent).toContain("will be proposed");
     expect(within(forecast).queryByRole("button")).toBeNull();
+  });
+
+  it("says a withdrawal is money out, not money saved", async () => {
+    mockApi({ startDay: 26, savings: true });
+    render(<CalendarPage />);
+    await setMonth("2026-09");
+
+    await userEvent.click(await screen.findByRole("gridcell", { name: /^2026-09-03/ }));
+    const card = (await screen.findByText("Thu 3 September")).closest("section") as HTMLElement;
+    const rows = within(card)
+      .getAllByRole("link", { name: "Holidays" })
+      .map((link) => link.closest("li") as HTMLElement);
+    expect(rows).toHaveLength(2);
+    const [deposit, withdrawal] = rows as [HTMLElement, HTMLElement];
+    expect(deposit.textContent).toContain("$50.00");
+    expect(within(withdrawal).getByText("Withdrawal")).toBeInTheDocument();
+    expect(withdrawal.textContent).toContain("-$20.00");
   });
 
   it("keeps the rest of the month when one module fails", async () => {

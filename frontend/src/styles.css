@@ -2687,3 +2687,59 @@ button.pin:not(.on) span {
   flex: none;
   white-space: nowrap;
 }
+
+/* Savings pots (Epic 34). One block per pot: name and balance, the month against its
+   target, the goal, and what is due. The bars stretch to the row, not a fixed 90px. */
+.pots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pot {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.pot:last-child {
+  border-bottom: none;
+}
+
+.pot-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.pot-head strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pot-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.pot-line .hint {
+  flex: 0 1 auto;
+  margin: 0;
+}
+
+.pot-line .bar-track {
+  flex: 1 1 60px;
+}
+
+.pot-due {
+  margin-top: 6px;
+  align-items: center;
+}
+
+.pot-editor {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}

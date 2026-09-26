@@ -20,7 +20,6 @@ function render(ui: React.ReactElement) {
   );
 }
 
-const savingsTypes = [{ id: "st1", name: "Emergency Fund", created_at: "" }];
 const categories = [{ id: "c1", kind: "expense" as const, name: "Rent", created_at: "" }];
 
 function json(body: unknown, status = 200): Response {
@@ -30,21 +29,19 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-/** No target, no budget, no contributions set yet — every amount field starts blank. */
-function mockApi(overrides: { deleteTypeStatus?: number; deleteTypeDetail?: string } = {}) {
+/** No budget set yet, and no savings pots — the savings card has its own tests. */
+function mockApi() {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
-
-    if (url.includes("/api/savings/types") && method === "DELETE") {
-      if (overrides.deleteTypeStatus && overrides.deleteTypeStatus !== 204) {
-        return json({ detail: overrides.deleteTypeDetail }, overrides.deleteTypeStatus);
-      }
-      return json(null, 204);
+    if (url.includes("/api/savings/overview")) {
+      return json({
+        month: "2026-09",
+        start: "2026-09-01",
+        end: "2026-10-01",
+        current_month: "2026-09",
+        pots: [],
+      });
     }
-    if (url.includes("/api/savings/types")) return json({ items: savingsTypes });
-    if (url.includes("/api/savings/contributions")) return json({ items: [] });
-    if (url.includes("/api/savings/targets") && method === "PUT") return json({}, 200);
-    if (url.includes("/api/savings/targets")) return json({ items: [] });
     if (url.includes("/api/categories")) return json({ items: categories });
     if (url.includes("/api/budgets") && method === "PUT") return json({}, 200);
     if (url.includes("/api/budgets")) return json({ items: [] });
@@ -81,87 +78,45 @@ describe("PlanPage", () => {
     ).toBe(false);
   });
 
-  it("saves a target amount with a PUT to /api/savings/targets/{typeId}", async () => {
+  it("saves a budget typed with a decimal comma as a dotted amount", async () => {
     const fetchMock = mockApi();
     const user = userEvent.setup();
     render(<PlanPage />);
 
-    const input = await screen.findByLabelText("Monthly amount for Emergency Fund");
-    await user.type(input, "500.00");
+    const input = await screen.findByLabelText("Monthly amount for Rent");
+    await user.type(input, "150,5");
     await user.click(within(input.closest("tr") as HTMLElement).getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const put = fetchMock.mock.calls.find(
-        ([url, init]) => String(url) === "/api/savings/targets/st1" && init?.method === "PUT",
+        ([url, init]) => String(url) === "/api/budgets/c1" && init?.method === "PUT",
       );
-      expect(put).toBeDefined();
-      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ monthly_amount: "500.00" });
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ monthly_amount: "150.5" });
     });
   });
 
-  it("refuses an amount with three decimal places or a negative value before it reaches the server", async () => {
+  it("refuses an amount with three decimal places or a negative value, inside the budget card", async () => {
     const fetchMock = mockApi();
     const user = userEvent.setup();
     render(<PlanPage />);
 
     const input = await screen.findByLabelText("Monthly amount for Rent");
     const row = input.closest("tr") as HTMLElement;
+    const card = screen.getByRole("heading", { name: "Monthly budgets" }).closest("section");
 
     await user.type(input, "10.001");
     await user.click(within(row).getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("at most two decimal places");
+    expect(await within(card as HTMLElement).findByRole("alert")).toHaveTextContent(
+      "at most two decimal places",
+    );
 
     await user.clear(input);
     await user.type(input, "-5.00");
     await user.click(within(row).getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("at most two decimal places");
-
-    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(false);
-  });
-
-  it("shows the server's detail message when a delete is refused with 409", async () => {
-    mockApi({ deleteTypeStatus: 409, deleteTypeDetail: "That savings type still has contributions" });
-    const user = userEvent.setup();
-    render(<PlanPage />);
-
-    await screen.findByLabelText("Monthly amount for Emergency Fund");
-    await user.click(screen.getByRole("button", { name: "Delete Emergency Fund" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "That savings type still has contributions",
-    );
-  });
-
-  it("records a contribution typed with a decimal comma as a dotted amount", async () => {
-    const fetchMock = mockApi();
-    const user = userEvent.setup();
-    render(<PlanPage />);
-
-    await user.type(await screen.findByLabelText("Contribution amount"), "12,50");
-    const card = screen.getByRole("heading", { name: "Record a contribution" }).closest("section");
-    await user.click(within(card as HTMLElement).getByRole("button", { name: "Add" }));
-
-    await waitFor(() => {
-      const post = fetchMock.mock.calls.find(
-        ([url, init]) => String(url) === "/api/savings/contributions" && init?.method === "POST",
-      );
-      expect(post).toBeDefined();
-      expect(JSON.parse(String(post?.[1]?.body)).amount).toBe("12.50");
-    });
-  });
-
-  it("shows a refused contribution amount inside the contribution card, not above the page", async () => {
-    mockApi();
-    const user = userEvent.setup();
-    render(<PlanPage />);
-
-    await user.type(await screen.findByLabelText("Contribution amount"), "1,2,3");
-    const card = screen.getByRole("heading", { name: "Record a contribution" }).closest("section");
-    await user.click(within(card as HTMLElement).getByRole("button", { name: "Add" }));
-
     expect(await within(card as HTMLElement).findByRole("alert")).toHaveTextContent(
       "at most two decimal places",
     );
-    expect(screen.getAllByRole("alert")).toHaveLength(1);
+
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(false);
   });
 });

@@ -46,7 +46,7 @@ _TOTALS = text(
 
 _SAVED = text(
     """
-    SELECT COALESCE(SUM(amount), 0) AS saved
+    SELECT COALESCE(SUM(CASE WHEN kind = 'withdrawal' THEN -amount ELSE amount END), 0) AS saved
     FROM savings_contributions
     WHERE user_id = :uid
       AND (CAST(:start AS date) IS NULL OR occurred_on >= CAST(:start AS date))
@@ -89,7 +89,8 @@ _TARGET_VS_ACTUAL = text(
     LEFT JOIN savings_targets t
            ON t.user_id = s.user_id AND t.savings_type_id = s.id
     LEFT JOIN (
-        SELECT savings_type_id, SUM(amount) AS total
+        SELECT savings_type_id,
+               SUM(CASE WHEN kind = 'withdrawal' THEN -amount ELSE amount END) AS total
         FROM savings_contributions
         WHERE user_id = :uid AND occurred_on >= :start AND occurred_on < :end
         GROUP BY savings_type_id
@@ -121,7 +122,7 @@ _TRENDS = text(
     savings_totals AS (
         SELECT CAST((date_trunc('month', occurred_on - make_interval(days => :bucket_shift))
                      + make_interval(months => :bucket_bump)) AS date) AS m,
-               COALESCE(SUM(amount), 0) AS saved
+               COALESCE(SUM(CASE WHEN kind = 'withdrawal' THEN -amount ELSE amount END), 0) AS saved
         FROM savings_contributions
         WHERE user_id = :uid AND occurred_on >= :start AND occurred_on < :end
         GROUP BY 1

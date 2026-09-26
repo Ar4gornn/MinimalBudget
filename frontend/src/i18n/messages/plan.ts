@@ -7,21 +7,11 @@ export const plan = {
     en: "Could not load your plan.",
     fr: "Impossible de charger votre budget.",
   },
-  "plan.savingsTargets": {
-    en: "Monthly savings targets",
-    fr: "Objectifs d’épargne mensuels",
-  },
   "plan.noTypes": { en: "No savings types yet.", fr: "Aucune enveloppe d’épargne." },
-  "plan.colMonthlyTarget": {
-    en: "Monthly target ({symbol})",
-    fr: "Objectif mensuel ({symbol})",
-  },
   "plan.newType": { en: "New savings type", fr: "Nouvelle enveloppe" },
-  "plan.recordContribution": { en: "Record a contribution", fr: "Enregistrer un versement" },
   "plan.savingsType": { en: "Savings type", fr: "Enveloppe d’épargne" },
   "plan.contributionAmount": { en: "Contribution amount", fr: "Montant du versement" },
   "plan.contributionDate": { en: "Contribution date", fr: "Date du versement" },
-  "plan.nothingAside": { en: "Nothing put aside yet.", fr: "Rien mis de côté pour l’instant." },
   "plan.budgets": { en: "Monthly budgets", fr: "Budgets mensuels" },
   "plan.budgetsHint": {
     en: "Expense categories only — a budget on income would mean nothing.",
@@ -69,6 +59,71 @@ export const plan = {
   "plan.couldNotDeleteCategory": {
     en: "Could not delete that category.",
     fr: "Impossible de supprimer cette catégorie.",
+  },
+
+  // --- savings pots (Epic 34, AD-50)
+  "pots.title": { en: "Savings", fr: "Épargne" },
+  "pots.balance": { en: "Balance {amount}", fr: "Solde {amount}" },
+  "pots.thisMonth": {
+    en: "{saved} of {target} this month",
+    fr: "{saved} sur {target} ce mois-ci",
+  },
+  "pots.savedThisMonth": { en: "{saved} this month", fr: "{saved} ce mois-ci" },
+  "pots.progressFor": { en: "{name} this month", fr: "{name} ce mois-ci" },
+  "pots.goalBy": { en: "Goal {amount} by {date}", fr: "Objectif {amount} d’ici le {date}" },
+  "pots.goal": { en: "Goal {amount}", fr: "Objectif {amount}" },
+  "pots.goalFor": { en: "{name} goal", fr: "Objectif {name}" },
+  "pots.needed": {
+    en: "{amount} a month to get there",
+    fr: "{amount} par mois pour y arriver",
+  },
+  "pots.goalReached": { en: "Goal reached", fr: "Objectif atteint" },
+  "pots.due": { en: "Due {amount}", fr: "À verser {amount}" },
+  "pots.dueAmountFor": {
+    en: "Amount to put aside for {name}",
+    fr: "Montant à mettre de côté pour {name}",
+  },
+  "pots.confirm": { en: "Put aside", fr: "Mettre de côté" },
+  "pots.confirmFor": { en: "Put aside for {name}", fr: "Mettre de côté pour {name}" },
+  "pots.skipFor": { en: "Skip {name} this month", fr: "Passer {name} ce mois-ci" },
+  "pots.skippedNote": { en: "Skipped this month", fr: "Passé ce mois-ci" },
+  "pots.unskip": { en: "Undo", fr: "Annuler" },
+  "pots.unskipFor": {
+    en: "Propose {name} again this month",
+    fr: "Proposer à nouveau {name} ce mois-ci",
+  },
+  "pots.putAside": { en: "{amount} put aside", fr: "{amount} mis de côté" },
+  "pots.edit": { en: "Edit", fr: "Modifier" },
+  "pots.editFor": { en: "Edit {name}", fr: "Modifier {name}" },
+  "pots.close": { en: "Close", fr: "Fermer" },
+  "pots.monthlyTarget": { en: "Monthly target", fr: "Objectif mensuel" },
+  "pots.goalAmount": { en: "Goal amount", fr: "Montant visé" },
+  "pots.goalDate": { en: "Goal date", fr: "Date visée" },
+  "pots.goalHint": {
+    en: "Leave the goal empty for none. A date needs an amount.",
+    fr: "Laissez l’objectif vide pour n’en fixer aucun. Une date a besoin d’un montant.",
+  },
+  "pots.saved": { en: "Saved", fr: "Enregistré" },
+  "pots.record": { en: "Put in or take out", fr: "Verser ou retirer" },
+  "pots.kind": { en: "Deposit or withdrawal", fr: "Versement ou retrait" },
+  "pots.deposit": { en: "Deposit", fr: "Versement" },
+  "pots.withdrawal": { en: "Withdrawal", fr: "Retrait" },
+  "pots.colMove": { en: "Move", fr: "Mouvement" },
+  "pots.nothingMoved": {
+    en: "Nothing moved in {month}.",
+    fr: "Aucun mouvement en {month}.",
+  },
+  "pots.couldNotLoad": {
+    en: "Could not load your savings.",
+    fr: "Impossible de charger votre épargne.",
+  },
+  "pots.couldNotSave": {
+    en: "Could not save that pot.",
+    fr: "Impossible d’enregistrer cette enveloppe.",
+  },
+  "pots.couldNotSkip": {
+    en: "Could not change that month.",
+    fr: "Impossible de modifier ce mois.",
   },
 
   // --- recurring

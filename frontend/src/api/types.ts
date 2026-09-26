@@ -124,12 +124,19 @@ export interface Entry {
 export interface SavingsType {
   id: string;
   name: string;
+  goal_amount?: Money | null;
+  goal_date?: string | null;
   created_at: string;
 }
+
+/** AD-50: the amount is always positive; the direction is the kind. */
+export type MovementKind = "deposit" | "withdrawal";
 
 export interface Contribution {
   id: string;
   savings_type_id: string;
+  /** Absent from servers older than Epic 34, where every row is a deposit. */
+  kind?: MovementKind;
   amount: Money;
   occurred_on: string;
   note: string | null;
@@ -140,6 +147,31 @@ export interface Budget {
   category_id: string;
   monthly_amount: Money;
   updated_at: string;
+}
+
+/** One savings pot seen from one budget month (Epic 34, AD-50). */
+export interface Pot {
+  savings_type_id: string;
+  name: string;
+  balance: Money;
+  /** Net saved in the month; negative when more came out than went in. */
+  saved: Money;
+  target: Money | null;
+  /** What is left of the target; null when none, met, or skipped. */
+  due: Money | null;
+  skipped: boolean;
+  goal_amount: Money | null;
+  goal_date: string | null;
+  needed_per_month: Money | null;
+}
+
+export interface SavingsOverview {
+  month: string;
+  /** `[start, end)` of the budget month. */
+  start: string;
+  end: string;
+  current_month: string;
+  pots: Pot[];
 }
 
 export interface Target {

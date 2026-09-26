@@ -17,7 +17,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPO_ROOT / "backend"
-TEST_DB = "everything_everywhere_test"
+# Overridable so two worktrees can run the suite at once: the session fixture drops and
+# recreates this database WITH (FORCE), so a shared name kills the other run mid-flight.
+TEST_DB = os.environ.get("EE_TEST_DB", "everything_everywhere_test")
 
 
 def _read_dotenv() -> dict[str, str]:

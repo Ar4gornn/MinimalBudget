@@ -2447,3 +2447,40 @@ synced yet"
 **And** both languages fit at 320 and 375 without horizontal scroll
 **And** the Mood shortcut (`/?mood=1`) opens the day's mood popover on the Dashboard and
 leaves the address clean
+
+## Epic 34: Savings pots — withdrawals, balances, goals, and what is due
+
+Started from a bug report on 2026-09-26: "I can't add savings in new months". The API took
+contributions in any month; the Plan page refused `100,00` (a French keyboard's decimal) and
+said so in a banner at the top of the page, above the fold, so the Add button looked dead.
+Fixed first on its own branch (`fix/money-comma-inline-error`): every money field reads a
+single decimal comma as a dot, and Plan's errors render in the card that failed.
+
+Scoped in the same interview, options and rejections in `LOG.md`: **proposed** monthly
+contributions with confirm / edit / skip (not auto-recorded by a cron), following the
+account's **budget month** (Epic 20), not the calendar; a **running balance** per pot;
+**withdrawals**; an optional **goal amount and date** with what it needs per month; and a
+**month view** with a switcher. AD-50 holds the rules.
+
+**Explicitly out:** recording a target automatically; interest on a pot (Grow projects it);
+transfers between pots as one move (a withdrawal and a deposit do it); push reminders for
+what is due; editing a past skip beyond undoing it.
+
+### Story 34.1: Withdrawals, and a balance that cannot go below zero
+
+- `kind` on contributions (`deposit` default), CHECK on the known values.
+- A write that would leave any touched pot negative is `409 savings_balance_negative`, under a
+  row lock on the pot. Deleting a deposit a withdrawal relies on is refused the same way.
+- The dashboard, trends, export and calendar treat a withdrawal as money out.
+
+### Story 34.2: The month view and what is due
+
+- `GET /api/savings/overview?month=` — per pot: balance, net saved in the budget month,
+  target, due, skipped. `PUT`/`DELETE /api/savings/skips/{type}/{month}`.
+- The Plan page's savings card: ← month →, never past the current month; "Put aside" with an
+  editable amount, "Skip", "Undo".
+
+### Story 34.3: Goals
+
+- `PATCH /api/savings/types/{id}`: rename, set or clear `goal_amount` / `goal_date`.
+- `needed_per_month`, rounded up, from the current budget month through the goal's.

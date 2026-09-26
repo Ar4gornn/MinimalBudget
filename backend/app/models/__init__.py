@@ -32,7 +32,7 @@ from app.models.recipes import (
     RecipeUnit,
 )
 from app.models.recurring import Cadence, OccurrenceStatus, RecurringOccurrence, RecurringTemplate
-from app.models.savings import SavingsContribution, SavingsTarget, SavingsType
+from app.models.savings import SavingsContribution, SavingsSkip, SavingsTarget, SavingsType
 from app.models.user import User
 
 __all__ = [
@@ -64,6 +64,7 @@ __all__ = [
     "MoodDay",
     "Note",
     "SavingsContribution",
+    "SavingsSkip",
     "SavingsTarget",
     "SavingsType",
     "Food",

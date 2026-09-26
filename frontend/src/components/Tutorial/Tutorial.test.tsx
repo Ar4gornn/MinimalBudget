@@ -87,6 +87,15 @@ function mockApi(me: Profile, tutorialWrites: "ok" | "fail" = "ok") {
     if (url.includes("/api/auth/me")) return json(current);
     if (url.includes("/api/dashboard/summary")) return json(summary);
     if (url.includes("/api/dashboard/trends")) return json(trends);
+    if (url.includes("/api/savings/overview")) {
+      return json({
+        month: "2026-09",
+        start: "2026-09-01",
+        end: "2026-10-01",
+        current_month: "2026-09",
+        pots: [],
+      });
+    }
     if (url.includes("/api/categories")) return json({ items: categories });
     if (url.includes("/api/entries") && method === "POST") {
       entries.push(entry);

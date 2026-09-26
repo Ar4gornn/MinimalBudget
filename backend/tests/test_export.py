@@ -135,8 +135,9 @@ def test_savings_and_inventory_export_too(client, user_a):
     )
 
     savings = _rows(_csv(client, user_a, "savings"))
-    assert savings[0] == ["date", "savings_type", "amount", "note"]
-    assert savings[1][2] == "400.00"
+    # AD-50: the kind sits before the amount, which stays positive either way.
+    assert savings[0] == ["date", "savings_type", "kind", "amount", "note"]
+    assert savings[1][2:4] == ["deposit", "400.00"]
 
     inventory = _rows(_csv(client, user_a, "inventory"))
     assert inventory[0] == [

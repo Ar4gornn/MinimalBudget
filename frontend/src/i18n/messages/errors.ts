@@ -102,6 +102,18 @@ export const errors = {
     en: "That savings pot still has contributions.",
     fr: "Cette enveloppe d’épargne contient encore des versements.",
   },
+  "error.savings_balance_negative": {
+    en: "That would take more out of the pot than there is in it.",
+    fr: "Cela retirerait de l’enveloppe plus qu’elle ne contient.",
+  },
+  "error.savings_type_name_taken": {
+    en: "Another savings pot already has that name.",
+    fr: "Une autre enveloppe porte déjà ce nom.",
+  },
+  "error.savings_goal_date_needs_amount": {
+    en: "A goal date needs a goal amount.",
+    fr: "Une date visée a besoin d’un montant visé.",
+  },
 
   // --- the inventory
   "error.space_name_taken": {
