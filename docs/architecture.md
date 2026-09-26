@@ -898,6 +898,40 @@ security-definer function
   both are the latest thing the person wrote, and neither is merged. The shortcuts in the
   manifest are English only: a manifest has no per-account language.
 
+### AD-49 — Layout preferences live on the account, sparse, one slot per layout
+
+- **Binds:** `users.preferences`, `services/preferences.py`, `PATCH /api/auth/me/preferences`,
+  every reader of `UserOut`, and later the push digest (`notify.py`) and the client's layout
+- **Extends:** AD-19 (a named-column grant), AD-24 (the second-user proof), AD-44 (refusals
+  carry a code).
+- **Prevents:** three failures.
+
+  **A layout that has to be set again on every browser.** Which modules are on, the order and
+  slot of the sections, and which dashboard cards show are about the person, not the screen,
+  so they are on the account. They still differ by screen size, so the account holds two
+  layouts, `phone` and `desktop`, chosen by the same 720px breakpoint the CSS uses. Colour and
+  theme stay per device: they must apply before the first paint, before `/me` answers.
+
+  **A migration for every new card.** The column is sparse — `{}` is "all defaults" — and
+  `resolve()` fills the gaps on every read: stored ids that no longer exist are dropped, and
+  missing ones are inserted after their nearest default predecessor. A card added by a later
+  epic reaches everyone with no data change, and lands next to its neighbour wherever the
+  person moved it.
+
+  **Two saves that undo each other.** `PATCH` replaces only the top-level keys it carries
+  (`modules`, `phone`, `desktop`) and does so in one `preferences || :patch`, not a
+  read-modify-write, so a phone saving its layout cannot revert a module switched off from a
+  laptop a moment earlier.
+
+- **Rule:** the stored value is what the client sent, validated against the catalogue in
+  `services/preferences.py` (unknown id, duplicate, core module, incomplete tab list, the
+  phone's 5/3 caps — each a 422 with its own code) before anything is written. Booleans are
+  strict: `"off"` is a 422, not `false`. The response is always resolved. The only CHECK is
+  that the column holds an object; the catalogue changes with every epic and does not belong
+  in the schema.
+- **Consequence:** turning a module off hides its UI only; its data, endpoints and export are
+  untouched. Rotating a tablet across 720px switches layouts.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -1066,6 +1100,7 @@ Everything Everywhere/
 | Books — the shelf, its series, reading now | `api/books.py`, `services/books.py`, `models/books.py`, `frontend/src/pages/BooksPage.tsx` | AD-46, AD-35, AD-12, AD-18, AD-31, AD-37, AD-24 |
 | Book quotes — lines under a book, one drawn for the dashboard | `api/books.py`, `services/books.py`, migration 0023, `frontend/src/components/BookQuotes.tsx`, `QuoteCard.tsx` | AD-47, AD-18, AD-30, AD-37, AD-24 |
 | Notes — text or a sketch, drafts on the device, shortcuts | `api/notes.py`, `services/notes.py`, migration 0024, `frontend/src/notes/`, `NotesPage.tsx`, `NotePage.tsx`, `public/manifest.webmanifest` | AD-48, AD-8, AD-30, AD-31, AD-24 |
+| Preferences — modules, tab order, dashboard cards, per layout | `services/preferences.py`, `api/auth.py`, migration 0025 | AD-49, AD-19, AD-24, AD-44 |
 | Test strategy | `backend/tests/` | AD-24 |
 
 ## Deferred

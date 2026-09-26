@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictBool, field_validator
 
 from app.core.months import MAX_START_DAY
 
@@ -42,6 +42,62 @@ class RegistrationRequest(Credentials):
     language: Language = "en"
 
 
+# Epic 33 (AD-49). Ids are plain strings rather than Literals on purpose: an unknown one is
+# refused by `services/preferences` with `pref_unknown_id`, which the client can word,
+# instead of a pydantic 422 it cannot. The lengths bound the stored value to a few KB.
+_PrefId = Field(min_length=1, max_length=32)
+
+
+class Tab(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = _PrefId
+    #: "bar" is the bottom tab bar on a phone and the main nav on a desktop; "top" is the
+    #: smaller row beside it (Plan, Grow, Recipes by default).
+    slot: Literal["bar", "top"]
+
+
+class Card(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = _PrefId
+    # Strict: in lax mode pydantic reads "off" as False and "yes" as True, so a typo would
+    # hide a card instead of being refused.
+    on: StrictBool
+
+
+class LayoutIn(BaseModel):
+    """One layout's subtree. A key left out is the default, so it is stored left out."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tabs: list[Tab] | None = Field(default=None, max_length=32)
+    cards: list[Card] | None = Field(default=None, max_length=32)
+
+
+class PreferencesUpdate(BaseModel):
+    """Each top-level key present replaces that subtree; absent keys are untouched."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    modules: dict[str, StrictBool] | None = Field(default=None, max_length=32)
+    phone: LayoutIn | None = None
+    desktop: LayoutIn | None = None
+
+
+class LayoutOut(BaseModel):
+    tabs: list[Tab]
+    cards: list[Card]
+
+
+class PreferencesOut(BaseModel):
+    """Always resolved: every module, section and card, defaults filled in."""
+
+    modules: dict[str, bool]
+    phone: LayoutOut
+    desktop: LayoutOut
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -58,6 +114,7 @@ class UserOut(BaseModel):
     # migration 0022.
     tutorial_completed: bool
     tutorial_skipped_at: datetime | None
+    preferences: PreferencesOut
 
 
 class TokenOut(BaseModel):

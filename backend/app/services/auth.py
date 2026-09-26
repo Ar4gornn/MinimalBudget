@@ -21,6 +21,7 @@ from app.core.errors import NotFound
 from app.core.security import hash_password, verify_password
 from app.models.savings import DEFAULT_SAVINGS_TYPES, SavingsType
 from app.models.user import User
+from app.services import preferences as preferences_service
 
 
 class EmailAlreadyRegistered(Exception):
@@ -45,6 +46,7 @@ class UserRow:
         created_at: datetime,
         tutorial_completed: bool,
         tutorial_skipped_at: datetime | None,
+        preferences: object,
     ) -> None:
         self.id = id
         self.email = email
@@ -55,6 +57,8 @@ class UserRow:
         self.created_at = created_at
         self.tutorial_completed = tutorial_completed
         self.tutorial_skipped_at = tutorial_skipped_at
+        # Resolved here, so every response that carries a user carries it complete.
+        self.preferences = preferences_service.resolve(preferences)
 
 
 def _read_user(session: Session, user_id: uuid.UUID) -> UserRow | None:
@@ -69,6 +73,7 @@ def _read_user(session: Session, user_id: uuid.UUID) -> UserRow | None:
             User.created_at,
             User.tutorial_completed,
             User.tutorial_skipped_at,
+            User.preferences,
         ).where(User.id == user_id)
     ).one_or_none()
     return None if row is None else UserRow(*row)
@@ -263,6 +268,19 @@ def set_currency(session: Session, user_id: uuid.UUID, currency: str) -> UserRow
 
     session.execute(update(User).where(User.id == user_id).values(currency=currency))
     session.flush()
+    updated = _read_user(session, user_id)
+    if updated is None:  # pragma: no cover
+        raise NotFound("No such account")
+    return updated
+
+
+def set_preferences(session: Session, user_id: uuid.UUID, patch: dict) -> UserRow:
+    """Epic 33 (AD-49): replace the top-level keys the patch carries. Never locked — a
+    layout moves what is drawn where, never what anything means."""
+    current = _read_user(session, user_id)
+    if current is None:
+        raise NotFound("No such account")
+    preferences_service.update_preferences(session, user_id, patch)
     updated = _read_user(session, user_id)
     if updated is None:  # pragma: no cover
         raise NotFound("No such account")
