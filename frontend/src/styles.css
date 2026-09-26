@@ -1152,6 +1152,14 @@ tr.muted td {
   margin: -4px 0 0;
 }
 
+/* Two columns wide: the month input plus a button either side does not fit the 160px floor,
+   and squeezing the input truncates the month name it exists to show. Bottom-aligned so
+   the arrows sit level with the input rather than with the caption above it. */
+.filters .month-filter {
+  grid-column: span 2;
+  align-items: end;
+}
+
 /* ------------------------------------------------------------------------ *
  * Calendar (Epic 22) and habits (Epic 23)
  * ------------------------------------------------------------------------ */

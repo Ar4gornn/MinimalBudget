@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { shiftMonth } from "../months";
 import { EntriesPage } from "./EntriesPage";
 
 // The page links to category detail and reads ?add=1, so it needs a router.
@@ -379,6 +380,43 @@ describe("quantity and unit price (AD-29)", () => {
         .filter((url) => url.includes("/api/entries?") && url.includes("q="));
       expect(asked.at(-1)).toContain("q=diesel");
     });
+  });
+
+  it("steps to the previous and next month with the arrows, and asks the server for it", async () => {
+    const fetchMock = mockApi();
+    const user = userEvent.setup();
+    render(<EntriesPage />);
+    await screen.findByRole("table", { name: "Entries" });
+
+    const month = screen.getByLabelText("Filter by month") as HTMLInputElement;
+    const start = month.value;
+    const asked = () =>
+      fetchMock.mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.includes("/api/entries?"))
+        .at(-1);
+
+    await user.click(screen.getByRole("button", { name: "Previous month" }));
+    await user.click(screen.getByRole("button", { name: "Previous month" }));
+    const twoBack = shiftMonth(start, -2);
+    expect(month).toHaveValue(twoBack);
+    await waitFor(() => expect(asked()).toContain(`month=${twoBack}`));
+
+    await user.click(screen.getByRole("button", { name: "Next month" }));
+    expect(month).toHaveValue(shiftMonth(start, -1));
+  });
+
+  it("steps from the current month when the month box was cleared", async () => {
+    mockApi();
+    const user = userEvent.setup();
+    render(<EntriesPage />);
+    await screen.findByRole("table", { name: "Entries" });
+
+    const month = screen.getByLabelText("Filter by month") as HTMLInputElement;
+    const start = month.value;
+    await user.clear(month);
+    await user.click(screen.getByRole("button", { name: "Previous month" }));
+    expect(month).toHaveValue(shiftMonth(start, -1));
   });
 
   it("sends the vendor by name, creating it, and omits it when blank", async () => {

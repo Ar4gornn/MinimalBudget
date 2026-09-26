@@ -35,7 +35,7 @@ import type { MessageKey } from "../i18n/catalogue";
 import { errorMessage } from "../i18n/errors";
 import { useLoad } from "../useLoad";
 import { useDates } from "../useDates";
-import { budgetMonth, todayIso } from "../months";
+import { budgetMonth, shiftMonth, todayIso } from "../months";
 
 const NOTHING = { entries: [] as Entry[], categories: [] as Category[], vendors: [] as Vendor[] };
 
@@ -515,15 +515,37 @@ export function EntriesPage() {
               <option value="income">{t("kind.income")}</option>
             </select>
           </label>
-          <label>
-            {t("field.month")}
-            <input
-              type="month"
-              aria-label={t("entries.filterMonth")}
-              value={monthFilter}
-              onChange={(event) => setMonthFilter(event.target.value)}
-            />
-          </label>
+          {/* One tap per month, as on the dashboard: the native picker is a dropdown on some
+              browsers and a bare text box on others, which left earlier months hard to reach.
+              The buttons sit outside the <label> — inside it, a click on the word "Month"
+              would activate the first button. A cleared month steps from the current one. */}
+          <div className="month-nav month-filter">
+            <button
+              type="button"
+              className="quiet"
+              aria-label={t("month.previous")}
+              onClick={() => setMonthFilter((m) => shiftMonth(m || budgetMonth(startDay), -1))}
+            >
+              ←
+            </button>
+            <label>
+              {t("field.month")}
+              <input
+                type="month"
+                aria-label={t("entries.filterMonth")}
+                value={monthFilter}
+                onChange={(event) => setMonthFilter(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="quiet"
+              aria-label={t("month.next")}
+              onClick={() => setMonthFilter((m) => shiftMonth(m || budgetMonth(startDay), 1))}
+            >
+              →
+            </button>
+          </div>
           <label>
             {t("field.category")}
             <select
