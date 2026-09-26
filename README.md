@@ -124,6 +124,20 @@ Then open <http://localhost:5173>. If you seeded, sign in as `demo@example.com` 
 
 On macOS or Linux the venv binary is `.venv/bin/python` rather than `.venv/Scripts/python.exe`.
 
+### One command (Windows)
+
+Once `.env`, the backend venv and `frontend/node_modules` exist, `dev.ps1` does the rest: it
+starts Postgres and waits for it to be healthy, runs the migrations, then opens the API
+(`:8000`, with `--reload`) and the client (`:5173`) in two new PowerShell windows:
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\dev.ps1
+```
+
+Pass `-SkipMigrate` to skip `alembic upgrade head`. It refuses to start if port 8000 or 5173 is
+already taken. Closing the windows stops the API and the client; Postgres keeps running until
+`docker compose stop db`.
+
 ---
 
 ## Tests
