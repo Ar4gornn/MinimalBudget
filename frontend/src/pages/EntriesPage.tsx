@@ -627,7 +627,7 @@ export function EntriesPage() {
                       <td
                         data-label={t("entries.kind")}
                         style={{
-                          color: entry.kind === "income" ? "var(--accent)" : "var(--spend)",
+                          color: entry.kind === "income" ? "var(--accent-ink)" : "var(--spend-ink)",
                         }}
                       >
                         {t(`kind.${entry.kind}` as MessageKey)}
@@ -716,7 +716,7 @@ export function EntriesPage() {
                       <td
                         data-label={t("entries.kind")}
                         style={{
-                          color: entry.kind === "income" ? "var(--accent)" : "var(--spend)",
+                          color: entry.kind === "income" ? "var(--accent-ink)" : "var(--spend-ink)",
                         }}
                       >
                         {t(`kind.${entry.kind}` as MessageKey)}

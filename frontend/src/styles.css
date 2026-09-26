@@ -1,57 +1,163 @@
-/* Muted, numbers-first. No gradients, no shadows doing decorative work, no colour that
-   is not carrying information. Two accents only: one for money in, one for money out. */
+/* Minimalist. Numbers first, one blue for what you can press, navy for structure, and
+   colour elsewhere only where it carries information: green for money in, red for money
+   out, orange for a warning and nothing else.
+
+   Every brand hue exists twice. The hue itself is a *fill* — a button, a bar, a dot, a
+   ring — and an *ink* shade, darker in light mode, is what text is drawn in. The palette's
+   blue, green and orange are all under 3:1 as text on white (2.85, 3.01, 2.33), so text in
+   the brand colour would fail WCAG AA everywhere it appeared. Ratios in the comments are
+   against the surface the token is drawn on; the script that produced them is in the
+   commit that introduced this file. */
 
 :root {
-  --bg: #f7f7f5;
+  color-scheme: light;
+
+  /* ---- palette */
+  --blue: #00a1f1;
+  --navy-500: #005376;
+  --navy-700: #003348;
+  --navy-900: #001f2b;
+  --green: #3ca94e;
+  --orange: #ff8c19;
+  --red: #ff302e;
+  --gray-900: #303030;
+  --gray-700: #555555;
+  --gray-400: #acacac;
+  --gray-200: #dcdcdc;
+  --gray-100: #f2f2f2;
+
+  /* ---- surfaces and text */
+  --bg: var(--gray-100);
   --surface: #ffffff;
-  --border: #e2e1dd;
-  --border-strong: #cdcbc5;
-  --text: #1c1c1a;
-  --muted: #6b6a65;
-  --faint: #94938d;
-  --accent: #2f6f5e;
-  --accent-soft: #e4efeb;
-  --spend: #9a4b3f;
-  --spend-soft: #f4e6e3;
-  --warn-bg: #fdf1ed;
-  --focus: #2f6f5e;
-  --accent-2: #3f6ea8;
-  --accent-2-soft: #e4ebf3;
+  --field-bg: #ffffff;
+  --border: var(--gray-200);
+  --border-strong: var(--gray-400);
+  --text: var(--gray-900); /* 13.2:1 */
+  --muted: var(--gray-700); /* 6.7:1 on bg */
+  /* The one gray not in the palette. #ACACAC is 2.27:1 on white, too faint for the empty
+     states and table headers that use this token; #767676 is the lightest gray at 4.5. */
+  --faint: #767676;
+
+  /* ---- actions */
+  --primary: var(--blue);
+  --primary-hover: #008fd6;
+  --on-primary: var(--navy-900); /* 5.99:1 — white on this blue is 2.85 */
+  --primary-soft: #e0f4fd;
+  --secondary: var(--navy-500);
+  --secondary-hover: var(--navy-700);
+  --on-secondary: #ffffff; /* 8.4:1 */
+  --link: var(--navy-500); /* 8.4:1 */
+  --focus: var(--navy-500);
+  --disabled-bg: var(--gray-200);
+  --disabled-fg: #767676;
+  --field-disabled-bg: var(--gray-100);
+
+  /* ---- meaning. Fill, then the ink that text uses. */
+  --accent: var(--green); /* money in, a goal met */
+  --accent-ink: #267a35; /* 5.36:1 */
+  --accent-soft: #e5f4e7;
+  --spend: var(--red); /* money out, an error */
+  --spend-ink: #d11f1d; /* 5.35:1 */
+  --spend-soft: #ffe9e8;
+  --warning: var(--orange);
+  --warning-ink: #b35a00; /* 4.8:1 */
+  --warning-soft: #fff1e3;
+  --accent-2: var(--blue); /* the second series: scenario B, stock */
+  --accent-2-ink: var(--navy-500);
+  --accent-2-soft: var(--primary-soft);
+
+  --toast-bg: var(--navy-900);
+  --toast-fg: #ffffff;
+  --toast-error-bg: var(--spend-ink); /* white on it is 5.35:1; on #FF302E it is 3.68 */
+  --toast-error-fg: #ffffff;
+
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23555555' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
   /* The five points of the mood scale (Epic 24). Named tokens rather than five literals
      scattered through a chart and a control, so the faces and the strip cannot drift
      apart — and so the dark theme moves them together. Colour is never the only channel:
-     every face carries its word and its own mouth curve. */
+     every face carries its word and its own mouth curve. Chart colours are outside the
+     Minimalist reskin, so these keep their values. */
   --mood-1: #9a4b3f;
   --mood-2: #b8776a;
   --mood-3: #94938d;
   --mood-4: #5b9282;
   --mood-5: #2f6f5e;
 
-  --radius: 8px;
-  --gap: 16px;
+  /* ---- type: Lato, bundled (main.tsx), on a 1.333 scale from 16px */
+  --fs-display: 50px;
+  --fs-h1: 38px;
+  --fs-h2: 28px;
+  --fs-h3: 21px;
+  --fs-body: 16px;
+  --fs-small: 12px;
+  --fs-tip: 14px;
+  --sans: "Lato", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace;
-  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
-    sans-serif;
+
+  /* ---- space: an 8-point grid, with 4 for the tight spots */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 64px;
+  --gap: var(--space-3);
+
+  /* ---- shape */
+  --radius-sm: 4px; /* inputs */
+  --radius: 6px; /* cards, panels */
+  --pill: 999px; /* buttons, chips, toasts */
 }
 
+/* Dark: navy surfaces rather than gray ones, and every fill brightened until it clears
+   4.5:1 as text on the card surface (#003348). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #16161a;
-    --surface: #1e1e23;
-    --border: #2e2e35;
-    --border-strong: #3d3d46;
-    --text: #eceae5;
-    --muted: #a3a19b;
-    --faint: #7b7a74;
-    --accent: #6fbfa5;
-    --accent-soft: #1e3029;
-    --spend: #d59084;
-    --spend-soft: #33221f;
-    --warn-bg: #33221f;
-    --focus: #6fbfa5;
-    --accent-2: #7fb3e8;
-    --accent-2-soft: #1d2735;
+    color-scheme: dark;
+
+    --bg: var(--navy-900);
+    --surface: var(--navy-700);
+    --field-bg: var(--navy-900);
+    --border: #0b4a63;
+    --border-strong: #2e7593;
+    --text: var(--gray-100); /* 12:1 on surface */
+    --muted: var(--gray-400); /* 5.9:1 */
+    --faint: #8fa3ad; /* 5.1:1 */
+
+    --primary: #4dc3ff; /* 6.7:1 as text on surface */
+    --primary-hover: #7ad3ff;
+    --on-primary: var(--navy-900); /* 8.6:1 */
+    --primary-soft: #0b4a63;
+    --secondary: #0b4a63;
+    --secondary-hover: #125a78;
+    --on-secondary: #ffffff; /* 9.7:1 */
+    --link: #4dc3ff;
+    --focus: #4dc3ff;
+    --disabled-bg: #0b4a63;
+    --disabled-fg: #8fa3ad;
+    --field-disabled-bg: var(--navy-700);
+
+    --accent: #5ccb6d; /* 6.5:1 */
+    --accent-ink: #5ccb6d;
+    --accent-soft: #123f2a;
+    --spend: #ff7a78; /* 5.3:1 */
+    --spend-ink: #ff7a78;
+    --spend-soft: #45222b;
+    --warning: var(--orange); /* 5.75:1 */
+    --warning-ink: var(--orange);
+    --warning-soft: #3d3222;
+    --accent-2: #4dc3ff;
+    --accent-2-ink: #4dc3ff;
+    --accent-2-soft: #0b4a63;
+
+    --toast-bg: var(--gray-100);
+    --toast-fg: var(--navy-900);
+    --toast-error-bg: #ff7a78;
+    --toast-error-fg: var(--navy-900);
+
+    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23acacac' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
     --mood-1: #d59084;
     --mood-2: #bf8175;
@@ -70,13 +176,19 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: var(--fs-body);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
 a {
-  color: var(--accent);
+  color: var(--link);
+}
+
+h1 {
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 /* ---------------------------------------------------------------- layout */
@@ -104,15 +216,15 @@ a {
 }
 
 .brand {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: var(--fs-h3);
+  font-weight: 700;
+  color: var(--secondary);
   margin: 0;
 }
 
 .nav {
   display: flex;
-  gap: 4px;
+  gap: var(--space-1);
   flex-wrap: wrap;
 }
 
@@ -120,37 +232,37 @@ a {
    did not fit the bottom bar, so hiding them too would strand them. */
 .nav-extra {
   display: flex;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .nav a,
 .nav-extra a {
-  padding: 5px 10px;
-  border-radius: var(--radius);
+  padding: var(--space-1) 12px;
+  border-radius: var(--pill);
+  border: 1px solid transparent;
   color: var(--muted);
   text-decoration: none;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .nav a:hover,
 .nav-extra a:hover {
-  background: var(--surface);
   color: var(--text);
+  background: var(--surface);
 }
 
 .nav a[aria-current="page"],
 .nav-extra a[aria-current="page"] {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  font-weight: 500;
+  background: var(--primary-soft);
+  color: var(--link);
+  font-weight: 700;
 }
 
 .identity {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--muted);
   /* The pill takes whatever the row has left and sits at its right edge — `flex: 1 1 0`
      rather than a `margin-left: auto` on .nav-extra. Flex line-breaking uses an item's
@@ -178,9 +290,9 @@ a {
   gap: 6px;
   color: inherit;
   text-decoration: none;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--pill);
   /* The pill shrinks with its row, and stops at a tap target: the email may vanish, the
      way into Settings may not. Without this the pill kept its content width and overflowed
      leftwards over the last nav link. */
@@ -202,11 +314,12 @@ a {
   color: inherit;
   background: none;
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   padding: 2px 4px;
   margin-left: -4px;
   width: 100%;
   max-width: 22ch;
+  height: auto;
 }
 
 .title-input:hover {
@@ -214,8 +327,8 @@ a {
 }
 
 .title-input:focus {
-  border-color: var(--border-strong);
-  background: var(--surface);
+  border-color: var(--primary);
+  background: var(--field-bg);
   outline: none;
 }
 
@@ -238,7 +351,7 @@ a {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: var(--space-3);
 }
 
 .card + .card {
@@ -255,36 +368,36 @@ a {
 .card h2,
 .card h3 {
   margin: 0 0 12px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
 .stat .label {
-  font-size: 12px;
-  letter-spacing: 0.04em;
+  font-size: var(--fs-small);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
 .stat .value {
   font-family: var(--mono);
-  font-size: 26px;
+  font-size: var(--fs-h2);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   margin-top: 6px;
 }
 
 .value.in {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 .value.out {
-  color: var(--spend);
+  color: var(--spend-ink);
 }
 .value.negative {
-  color: var(--spend);
+  color: var(--spend-ink);
 }
 
 /* ---------------------------------------------------------------- tables */
@@ -296,23 +409,23 @@ a {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 th,
 td {
-  padding: 8px 10px;
+  padding: var(--space-2) 10px;
   text-align: left;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 
 th {
-  font-size: 11px;
-  letter-spacing: 0.05em;
+  font-size: var(--fs-small);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--faint);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 tbody tr:last-child td {
@@ -333,7 +446,7 @@ td.wrap {
 
 .empty {
   color: var(--faint);
-  font-size: 14px;
+  font-size: var(--fs-body);
   padding: 12px 0;
 }
 
@@ -353,9 +466,9 @@ form.stack {
 
 label {
   display: grid;
-  gap: 4px;
-  font-size: 12px;
-  letter-spacing: 0.03em;
+  gap: var(--space-1);
+  font-size: var(--fs-small);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
   min-width: 0;
@@ -363,39 +476,78 @@ label {
 
 input,
 select,
-button {
+button,
+textarea {
   font: inherit;
   color: inherit;
 }
 
+/* Text, number, date, month, time, search, email, password — and select, which shares the
+   skin. 16px text, which is also the size below which iOS zooms the page on focus. */
 input,
 select {
-  background: var(--bg);
+  background: var(--field-bg);
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) 12px;
   min-width: 0;
   width: 100%;
+  font-size: var(--fs-body);
   /* One height for both. A date input carries a native picker glyph that makes it a couple
      of pixels taller than a select, which is invisible on its own and obvious the moment
      the two sit side by side in a filter row. */
   box-sizing: border-box;
-  height: 36px;
+  height: 40px;
   line-height: 1.2;
 }
 
-input[type="checkbox"] {
-  height: auto;
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--field-disabled-bg);
+  border-style: dashed;
+  color: var(--disabled-fg);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--faint);
+}
+
+/* The native arrow differs per platform and ignores the theme; one drawn chevron does not. */
+select {
+  appearance: none;
+  background-image: var(--select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 34px;
+}
+
+/* The date family keeps its native picker, recoloured by `color-scheme` above. */
+input[type="date"],
+input[type="month"],
+input[type="time"] {
+  font-variant-numeric: tabular-nums;
 }
 
 /* The one multi-line control (a quote, Epic 31): the same skin as an input, its own height. */
 textarea {
-  font: inherit;
-  color: inherit;
-  background: var(--bg);
+  background: var(--field-bg);
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) 12px;
   width: 100%;
   min-width: 0;
   min-height: 72px;
@@ -406,9 +558,11 @@ textarea {
 
 input:focus-visible,
 select:focus-visible,
-button:focus-visible {
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 input.num {
@@ -416,56 +570,186 @@ input.num {
   text-align: right;
 }
 
-button {
-  background: var(--text);
-  color: var(--bg);
-  border: 1px solid var(--text);
-  border-radius: 6px;
-  padding: 7px 14px;
+/* Checkboxes and radios, drawn: a native one cannot take the blue, and is 13px — under any
+   tap target. */
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: none;
+  flex: none;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  display: inline-grid;
+  place-content: center;
+  background: var(--field-bg);
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
-button:hover:not(:disabled) {
-  opacity: 0.88;
+input[type="radio"] {
+  border-radius: 50%;
+}
+
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+input[type="checkbox"]:checked::before {
+  content: "";
+  width: 10px;
+  height: 5px;
+  border-left: 2px solid var(--on-primary);
+  border-bottom: 2px solid var(--on-primary);
+  transform: translateY(-1px) rotate(-45deg);
+}
+
+input[type="radio"]:checked::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--on-primary);
+}
+
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled {
+  background: var(--disabled-bg);
+  border-color: var(--disabled-bg);
+  cursor: default;
+}
+
+input[type="range"] {
+  height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  accent-color: var(--primary);
+}
+
+/* --------------------------------------------------------------- buttons */
+
+/* Three variants and no gray one. An unclassed button is primary: the page's main act, in
+   blue with navy text. `.secondary` is navy, for a second act that still deserves weight.
+   `.quiet` is the default — outlined, and what most row actions are.
+
+   The primary's hover and disabled states are written with :where() so they stay at a
+   plain `button`'s specificity: every component with its own button class (.chip, .star,
+   .cal-day, …) then keeps its own background on hover without restating it. */
+button {
+  background: var(--primary);
+  color: var(--on-primary);
+  border: 1px solid var(--primary);
+  border-radius: var(--pill);
+  padding: var(--space-2) var(--space-3);
+  min-height: 40px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+button:where(:hover:not(:disabled)) {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 button:disabled {
-  opacity: 0.5;
   cursor: default;
+}
+
+button:where(:disabled) {
+  background: var(--disabled-bg);
+  border-color: var(--disabled-bg);
+  color: var(--disabled-fg);
+}
+
+button.secondary {
+  background: var(--secondary);
+  border-color: var(--secondary);
+  color: var(--on-secondary);
+}
+
+button.secondary:hover:not(:disabled) {
+  background: var(--secondary-hover);
+  border-color: var(--secondary-hover);
 }
 
 button.quiet {
   background: transparent;
-  color: var(--muted);
+  color: var(--text);
   border-color: var(--border-strong);
+  font-weight: 400;
 }
 
 button.quiet:hover:not(:disabled) {
-  color: var(--text);
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--link);
+}
+
+button.secondary:disabled,
+button.quiet:disabled {
+  background: var(--disabled-bg);
+  border-color: var(--disabled-bg);
+  color: var(--disabled-fg);
+}
+
+/* A custom-skinned control has no gray disabled state of its own; it fades. */
+button[class]:not(.secondary):not(.quiet):not(.icon):disabled {
+  opacity: 0.5;
+}
+
+/* Icon-only: a circle at the 40px tap target, in whichever variant it also carries. */
+button.icon,
+.habit-step button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: var(--fs-h3);
+  line-height: 1;
+}
+
+/* Icon and label: the glyph leads, one grid step before the word. */
+button:not(.icon) > .glyph:first-child {
+  margin-inline-end: var(--space-2);
 }
 
 button.link {
   background: none;
   border: none;
   padding: 0;
-  color: var(--muted);
+  min-height: 0;
+  color: var(--link);
+  font-weight: 400;
   text-decoration: underline;
   cursor: pointer;
 }
 
 .error {
-  background: var(--warn-bg);
+  background: var(--spend-soft);
   border: 1px solid var(--spend);
-  color: var(--spend);
+  color: var(--spend-ink);
   border-radius: var(--radius);
-  padding: 9px 12px;
-  font-size: 14px;
+  padding: var(--space-2) 12px;
+  font-size: var(--fs-body);
 }
 
 /* AD-29: the derived rate sits under the amount, in the same face, quieter. */
 .hint.rate {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   margin-top: 2px;
 }
@@ -474,7 +758,7 @@ button.link {
 
 .chips {
   display: flex;
-  gap: 6px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
@@ -482,27 +766,39 @@ button.link {
   background: transparent;
   color: var(--muted);
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
+  border-radius: var(--pill);
+  padding: var(--space-1) 12px;
+  min-height: 32px;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
-.chip.on {
-  background: var(--text);
-  color: var(--bg);
-  border-color: var(--text);
+.chip:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--link);
 }
 
+.chip.on,
+.chip.on:hover:not(:disabled) {
+  background: var(--secondary);
+  color: var(--on-secondary);
+  border-color: var(--secondary);
+}
+
+/* Orange's one use: something that needs attention before it becomes a problem. */
 .badge {
   display: inline-block;
-  margin-left: 8px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  font-size: 10px;
-  letter-spacing: 0.05em;
+  margin-left: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--pill);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  background: var(--warn-bg);
-  color: var(--spend);
+  line-height: 1.3;
+  background: var(--warning-soft);
+  color: var(--warning-ink);
 }
 
 .stepper {
@@ -512,7 +808,9 @@ button.link {
 }
 
 .stepper button {
-  padding: 2px 9px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 var(--space-2);
   line-height: 1.2;
 }
 
@@ -534,7 +832,7 @@ tr.history td {
 
 .hint {
   color: var(--faint);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 /* ---------------------------------------------------------------- charts */
@@ -542,14 +840,14 @@ tr.history td {
 .bar-track {
   height: 6px;
   background: var(--border);
-  border-radius: 3px;
+  border-radius: var(--pill);
   overflow: hidden;
   min-width: 90px;
 }
 
 .bar-fill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--pill);
 }
 
 .bar-fill.under {
@@ -563,9 +861,9 @@ tr.history td {
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
-  margin-top: 8px;
+  margin-top: var(--space-2);
 }
 
 .legend span {
@@ -590,8 +888,9 @@ tr.history td {
 }
 
 .signin h1 {
-  font-size: 22px;
-  margin: 0 0 4px;
+  font-size: var(--fs-h2);
+  color: var(--secondary);
+  margin: 0 0 var(--space-1);
 }
 
 .signin p.hint {
@@ -609,25 +908,25 @@ tr.history td {
 
 .password-field button {
   flex: 0 0 auto;
-  padding: 7px 10px;
+  padding: var(--space-2) 12px;
 }
 
 .rule {
   border: none;
   border-top: 1px solid var(--border);
-  margin: 16px 0;
+  margin: var(--space-3) 0;
 }
 
 /* Recovery codes: monospace, wide-spaced, easy to read off a screen or a printout. */
 .codes {
   list-style: none;
   padding: 0;
-  margin: 8px 0;
+  margin: var(--space-2) 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 6px;
   font-family: var(--mono);
-  font-size: 15px;
+  font-size: var(--fs-body);
   letter-spacing: 0.06em;
 }
 
@@ -635,10 +934,9 @@ tr.history td {
   padding: 6px 10px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   user-select: all;
 }
-
 
 /* ======================================================================== *
  * Mobile
@@ -703,11 +1001,11 @@ tr.history td {
 
   .nav-extra a {
     padding: 4px 8px;
-    font-size: 13px;
+    font-size: var(--fs-small);
   }
 
   .identity {
-    font-size: 12px;
+    font-size: var(--fs-small);
     gap: 6px;
     /* `flex: 1 1 0` and the ellipsis are set at the base level now; see .identity above. */
   }
@@ -745,12 +1043,12 @@ tr.history td {
   }
 
   .stat .value {
-    font-size: 19px;
+    font-size: var(--fs-body);
     margin-top: 2px;
   }
 
   .stat .label {
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   .card {
@@ -771,7 +1069,7 @@ tr.history td {
   }
 
   h1 {
-    font-size: 16px !important;
+    font-size: var(--fs-h3) !important;
   }
 }
 
@@ -827,7 +1125,7 @@ tr.history td {
   table.stacked td::before {
     content: attr(data-label);
     color: var(--faint);
-    font-size: 10px;
+    font-size: var(--fs-small);
     letter-spacing: 0.05em;
     text-transform: uppercase;
     flex: 0 0 auto;
@@ -844,7 +1142,7 @@ tr.history td {
   }
 
   table.stacked td.num {
-    font-size: 15px;
+    font-size: var(--fs-body);
   }
 
   /* The wrapper's scrollbar is meaningless once rows are blocks. */
@@ -877,17 +1175,18 @@ tr.history td {
     align-items: center;
     gap: 3px;
     padding: 9px 4px 7px;
-    font-size: 11px;
+    font-size: var(--fs-small);
     color: var(--muted);
     text-decoration: none;
   }
 
   .bottom-nav a[aria-current="page"] {
-    color: var(--accent);
+    color: var(--link);
+    font-weight: 700;
   }
 
   .bottom-nav .glyph {
-    font-size: 17px;
+    font-size: var(--fs-h3);
     line-height: 1;
   }
 
@@ -903,9 +1202,9 @@ tr.history td {
     justify-content: center;
     border-radius: 50%;
     border: none;
-    background: var(--accent);
-    color: #ffffff;
-    font-size: 26px;
+    background: var(--primary);
+    color: var(--on-primary);
+    font-size: var(--fs-h2);
     line-height: 1;
     padding: 0;
     box-shadow: 0 3px 12px rgb(0 0 0 / 28%);
@@ -923,7 +1222,7 @@ tr.history td {
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   width: min(420px, calc(100vw - 24px));
   pointer-events: none;
 }
@@ -941,28 +1240,85 @@ tr.history td {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: var(--text);
-  color: var(--bg);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-  font-size: 14px;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 30%);
+  background: var(--toast-bg);
+  color: var(--toast-fg);
+  /* A pill, but not the 999px of a button: a French message wraps to two lines at 320px,
+     and a full half-height radius on a 64px box eats into the text. */
+  border-radius: 28px;
+  padding: 12px var(--space-4);
+  font-size: var(--fs-body);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 24%);
 }
 
 .toast-error {
-  background: var(--spend);
-  color: #ffffff;
+  background: var(--toast-error-bg);
+  color: var(--toast-error-fg);
 }
 
 .toast-action {
   background: none;
   border: none;
   color: inherit;
-  font-weight: 600;
+  font-weight: 700;
   text-decoration: underline;
   padding: 2px 4px;
+  min-height: 0;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   flex: 0 0 auto;
+}
+
+.toast-action:hover:not(:disabled) {
+  background: none;
+  text-decoration-thickness: 2px;
+}
+
+/* ---------------------------------------------------------------- tooltip */
+
+/* A label for a control that shows only a glyph. `data-tip` rather than `title`: a native
+   title tooltip cannot be styled and waits a second before it appears. The accessible name
+   stays on the control's aria-label — this is for the eye only. Anchored to the control's
+   end edge, so one at the right of the top bar cannot open off screen; nothing on a touch
+   screen hovers, so it is not drawn there at all. */
+[data-tip] {
+  position: relative;
+}
+
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 50;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--toast-bg);
+  color: var(--toast-fg);
+  font-size: var(--fs-tip);
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+@media (hover: hover) {
+  [data-tip]:hover::after {
+    opacity: 1;
+    transform: none;
+    transition-delay: 300ms;
+  }
+}
+
+[data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: none;
 }
 
 
@@ -1007,7 +1363,7 @@ tr.history td {
 }
 
 .compare-grid .head {
-  font-size: 11px;
+  font-size: var(--fs-small);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1022,7 +1378,7 @@ tr.history td {
 }
 
 .compare-grid .param {
-  font-size: 11px;
+  font-size: var(--fs-small);
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1042,13 +1398,13 @@ tr.history td {
   }
 
   .compare-grid .param {
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 
   .compare-grid input,
   .compare-grid select {
     padding: 6px;
-    font-size: 14px;
+    font-size: var(--fs-body);
   }
 }
 
@@ -1063,6 +1419,8 @@ tr.history td {
 }
 
 .card-toggle {
+  min-height: 0;
+  border-radius: 0;
   display: flex;
   align-items: baseline;
   gap: 7px;
@@ -1083,7 +1441,7 @@ tr.history td {
 
 .chevron {
   color: var(--faint);
-  font-size: 11px;
+  font-size: var(--fs-small);
   line-height: 1;
   transition: transform 120ms ease;
   transform: rotate(0deg);
@@ -1098,7 +1456,7 @@ tr.history td {
 .card-summary {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   white-space: nowrap;
@@ -1111,7 +1469,7 @@ tr.history td {
   padding: 1px 6px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
@@ -1127,12 +1485,15 @@ tr.muted td {
   gap: 6px;
   text-transform: none !important;
   letter-spacing: normal !important;
-  font-size: 13px !important;
+  font-size: var(--fs-small) !important;
 }
 
 .check input {
-  width: auto;
   margin: 0;
+}
+
+.check input:not([type="checkbox"]):not([type="radio"]) {
+  width: auto;
 }
 
 /* A filter bar above a table. Equal columns that reflow on their own — four controls tuned
@@ -1168,10 +1529,9 @@ tr.muted td {
    calendar does not look like standing outside the app. Mirrors the aria-current rules. */
 .nav a.on,
 .nav-extra a.on {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  font-weight: 500;
+  background: var(--primary-soft);
+  color: var(--link);
+  font-weight: 700;
 }
 
 /* The view switch is a pair of links rather than buttons, because each view has a real
@@ -1196,7 +1556,7 @@ a.chip {
 }
 
 .cal-weekday {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--faint);
   text-align: center;
   padding-bottom: 2px;
@@ -1214,9 +1574,11 @@ a.chip {
   padding: 4px 4px 3px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--fs-small);
+  font-weight: 400;
+  line-height: 1.3;
   text-align: left;
 }
 
@@ -1225,7 +1587,8 @@ a.chip {
 }
 
 .cal-day.on {
-  border-color: var(--text);
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
 }
 
 /* Days from the neighbouring periods. Still a target: tapping one moves to the period it
@@ -1239,22 +1602,22 @@ a.chip {
 .cal-num {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 
 .cal-net {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
 
 .cal-net.in {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .cal-net.out {
-  color: var(--spend);
+  color: var(--spend-ink);
 }
 
 /* What is on a day, in words. Only where the width can afford it — under 720px the cell is
@@ -1269,7 +1632,7 @@ a.chip {
 }
 
 .cal-line {
-  font-size: 11px;
+  font-size: var(--fs-small);
   line-height: 1.25;
   color: var(--muted);
   white-space: nowrap;
@@ -1325,7 +1688,7 @@ a.chip {
 }
 
 .cal-more {
-  font-size: 9px;
+  font-size: var(--fs-small);
   color: var(--faint);
 }
 
@@ -1341,7 +1704,7 @@ a.chip {
 .day-list li {
   border-bottom: 1px solid var(--border);
   padding-bottom: 8px;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .day-list li:last-child {
@@ -1355,12 +1718,12 @@ a.chip {
 }
 
 .tag.income {
-  color: var(--accent);
+  color: var(--accent-ink);
   border-color: var(--accent);
 }
 
 .tag.expense {
-  color: var(--spend);
+  color: var(--spend-ink);
   border-color: var(--spend);
 }
 
@@ -1420,12 +1783,14 @@ a.chip {
 /* The name is the way into the history, so it is a real button rather than a div that
    happens to respond to clicks. */
 .habit-name {
+  min-height: 0;
+  border-radius: 0;
   background: none;
   border: none;
   padding: 0;
   color: var(--text);
-  font-size: 15px;
-  font-weight: 500;
+  font-size: var(--fs-body);
+  font-weight: 700;
   text-align: left;
 }
 
@@ -1434,11 +1799,11 @@ a.chip {
 }
 
 .habit.met .habit-name {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .streak {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .habit-step {
@@ -1454,7 +1819,7 @@ a.chip {
   min-width: 40px;
   min-height: 40px;
   padding: 0;
-  font-size: 18px;
+  font-size: var(--fs-h3);
   line-height: 1;
 }
 
@@ -1487,24 +1852,27 @@ a.chip {
 .time-chip {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1;
   padding: 4px 6px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--pill);
   background: none;
   color: var(--muted);
+  min-height: 0;
+  font-weight: 400;
 }
 
 .time-chip:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--primary);
+  color: var(--link);
 }
 
 /* The time the next check-in will carry. Narrow, because it holds "08:00" and nothing
    else, and the plus button beside it is the thing the thumb is aiming at. */
 .at {
-  width: 96px;
+  /* 16px text, 12px padding a side and the picker glyph: at 96px "10:15" lost a digit. */
+  width: 128px;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
@@ -1522,32 +1890,35 @@ a.chip {
 }
 
 .weekday-picker legend {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
   padding: 0;
 }
 
 .day-toggle {
-  min-width: 34px;
-  min-height: 34px;
+  min-width: 36px;
+  min-height: 36px;
   padding: 0;
-  font-size: 13px;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: var(--fs-small);
   background: none;
   color: var(--muted);
   border: 1px solid var(--border);
 }
 
 .day-toggle.on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--bg);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
 }
 
 @media (max-width: 720px) {
   /* Same rule as aria-current: the Dashboard tab stays lit while its calendar view is
      open, so five tabs still describe where you are. */
   .bottom-nav a.on {
-    color: var(--accent);
+    color: var(--link);
+    font-weight: 700;
   }
 
   .cal-day {
@@ -1656,7 +2027,7 @@ a.chip {
 
 .mood-field legend {
   padding: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1669,6 +2040,7 @@ a.chip {
 }
 
 .mood-pick {
+  font-weight: 400;
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
@@ -1694,7 +2066,7 @@ a.chip {
 /* The word is the face's accessible name, not a caption — it is never hidden, at any
    width, because a drawing nobody can name is not an answer anyone can give (AD-42). */
 .mood-word {
-  font-size: 10px;
+  font-size: var(--fs-small);
   letter-spacing: 0.03em;
   color: var(--muted);
 }
@@ -1723,11 +2095,12 @@ a.chip {
 /* A button that reads as a link, for a destructive-ish action that belongs inside a
    sentence rather than beside one. */
 .linkish {
+  min-height: 0;
   background: none;
   border: none;
   padding: 0;
   font: inherit;
-  color: var(--accent);
+  color: var(--link);
   text-decoration: underline;
 }
 
@@ -1757,7 +2130,7 @@ a.chip {
 
 .mood-tally-word {
   flex: 0 0 44px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 
@@ -1781,7 +2154,7 @@ a.chip {
   text-align: right;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 
@@ -1868,18 +2241,20 @@ a.chip {
 
 /* A star is a real button so the rating is reachable by keyboard and announces itself. */
 .star {
+  min-height: 0;
+  font-weight: 400;
   background: none;
   border: none;
   /* Padding for the thumb: the glyph is 20px, the target about 30 × 34. */
   padding: 7px 4px;
   color: var(--muted);
-  font-size: 20px;
+  font-size: var(--fs-h3);
   line-height: 1;
   cursor: pointer;
 }
 
 .star.lit {
-  color: var(--accent);
+  color: var(--link);
 }
 
 @media (max-width: 720px) {
@@ -1908,7 +2283,7 @@ a.chip {
 }
 
 .book-quote {
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--muted);
   font-style: italic;
   white-space: pre-wrap;
@@ -1921,7 +2296,7 @@ a.chip {
 
 /* The quote controls are the least of a book's; drawn smaller than its Edit and Delete. */
 .quote-btn {
-  font-size: 13px;
+  font-size: var(--fs-small);
   padding: 4px 8px;
   min-height: 0;
 }
@@ -1932,7 +2307,7 @@ a.chip {
   margin-top: 6px;
   padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1967,7 +2342,7 @@ a.chip {
 .quote-card blockquote {
   margin: 0;
   padding: 0;
-  font-size: 15px;
+  font-size: var(--fs-body);
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1977,7 +2352,7 @@ a.chip {
   display: block;
   margin-top: 6px;
   font-style: normal;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 
@@ -2023,13 +2398,13 @@ a.chip {
 
 .tour-step {
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 
 .tour h2 {
   margin: 0 0 8px;
-  font-size: 16px;
+  font-size: var(--fs-body);
 }
 
 .tour p {
@@ -2053,11 +2428,11 @@ a.chip {
     /* Tighter on a phone: in French at 320×568 the panel was 272px of a 568px screen,
        leaving 138px of page above it. This takes it to about 230. */
     padding: 12px 14px;
-    font-size: 14px;
+    font-size: var(--fs-body);
   }
 
   .tour-coach h2 {
-    font-size: 15px;
+    font-size: var(--fs-body);
   }
 
   .tour-coach .tour-actions {
@@ -2072,7 +2447,7 @@ body[data-tour-step="entry"] [data-tour="record-form"],
 body[data-tour-step="history"] [data-tour="entries-list"],
 body[data-tour-step="budget"] [data-tour="budgets"],
 body[data-tour-step="progress"] [data-tour="budget-progress"] {
-  box-shadow: 0 0 0 3px var(--accent);
+  box-shadow: 0 0 0 3px var(--primary);
 }
 
 /* The provider scrolls the step's control to the top of the viewport. The margin keeps
@@ -2093,6 +2468,7 @@ body[data-tour-step] .shell {
    the entry button, smaller, so the one people press most stays where the thumb expects. */
 .fab-note {
   display: flex;
+  font-weight: 400;
   position: fixed;
   right: 24px;
   bottom: 24px;
@@ -2102,10 +2478,10 @@ body[data-tour-step] .shell {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 22px;
+  border: 1px solid var(--secondary);
+  background: var(--secondary);
+  color: var(--on-secondary);
+  font-size: var(--fs-h3);
   line-height: 1;
   padding: 0;
   box-shadow: 0 3px 12px rgb(0 0 0 / 18%);
@@ -2116,12 +2492,12 @@ body[data-tour-step] .shell {
     right: 18px;
     width: 48px;
     height: 48px;
-    font-size: 22px;
+    font-size: var(--fs-h3);
     /* The entry button's bottom, plus its 52px, plus a 12px gap. */
     bottom: calc(72px + 52px + 12px + env(safe-area-inset-bottom));
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--border-strong);
+    background: var(--secondary);
+    color: var(--on-secondary);
+    border: 1px solid var(--secondary);
   }
 }
 
@@ -2149,12 +2525,12 @@ a.back {
 }
 
 button.pin.on {
-  color: var(--accent);
-  border-color: var(--accent);
+  color: var(--link);
+  border-color: var(--primary);
 }
 
 .note-title {
-  font-weight: 600;
+  font-weight: 700;
 }
 
 /* A note is written in the box, so the box is most of the screen. */
@@ -2186,7 +2562,7 @@ button.pin.on {
 }
 
 .note-card.pinned {
-  border-color: var(--accent);
+  border-color: var(--primary);
 }
 
 .note-open {
@@ -2219,7 +2595,7 @@ button.pin.on {
   overflow: hidden;
   white-space: pre-line;
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .note-thumb {
@@ -2227,7 +2603,7 @@ button.pin.on {
   width: 42px;
   height: 56px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
 }
 
@@ -2263,12 +2639,13 @@ button.pin.on {
   border-radius: 50%;
   background: transparent;
   border: 1px solid var(--border-strong);
-  font-size: 18px;
+  font-size: var(--fs-h3);
   line-height: 1;
+  min-height: 0;
 }
 
 .swatch.on {
-  border: 2px solid var(--text);
+  border: 2px solid var(--primary);
 }
 
 /* Portrait, the logical canvas's 3:4, and as wide as the page allows up to a height the

@@ -8,6 +8,14 @@ import { LanguageProvider } from "./i18n";
 import { ToastProvider } from "./components/Toast";
 import { registerServiceWorker } from "./pwa";
 import { migrateLegacyStorage } from "./storage";
+// Lato, served from the app's own origin: no request to Google leaves the device. Regular and
+// bold only — the CSS never asks for another weight — plus the italic a book quote is set in.
+// latin-ext costs nothing unless a character in its range is drawn (unicode-range).
+import "@fontsource/lato/latin-400.css";
+import "@fontsource/lato/latin-400-italic.css";
+import "@fontsource/lato/latin-700.css";
+import "@fontsource/lato/latin-ext-400.css";
+import "@fontsource/lato/latin-ext-700.css";
 import "./styles.css";
 
 // Before anything reads a key: the providers below read the tokens and the language on mount.

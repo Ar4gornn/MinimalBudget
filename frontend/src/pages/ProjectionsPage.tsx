@@ -165,7 +165,7 @@ export function ProjectionsPage() {
                   <div
                     className={`value ${toCents(gap ?? "0.00") < 0 ? "negative" : ""}`}
                     style={
-                      toCents(gap ?? "0.00") >= 0 ? { color: "var(--accent-2)" } : undefined
+                      toCents(gap ?? "0.00") >= 0 ? { color: "var(--accent-2-ink)" } : undefined
                     }
                   >
                     {money.amount(gap ?? "0.00")}

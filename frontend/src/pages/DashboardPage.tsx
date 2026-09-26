@@ -442,7 +442,7 @@ export function DashboardPage() {
                             <td
                               className="num"
                               data-label={t("dash.colLeftShort")}
-                              style={over ? { color: "var(--spend)" } : undefined}
+                              style={over ? { color: "var(--spend-ink)" } : undefined}
                             >
                               {row.budget === null
                                 ? "—"

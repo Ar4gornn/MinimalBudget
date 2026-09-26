@@ -188,7 +188,7 @@ export function App() {
             sign-out all live there, so the top bar carries one link instead of a button
             for each. Six bottom tabs would not fit a phone; one link here does. */}
         <div className="identity">
-          <NavLink to="/settings" aria-label={t("nav.settings")} title={t("nav.settings")}>
+          <NavLink to="/settings" aria-label={t("nav.settings")} data-tip={t("nav.settings")}>
             <span className="glyph" aria-hidden="true">
               ⚙
             </span>
