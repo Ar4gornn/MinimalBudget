@@ -39,6 +39,8 @@ import type {
   MoodDay,
   MoodHistory,
   MoodPoint,
+  Note,
+  NoteInput,
   Cadence,
   Page,
   PendingEntry,
@@ -1055,4 +1057,20 @@ export const api = {
    */
   drawBookQuote: (exclude?: string) =>
     request<BookQuoteDraw | null>(`/api/books/quotes/draw${query({ exclude })}`),
+
+  // --- notes (Epic 32). The id is the client's (AD-48): a note is written with PUT under
+  // an id minted when the editor opened, so an offline draft retried after a lost response
+  // lands on the same row rather than beside it.
+
+  /** Pinned first, then the most recently changed. `q` matches the title and the body. */
+  listNotes: (q?: string) =>
+    items(request<Page<Note>>(`/api/notes${query({ q: q?.trim() || undefined })}`)),
+
+  getNote: (id: string) => request<Note>(`/api/notes/${id}`),
+
+  /** Create or replace. 201 when new, 200 when it replaced; both return the note. */
+  putNote: (id: string, body: NoteInput) =>
+    request<Note>(`/api/notes/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+
+  deleteNote: (id: string) => request<void>(`/api/notes/${id}`, { method: "DELETE" }),
 };

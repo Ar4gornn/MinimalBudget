@@ -19,6 +19,7 @@ from app.models.habits import Habit, HabitCheckin, ScheduleKind
 from app.models.inventory import InventoryItem, InventoryItemChange, Space
 from app.models.ledger import Budget, Category, Entry, EntryKind, Unit, Vendor
 from app.models.mood import MoodDay
+from app.models.notes import Note
 from app.models.purchase import InventoryPurchase
 from app.models.push import PushSubscription
 from app.models.recipes import (
@@ -61,6 +62,7 @@ __all__ = [
     "WorkoutSet",
     "InventoryItemChange",
     "MoodDay",
+    "Note",
     "SavingsContribution",
     "SavingsTarget",
     "SavingsType",

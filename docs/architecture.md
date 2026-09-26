@@ -854,6 +854,50 @@ security-definer function
   the form disappears at ten rather than offering a submit that will be refused. Quotes
   are not in the books CSV — a row per book cannot hold them, and `pg_dump` does.
 
+### AD-48 — A note is text or a sketch, written under the client's id; the device keeps it until the server has it
+
+- **Binds:** notes, the note editor and list, the Dashboard's note button, the home-screen
+  shortcuts, sign-out, client
+- **Extends:** AD-8 (another user's id is a 404 — here including one named on a write),
+  AD-24 (the second-user proof), AD-30 (search is the server's), AD-31 (its own module),
+  AD-44 (refusals carry a code).
+- **Prevents:** three failures.
+
+  **A note written on the train that is gone at the station.** Quick capture happens where the
+  network is worst. Every change is kept in `localStorage` at once, per account, and sent a
+  moment later; a save that finds no network leaves it pending, and pending drafts are sent
+  when the browser fires `online` and when the app opens (single-flight, so the two together
+  send each once). A draft is dropped only when a save of *that exact content* succeeds, so
+  words typed while a request is in flight survive it. This is not an offline mode: the list
+  still comes from the server, and a note never opened on this device is not on it.
+
+  **The retried draft that became two notes.** A POST retried after a lost response creates a
+  second row. The id is minted by the client when the editor opens and every write is
+  `PUT /api/notes/{id}` — create or replace, 201 or 200 — so a retry lands on the row the
+  first attempt made. An id already taken by another account is a primary-key clash on a row
+  RLS hides; the service translates exactly that (SQLSTATE 23505) to the same 404 as any other
+  id that is not yours, and lets anything else — a CHECK — stay a 500 rather than hide.
+
+  **A drawing stored as a picture.** A sketch is vector strokes in `jsonb` — an ink index, a
+  nib index, integer points on a fixed 750×1000 portrait canvas — not a bitmap. The eraser
+  removes whole strokes it passes within reach of (measured against segments, not points, so
+  a fast straight line is hit in its middle), undo is a stack of stroke lists, a note is a
+  few kilobytes, and there is no blob outside `pg_dump`. Ink 0 is `currentColor`, so a sketch
+  drawn on a light screen reads on a dark one.
+
+- **Rule:** `notes.kind` is `text` or `sketch` and fixed at birth (a change answers 422
+  `note_kind_changed`); a CHECK refuses the other kind's content and an empty text note. The
+  strokes' shape — indexes, points on the canvas, at most 1000 strokes and 20000 points — is
+  the request schema's. Pinned first, then most recently changed; pinning does not move
+  `updated_at`, because filing is not editing and the list must not reorder under the thumb.
+  Search matches title and body; a sketch is found by its title only.
+- **Consequence:** drafts are removed on an **explicit** sign-out — a note left in a browser
+  after its owner signed out is what signing out exists to prevent — so a draft that had not
+  synced by then is lost; an expired session keeps them. Two devices editing one note offline
+  resolve as last write wins, and a stale draft of a note deleted elsewhere puts it back:
+  both are the latest thing the person wrote, and neither is merged. The shortcuts in the
+  manifest are English only: a manifest has no per-account language.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -1021,6 +1065,7 @@ Everything Everywhere/
 | Mood — the day's two answers, the strip and the tally | `api/mood.py`, `services/mood.py`, `models/mood.py`, `frontend/src/components/MoodCheckin.tsx` | AD-41, AD-42, AD-31, AD-37, AD-24 |
 | Books — the shelf, its series, reading now | `api/books.py`, `services/books.py`, `models/books.py`, `frontend/src/pages/BooksPage.tsx` | AD-46, AD-35, AD-12, AD-18, AD-31, AD-37, AD-24 |
 | Book quotes — lines under a book, one drawn for the dashboard | `api/books.py`, `services/books.py`, migration 0023, `frontend/src/components/BookQuotes.tsx`, `QuoteCard.tsx` | AD-47, AD-18, AD-30, AD-37, AD-24 |
+| Notes — text or a sketch, drafts on the device, shortcuts | `api/notes.py`, `services/notes.py`, migration 0024, `frontend/src/notes/`, `NotesPage.tsx`, `NotePage.tsx`, `public/manifest.webmanifest` | AD-48, AD-8, AD-30, AD-31, AD-24 |
 | Test strategy | `backend/tests/` | AD-24 |
 
 ## Deferred

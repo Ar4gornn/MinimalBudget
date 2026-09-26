@@ -2085,3 +2085,221 @@ body[data-tour-step="progress"] [data-tour="budget-progress"] {
 body[data-tour-step] .shell {
   padding-bottom: calc(76px + 320px + env(safe-area-inset-bottom));
 }
+
+/* ------------------------------------------------------------------ notes (Epic 32) */
+
+/* The note button. Unlike the entry button it shows at every width: on a desktop the entry
+   form is one click away, but nothing else leads to the notes. On a phone it sits above
+   the entry button, smaller, so the one people press most stays where the thumb expects. */
+.fab-note {
+  display: flex;
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 21;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+  padding: 0;
+  box-shadow: 0 3px 12px rgb(0 0 0 / 18%);
+}
+
+@media (max-width: 720px) {
+  .fab-note {
+    right: 18px;
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+    /* The entry button's bottom, plus its 52px, plus a 12px gap. */
+    bottom: calc(72px + 52px + 12px + env(safe-area-inset-bottom));
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+  }
+}
+
+.notes-page,
+.notes-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notes-editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.notes-editor-bar [role="status"] {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: right;
+}
+
+a.back {
+  text-decoration: none;
+}
+
+button.pin.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.note-title {
+  font-weight: 600;
+}
+
+/* A note is written in the box, so the box is most of the screen. */
+.note-body {
+  min-height: 45vh;
+}
+
+.notes-editor-actions {
+  justify-content: space-between;
+}
+
+.note-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.note-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.note-card.pinned {
+  border-color: var(--accent);
+}
+
+.note-open {
+  display: flex;
+  gap: 10px;
+  flex: 1 1 0;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.note-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.note-heading {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Two lines of the body under a title, then an ellipsis. */
+.note-snippet {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-line;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.note-thumb {
+  flex: none;
+  width: 42px;
+  height: 56px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.note-actions {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+
+.note-actions button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 4px 8px;
+}
+
+.sketchpad {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sketch-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.swatch {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.swatch.on {
+  border: 2px solid var(--text);
+}
+
+/* Portrait, the logical canvas's 3:4, and as wide as the page allows up to a height the
+   screen can show whole. `touch-action: none` stops a finger stroke scrolling the page. */
+.sketch-surface {
+  display: block;
+  width: 100%;
+  max-width: min(100%, calc(62vh * 0.75));
+  aspect-ratio: 3 / 4;
+  margin: 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  touch-action: none;
+  cursor: crosshair;
+  color: var(--text);
+}
+
+.sketch-surface.erasing {
+  cursor: cell;
+}
+
+/* A colour emoji ignores `color`, so an unpinned pin is drawn faded and grey — otherwise
+   pinned and unpinned look the same and only the card border tells them apart. */
+button.pin:not(.on) span {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+/* At 42px wide the canvas is drawn at about 1/18 scale, so a thin nib would be a hairline.
+   CSS beats the presentation attribute, and these are logical units. */
+.note-thumb path {
+  stroke-width: 28px;
+}

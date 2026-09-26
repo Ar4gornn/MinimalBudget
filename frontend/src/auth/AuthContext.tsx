@@ -17,6 +17,7 @@ import {
   storeTokens,
 } from "../api/client";
 import type { Currency, Language, User } from "../api/types";
+import { clearAllDrafts } from "../notes/drafts";
 
 interface AuthState {
   user: User | null;
@@ -46,6 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const refreshToken = readRefreshToken();
     if (refreshToken) void api.logout(refreshToken).catch(() => undefined);
     clearTokens();
+    // Notes not yet synced are removed with the session (Epic 32): a note left in a browser
+    // after its owner signed out is the leak signing out is for. See `notes/drafts.ts`.
+    clearAllDrafts();
     setUser(null);
   }, []);
 
