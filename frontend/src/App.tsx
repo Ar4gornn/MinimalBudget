@@ -7,6 +7,7 @@ import { TutorialProvider } from "./components/Tutorial/useTutorial";
 import { useT } from "./i18n";
 import { flushDrafts } from "./notes/drafts";
 import { SignInPage } from "./pages/SignInPage";
+import { useTheme } from "./theme";
 
 /**
  * Every page is its own chunk, fetched the first time its route is visited. Before this,
@@ -130,6 +131,8 @@ const SECTIONS = [
 export function App() {
   const { user, loading } = useAuth();
   const t = useT();
+  const theme = useTheme();
+  const dark = theme.resolved === "dark" || theme.resolved === "oled";
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -188,6 +191,16 @@ export function App() {
             sign-out all live there, so the top bar carries one link instead of a button
             for each. Six bottom tabs would not fit a phone; one link here does. */}
         <div className="identity">
+          {/* One tap between light and dark; the other modes and the accent are in Settings. */}
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={theme.toggle}
+            aria-label={t(dark ? "theme.toLight" : "theme.toDark")}
+            data-tip={t(dark ? "theme.toLight" : "theme.toDark")}
+          >
+            <span aria-hidden="true">{dark ? "☀︎" : "☾"}</span>
+          </button>
           <NavLink to="/settings" aria-label={t("nav.settings")} data-tip={t("nav.settings")}>
             <span className="glyph" aria-hidden="true">
               ⚙

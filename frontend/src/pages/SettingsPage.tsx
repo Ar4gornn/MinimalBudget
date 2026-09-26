@@ -12,6 +12,24 @@ import { SecurityCard } from "../components/SecurityCard";
 import { useTutorial } from "../components/Tutorial/useTutorial";
 import { Card, ErrorBanner } from "../components/ui";
 import { useMoney } from "../useMoney";
+import { ACCENTS, ACCENT_SWATCH, MODES, useTheme, type Accent, type Mode } from "../theme";
+
+const MODE_LABELS = {
+  system: "settings.themeSystem",
+  light: "settings.themeLight",
+  dark: "settings.themeDark",
+  oled: "settings.themeOled",
+  hc: "settings.themeHc",
+} as const satisfies Record<Mode, string>;
+
+const ACCENT_LABELS = {
+  blue: "settings.accentBlue",
+  indigo: "settings.accentIndigo",
+  violet: "settings.accentViolet",
+  magenta: "settings.accentMagenta",
+  teal: "settings.accentTeal",
+  graphite: "settings.accentGraphite",
+} as const satisfies Record<Accent, string>;
 
 /**
  * Everything about the account rather than the money: currency, language, password,
@@ -28,6 +46,8 @@ const EXPORTS = [
 export function SettingsPage() {
   const { user, signOut, refreshUser: refreshProfile } = useAuth();
   const { t, lang, setLanguage } = useLanguage();
+  const theme = useTheme();
+  const swatches = theme.resolved === "dark" || theme.resolved === "oled" ? "dark" : "light";
   const dates = useDates();
   const money = useMoney();
   const tour = useTutorial();
@@ -175,6 +195,47 @@ export function SettingsPage() {
         </p>
         <p className="hint" style={{ marginTop: 8 }}>
           {t("settings.languageHint")}
+        </p>
+      </Card>
+
+      <Card title={t("settings.appearance")}>
+        <div className="row">
+          <label style={{ flex: "0 0 200px" }}>
+            {t("settings.theme")}
+            <select
+              aria-label={t("settings.theme")}
+              value={theme.mode}
+              onChange={(event) => theme.setMode(event.target.value as Mode)}
+            >
+              {MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {t(MODE_LABELS[mode])}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {/* A radio group of swatches rather than a select: the colour is the choice, and a
+            list of colour names makes you imagine it. Each carries its name for a screen
+            reader and as a tooltip. */}
+        <fieldset className="accents">
+          <legend>{t("settings.accent")}</legend>
+          {ACCENTS.map((accent) => (
+            <label key={accent} className="accent-choice" data-tip={t(ACCENT_LABELS[accent])}>
+              <input
+                type="radio"
+                name="accent"
+                value={accent}
+                checked={theme.accent === accent}
+                onChange={() => theme.setAccent(accent)}
+                aria-label={t(ACCENT_LABELS[accent])}
+              />
+              <span className="dot" aria-hidden="true" style={{ background: ACCENT_SWATCH[swatches][accent] }} />
+            </label>
+          ))}
+        </fieldset>
+        <p className="hint" style={{ marginTop: 8 }}>
+          {t("settings.appearanceHint")}
         </p>
       </Card>
 

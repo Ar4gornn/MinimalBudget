@@ -84,6 +84,11 @@
   --mood-4: #5b9282;
   --mood-5: #2f6f5e;
 
+  /* The two fixed inks of a sketch (Epic 32). Ink 0 is `currentColor`; these follow the
+     theme too, so a red stroke drawn on a light phone still clears 3:1 on a dark one. */
+  --ink-red: #d0453a;
+  --ink-blue: #2f7bd1;
+
   /* ---- type: Lato, bundled (main.tsx), on a 1.333 scale from 16px */
   --fs-display: 50px;
   --fs-h1: 38px;
@@ -111,60 +116,283 @@
   --pill: 999px; /* buttons, chips, toasts */
 }
 
-/* Dark: navy surfaces rather than gray ones, and every fill brightened until it clears
-   4.5:1 as text on the card surface (#003348). */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
+/* Themes. `data-theme` on <html> is always a concrete mode — light, dark, oled or hc —
+   never "system": `public/theme.js` resolves the system setting before the first paint and
+   `theme.ts` keeps it resolved while the page is open, so the CSS needs no media query and
+   a chosen mode can disagree with the OS. No attribute at all (a test, or theme.js blocked)
+   is light. `data-accent` picks one of the presets further down.
 
-    --bg: var(--navy-900);
-    --surface: var(--navy-700);
-    --field-bg: var(--navy-900);
-    --border: #0b4a63;
-    --border-strong: #2e7593;
-    --text: var(--gray-100); /* 12:1 on surface */
-    --muted: var(--gray-400); /* 5.9:1 */
-    --faint: #8fa3ad; /* 5.1:1 */
+   Dark: navy surfaces rather than gray ones, and every fill brightened until it clears
+   4.5:1 as text on the card surface (#003348). OLED starts from these values. */
+:root[data-theme="dark"],
+:root[data-theme="oled"] {
+  color-scheme: dark;
 
-    --primary: #4dc3ff; /* 6.7:1 as text on surface */
-    --primary-hover: #7ad3ff;
-    --on-primary: var(--navy-900); /* 8.6:1 */
-    --primary-soft: #0b4a63;
-    --secondary: #0b4a63;
-    --secondary-hover: #125a78;
-    --on-secondary: #ffffff; /* 9.7:1 */
-    --link: #4dc3ff;
-    --focus: #4dc3ff;
-    --disabled-bg: #0b4a63;
-    --disabled-fg: #8fa3ad;
-    --field-disabled-bg: var(--navy-700);
+  --bg: var(--navy-900);
+  --surface: var(--navy-700);
+  --field-bg: var(--navy-900);
+  --border: #0b4a63;
+  --border-strong: #2e7593;
+  --text: var(--gray-100); /* 12:1 on surface */
+  --muted: var(--gray-400); /* 5.9:1 */
+  --faint: #8fa3ad; /* 5.1:1 */
 
-    --accent: #5ccb6d; /* 6.5:1 */
-    --accent-ink: #5ccb6d;
-    --accent-soft: #123f2a;
-    --spend: #ff7a78; /* 5.3:1 */
-    --spend-ink: #ff7a78;
-    --spend-soft: #45222b;
-    --warning: var(--orange); /* 5.75:1 */
-    --warning-ink: var(--orange);
-    --warning-soft: #3d3222;
-    --accent-2: #4dc3ff;
-    --accent-2-ink: #4dc3ff;
-    --accent-2-soft: #0b4a63;
+  --primary: #4dc3ff; /* 6.7:1 as text on surface */
+  --primary-hover: #7ad3ff;
+  --on-primary: var(--navy-900); /* 8.6:1 */
+  --primary-soft: #0b4a63;
+  --secondary: #0b4a63;
+  --secondary-hover: #125a78;
+  --on-secondary: #ffffff; /* 9.7:1 */
+  --link: #4dc3ff;
+  --focus: #4dc3ff;
+  --disabled-bg: #0b4a63;
+  --disabled-fg: #8fa3ad;
+  --field-disabled-bg: var(--navy-700);
 
-    --toast-bg: var(--gray-100);
-    --toast-fg: var(--navy-900);
-    --toast-error-bg: #ff7a78;
-    --toast-error-fg: var(--navy-900);
+  --accent: #5ccb6d; /* 6.5:1 */
+  --accent-ink: #5ccb6d;
+  --accent-soft: #123f2a;
+  --spend: #ff7a78; /* 5.3:1 */
+  --spend-ink: #ff7a78;
+  --spend-soft: #45222b;
+  --warning: var(--orange); /* 5.75:1 */
+  --warning-ink: var(--orange);
+  --warning-soft: #3d3222;
+  --accent-2: #4dc3ff;
+  --accent-2-ink: #4dc3ff;
+  --accent-2-soft: #0b4a63;
 
-    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23acacac' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --toast-bg: var(--gray-100);
+  --toast-fg: var(--navy-900);
+  --toast-error-bg: #ff7a78;
+  --toast-error-fg: var(--navy-900);
 
-    --mood-1: #d59084;
-    --mood-2: #bf8175;
-    --mood-3: #7b7a74;
-    --mood-4: #5aa48c;
-    --mood-5: #6fbfa5;
-  }
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23acacac' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  --mood-1: #d59084;
+  --mood-2: #bf8175;
+  --mood-3: #7b7a74;
+  --mood-4: #5aa48c;
+  --mood-5: #6fbfa5;
+
+  --ink-red: #ff8a80; /* 5.9:1 on surface */
+  --ink-blue: #6cb8ff; /* 6.3:1 */
+}
+
+/* OLED: the dark palette with the navy taken out. True black behind everything, so a phone
+   with an OLED screen switches those pixels off; cards are a step above black so their
+   edges still read. Neutral grays replace navy for structure, since a navy card on black
+   reads as a colour rather than as a surface. Accents are the dark ones, unchanged. */
+:root[data-theme="oled"] {
+  --bg: #000000;
+  --surface: #0d0d0d;
+  --field-bg: #000000;
+  --border: #262626;
+  --border-strong: #5c5c5c;
+  --text: var(--gray-100); /* 17.4:1 on surface */
+  --muted: var(--gray-400); /* 8.6:1 */
+  --faint: #8c8c8c; /* 5.8:1 */
+
+  --secondary: #262626;
+  --secondary-hover: #333333;
+  --on-secondary: #ffffff; /* 15:1 */
+  --disabled-bg: #1f1f1f;
+  --disabled-fg: #8c8c8c;
+  --field-disabled-bg: #0d0d0d;
+
+  --accent-soft: #10301a;
+  --spend-soft: #3a1a1a;
+  --warning-soft: #33280f;
+  --accent-2-soft: #0b3346;
+}
+
+/* High contrast: black on white, every text pair at 7:1 (WCAG AAA) rather than 4.5, and
+   borders dark enough to see without looking for them. Light rather than dark because it
+   is the variant most people who need it choose, and the system's own dark setting is
+   already served by Dark. */
+:root[data-theme="hc"] {
+  color-scheme: light;
+
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --field-bg: #ffffff;
+  --border: #595959; /* 7:1 — a card edge you do not have to look for */
+  --border-strong: #000000;
+  --text: #000000; /* 21:1 */
+  --muted: var(--gray-900); /* 13.2:1 */
+  --faint: #4a4a4a; /* 8.9:1 */
+
+  --primary: #004260;
+  --primary-hover: #00334a;
+  --on-primary: #ffffff; /* 10.8:1 */
+  --primary-soft: #e0f4fd;
+  --secondary: #1f1f1f;
+  --secondary-hover: #000000;
+  --on-secondary: #ffffff; /* 16.5:1 */
+  --link: #004260; /* 9.5:1 on primary-soft */
+  --focus: #000000;
+  --disabled-bg: var(--gray-200);
+  --disabled-fg: #4a4a4a;
+  --field-disabled-bg: var(--gray-100);
+
+  --accent-ink: #155a22; /* 8.3:1 */
+  --spend-ink: #a3120f; /* 7.9:1 */
+  --warning-ink: #7a3d00; /* 8.4:1 */
+  --accent-2-ink: #004260;
+
+  --toast-bg: #000000;
+  --toast-fg: #ffffff;
+  --toast-error-bg: #a3120f;
+  --toast-error-fg: #ffffff;
+
+  --ink-red: #a3120f;
+  --ink-blue: #004260;
+}
+
+/* Thicker focus rings and underlined links: in high contrast, what you can press should not
+   depend on colour at all. The pill links in the bars keep their borders instead. */
+:root[data-theme="hc"] :focus-visible {
+  outline-width: 3px;
+}
+
+:root[data-theme="hc"] main a:not([class]) {
+  text-decoration: underline;
+}
+
+/* Accent presets. The accent replaces the one blue that means "you can press this": the
+   fill of a primary button, its hover, the tint behind the current nav link, and the ink
+   that links and focus rings are drawn in. Green, red and orange are not offered because
+   they already mean money in, money out and a warning.
+
+   Each preset is written three times — light, dark (which OLED shares) and high contrast —
+   because a colour that reads on white does not read on navy. Blue is the default and is
+   the values already set above, so it has no block of its own. The light block's selector
+   is weaker than the other two, so it only wins in light mode. `theme.test.ts` checks every
+   pair against its threshold. */
+:root[data-accent="indigo"] {
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --on-primary: #ffffff; /* 6.3:1 */
+  --primary-soft: #eceeff;
+  --link: #4338ca; /* 6.9:1 on soft */
+  --focus: #4338ca;
+}
+:root[data-theme="dark"][data-accent="indigo"],
+:root[data-theme="oled"][data-accent="indigo"] {
+  --primary: #a5b0ff;
+  --primary-hover: #c2c9ff;
+  --on-primary: var(--navy-900); /* 8.3:1 */
+  --primary-soft: #26306b;
+  --link: #a5b0ff; /* 6:1 on soft */
+  --focus: #a5b0ff;
+}
+:root[data-theme="hc"][data-accent="indigo"] {
+  --primary: #3730a3;
+  --primary-hover: #2a2480;
+  --on-primary: #ffffff; /* 9.9:1 */
+  --primary-soft: #eceeff;
+  --link: #3730a3;
+}
+
+:root[data-accent="violet"] {
+  --primary: #7c3aed;
+  --primary-hover: #6d28d9;
+  --on-primary: #ffffff; /* 5.7:1 */
+  --primary-soft: #f2ebff;
+  --link: #6d28d9; /* 6.1:1 on soft */
+  --focus: #6d28d9;
+}
+:root[data-theme="dark"][data-accent="violet"],
+:root[data-theme="oled"][data-accent="violet"] {
+  --primary: #c9a7ff;
+  --primary-hover: #dbc4ff;
+  --on-primary: var(--navy-900); /* 8.5:1 */
+  --primary-soft: #3a2766;
+  --link: #c9a7ff;
+  --focus: #c9a7ff;
+}
+:root[data-theme="hc"][data-accent="violet"] {
+  --primary: #5b21b6;
+  --primary-hover: #4a1a96;
+  --on-primary: #ffffff; /* 9:1 */
+  --primary-soft: #f2ebff;
+  --link: #5b21b6;
+}
+
+:root[data-accent="magenta"] {
+  --primary: #b5179e;
+  --primary-hover: #a0138b;
+  --on-primary: #ffffff; /* 5.9:1 */
+  --primary-soft: #fbe8f7;
+  --link: #a0138b; /* 6.1:1 on soft */
+  --focus: #a0138b;
+}
+:root[data-theme="dark"][data-accent="magenta"],
+:root[data-theme="oled"][data-accent="magenta"] {
+  --primary: #f59ae6;
+  --primary-hover: #f8b8ee;
+  --on-primary: var(--navy-900); /* 8.7:1 */
+  --primary-soft: #4a2045;
+  --link: #f59ae6;
+  --focus: #f59ae6;
+}
+:root[data-theme="hc"][data-accent="magenta"] {
+  --primary: #7a0f6a;
+  --primary-hover: #620c55;
+  --on-primary: #ffffff; /* 10:1 */
+  --primary-soft: #fbe8f7;
+  --link: #7a0f6a;
+}
+
+:root[data-accent="teal"] {
+  --primary: #0f766e;
+  --primary-hover: #0f6b64;
+  --on-primary: #ffffff; /* 5.5:1 */
+  --primary-soft: #dff3f1;
+  --link: #0f6b64; /* 5.5:1 on soft */
+  --focus: #0f6b64;
+}
+:root[data-theme="dark"][data-accent="teal"],
+:root[data-theme="oled"][data-accent="teal"] {
+  --primary: #5fe0cc;
+  --primary-hover: #8aeadb;
+  --on-primary: var(--navy-900); /* 10.6:1 */
+  --primary-soft: #0f4a47;
+  --link: #5fe0cc;
+  --focus: #5fe0cc;
+}
+:root[data-theme="hc"][data-accent="teal"] {
+  --primary: #0b4f4a;
+  --primary-hover: #083d39;
+  --on-primary: #ffffff; /* 9.4:1 */
+  --primary-soft: #dff3f1;
+  --link: #0b4f4a;
+}
+
+:root[data-accent="graphite"] {
+  --primary: #404040;
+  --primary-hover: #303030;
+  --on-primary: #ffffff; /* 10.4:1 */
+  --primary-soft: #e8e8e8;
+  --link: #303030;
+  --focus: #303030;
+}
+:root[data-theme="dark"][data-accent="graphite"],
+:root[data-theme="oled"][data-accent="graphite"] {
+  --primary: #d6d6d6;
+  --primary-hover: #ebebeb;
+  --on-primary: var(--navy-900); /* 11.7:1 */
+  --primary-soft: #3a3a3a;
+  --link: #d6d6d6;
+  --focus: #d6d6d6;
+}
+:root[data-theme="hc"][data-accent="graphite"] {
+  --primary: #1f1f1f;
+  --primary-hover: #000000;
+  --on-primary: #ffffff; /* 16.5:1 */
+  --primary-soft: #e8e8e8;
+  --link: #1f1f1f;
 }
 
 * {
@@ -301,6 +529,28 @@ h1 {
 
 .identity a:hover,
 .identity a[aria-current="page"] {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* The one-tap light/dark switch: the settings pill's shape without its text, so the two
+   read as a pair. It never shrinks — the email beside it is what gives way. */
+.theme-toggle {
+  flex: 0 0 auto;
+  align-self: stretch; /* the pill's height, not the generic button's 40px */
+  min-width: 44px;
+  min-height: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--pill);
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
   color: var(--text);
   border-color: var(--border-strong);
 }
@@ -2686,4 +2936,79 @@ button.pin:not(.on) span {
 .notes-link {
   flex: none;
   white-space: nowrap;
+}
+
+/* --------------------------------------------------------------- appearance */
+
+/* The light/dark toggle joined the phone top bar, and at 320px in French it overlapped the
+   last link by 2px: 188 (links) + 8 + 44 (toggle) + 6 + 44 (pill) is 290 of 280. Narrower
+   link padding on the narrowest phones gives back 12px. The identity group's floor is both
+   of its buttons, so if the row ever runs out again it wraps rather than overlaps. */
+@media (max-width: 360px) {
+  .nav-extra a {
+    padding: 4px 6px;
+  }
+}
+
+@media (max-width: 720px) {
+  .identity {
+    min-width: 94px;
+  }
+}
+
+/* Settings: the accent swatches, a radio group drawn as colour dots. Last in the file so
+   they come after the generic input rules they override. */
+.accents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.accents legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-small);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.accent-choice {
+  position: relative;
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.accent-choice input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.accent-choice .dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+/* The chosen one gets a ring in the text colour: shape, not hue, says which is selected. */
+.accent-choice input:checked + .dot {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--text);
+}
+
+.accent-choice input:focus-visible + .dot {
+  outline: 2px solid var(--focus);
+  outline-offset: 6px;
 }

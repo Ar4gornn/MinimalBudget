@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { AuthProvider } from "./auth/AuthContext";
 import { ToastProvider } from "./components/Toast";
+import { ThemeProvider } from "./theme";
 
 /**
  * The navigation answer (Epics 22 and 23).
@@ -45,9 +46,11 @@ function renderAt(path: string) {
   return render(
     <AuthProvider>
       <ToastProvider>
-        <MemoryRouter initialEntries={[path]}>
+        <ThemeProvider>
+          <MemoryRouter initialEntries={[path]}>
           <App />
         </MemoryRouter>
+          </ThemeProvider>
       </ToastProvider>
     </AuthProvider>,
   );

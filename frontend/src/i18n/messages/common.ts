@@ -22,6 +22,8 @@ export const common = {
   "nav.plan": { en: "Plan", fr: "Budget" },
   "nav.grow": { en: "Grow", fr: "Épargne" },
   "nav.settings": { en: "Settings", fr: "Réglages" },
+  "theme.toDark": { en: "Switch to dark theme", fr: "Passer au thème sombre" },
+  "theme.toLight": { en: "Switch to light theme", fr: "Passer au thème clair" },
   "nav.addEntry": { en: "Add an entry", fr: "Ajouter une opération" },
 
   "action.add": { en: "Add", fr: "Ajouter" },

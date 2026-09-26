@@ -8,6 +8,7 @@ import { LanguageProvider } from "./i18n";
 import { ToastProvider } from "./components/Toast";
 import { registerServiceWorker } from "./pwa";
 import { migrateLegacyStorage } from "./storage";
+import { ThemeProvider } from "./theme";
 // Lato, served from the app's own origin: no request to Google leaves the device. Regular and
 // bold only — the CSS never asks for another weight — plus the italic a book quote is set in.
 // latin-ext costs nothing unless a character in its range is drawn (unicode-range).
@@ -26,6 +27,8 @@ if (!container) throw new Error("#root is missing from index.html");
 
 createRoot(container).render(
   <StrictMode>
+    {/* Outermost: the sign-in page is themed too, and nothing about a theme needs the account. */}
+    <ThemeProvider>
     <BrowserRouter>
       {/* Inside the auth provider, because the account is the authority on the language
           and the provider reads it from there; outside everything that draws words. */}
@@ -37,6 +40,7 @@ createRoot(container).render(
         </LanguageProvider>
       </AuthProvider>
     </BrowserRouter>
+    </ThemeProvider>
   </StrictMode>,
 );
 

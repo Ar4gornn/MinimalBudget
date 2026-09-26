@@ -7,6 +7,7 @@ import { App } from "../../App";
 import { AuthProvider } from "../../auth/AuthContext";
 import { LanguageProvider } from "../../i18n";
 import { ToastProvider } from "../Toast";
+import { ThemeProvider } from "../../theme";
 
 /**
  * The guided tour (Epic 30), driven through the real App: the real router, the real
@@ -106,9 +107,11 @@ function renderApp(me: Profile, path = "/", tutorialWrites: "ok" | "fail" = "ok"
     <AuthProvider>
       <LanguageProvider>
         <ToastProvider>
+          <ThemeProvider>
           <MemoryRouter initialEntries={[path]}>
             <App />
           </MemoryRouter>
+          </ThemeProvider>
         </ToastProvider>
       </LanguageProvider>
     </AuthProvider>,

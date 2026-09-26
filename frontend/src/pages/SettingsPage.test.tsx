@@ -6,14 +6,17 @@ import { SettingsPage } from "./SettingsPage";
 import { AuthProvider } from "../auth/AuthContext";
 import { LanguageProvider } from "../i18n";
 import { ToastProvider } from "../components/Toast";
+import { ThemeProvider } from "../theme";
 
 function render(ui: React.ReactElement) {
   return rtlRender(
-    <AuthProvider>
-      <LanguageProvider>
-        <ToastProvider>{ui}</ToastProvider>
-      </LanguageProvider>
-    </AuthProvider>,
+    <ThemeProvider>
+      <AuthProvider>
+        <LanguageProvider>
+          <ToastProvider>{ui}</ToastProvider>
+        </LanguageProvider>
+      </AuthProvider>
+    </ThemeProvider>,
   );
 }
 
@@ -78,6 +81,23 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
     expect(await screen.findByText("sam@example.com")).toBeInTheDocument();
     expect(await screen.findByText(/3 of 8 unused/)).toBeInTheDocument();
+  });
+
+  it("changes the theme and accent on this device, without calling the API", async () => {
+    const fetchMock = mockApi();
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+    await screen.findByText("sam@example.com");
+    const calls = fetchMock.mock.calls.length;
+
+    await user.selectOptions(screen.getByLabelText("Theme"), "oled");
+    await user.click(screen.getByRole("radio", { name: "Teal" }));
+
+    expect(document.documentElement.dataset.theme).toBe("oled");
+    expect(document.documentElement.dataset.accent).toBe("teal");
+    expect(screen.getByRole("radio", { name: "Teal" })).toBeChecked();
+    expect(window.localStorage.getItem("everything-everywhere.theme")).toBe("oled");
+    expect(fetchMock.mock.calls.length).toBe(calls);
   });
 
   it("changes the currency with a PATCH and re-reads the profile", async () => {
