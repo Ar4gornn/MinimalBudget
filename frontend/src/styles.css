@@ -2680,3 +2680,10 @@ button.pin:not(.on) span {
 .note-thumb path {
   stroke-width: 28px;
 }
+
+/* The Notes link on the dashboard heading line (Epic 32): one line, never squeezed. At
+   320px the month heading wraps first, which is the better thing to give. */
+.notes-link {
+  flex: none;
+  white-space: nowrap;
+}
