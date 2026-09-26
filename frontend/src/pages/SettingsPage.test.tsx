@@ -6,7 +6,7 @@ import { SettingsPage } from "./SettingsPage";
 import { AuthProvider } from "../auth/AuthContext";
 import { LanguageProvider } from "../i18n";
 import { ToastProvider } from "../components/Toast";
-import { ThemeProvider } from "../theme";
+import { ACCENTS, MODES, ThemeProvider } from "../theme";
 
 function render(ui: React.ReactElement) {
   return rtlRender(wrap(ui));
@@ -109,6 +109,29 @@ describe("SettingsPage", () => {
     expect(window.localStorage.getItem("everything-everywhere.accent")).toBe("teal");
     expect(save).toBeDisabled();
     expect(fetchMock.mock.calls.length).toBe(calls);
+  });
+
+  it("offers sepia and every accent, and saves them like the others", async () => {
+    mockApi();
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+    await screen.findByText("sam@example.com");
+
+    const modes = [...(screen.getByLabelText("Theme") as HTMLSelectElement).options].map((o) => o.value);
+    expect(modes).toEqual([...MODES]);
+    for (const name of ["Blue", "Indigo", "Violet", "Magenta", "Teal", "Graphite", "Slate", "Cobalt", "Plum"]) {
+      expect(screen.getByRole("radio", { name })).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole("radio")).toHaveLength(ACCENTS.length);
+
+    await user.selectOptions(screen.getByLabelText("Theme"), "sepia");
+    await user.click(screen.getByRole("radio", { name: "Plum" }));
+    expect(document.documentElement.dataset.theme).toBe("sepia");
+    expect(document.documentElement.dataset.accent).toBe("plum");
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(window.localStorage.getItem("everything-everywhere.theme")).toBe("sepia");
+    expect(window.localStorage.getItem("everything-everywhere.accent")).toBe("plum");
   });
 
   it("drops an unsaved preview when Settings is left", async () => {

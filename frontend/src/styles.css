@@ -116,7 +116,7 @@
   --pill: 999px; /* buttons, chips, toasts */
 }
 
-/* Themes. `data-theme` on <html> is always a concrete mode — light, dark, oled or hc —
+/* Themes. `data-theme` on <html> is always a concrete mode — light, dark, oled, hc or sepia —
    never "system": `public/theme.js` resolves the system setting before the first paint and
    `theme.ts` keeps it resolved while the page is open, so the CSS needs no media query and
    a chosen mode can disagree with the OS. No attribute at all (a test, or theme.js blocked)
@@ -248,6 +248,68 @@
 
   --ink-red: #a3120f;
   --ink-blue: #004260;
+}
+
+/* Sepia: a warm light for evening reading. Paper rather than white, brown ink rather than
+   gray, so the screen gives off less blue without going dark. A full block like dark's —
+   every colour token is set here, not inherited from light — so a token added to light
+   later fails the completeness test rather than showing a cold gray on warm paper. The
+   light accent presets apply unchanged: their selector is `[data-accent]` alone. The
+   meaning inks are the light ones darkened a step: light's warning ink is 4.45:1 on this
+   surface, and the other two keep their margin above 4.5 rather than sit on it. */
+:root[data-theme="sepia"] {
+  color-scheme: light;
+
+  --bg: #f1e7d3;
+  --surface: #fbf6ec;
+  --field-bg: #fffbf3;
+  --border: #e2d4ba;
+  --border-strong: #a8957a;
+  --text: #3a2e22; /* 12.2:1 on surface */
+  --muted: #65543f; /* 5.9:1 on bg */
+  --faint: #7a6750; /* 5.0:1 on surface */
+
+  --primary: var(--blue);
+  --primary-hover: #008fd6;
+  --on-primary: var(--navy-900);
+  --primary-soft: #dcecef;
+  --secondary: #5a4533;
+  --secondary-hover: #453426;
+  --on-secondary: #ffffff;
+  --link: var(--navy-500);
+  --focus: var(--navy-500);
+  --disabled-bg: #e2d4ba;
+  --disabled-fg: #6e5d48;
+  --field-disabled-bg: #f1e7d3;
+
+  --accent: var(--green);
+  --accent-ink: #256f31;
+  --accent-soft: #e4ead3;
+  --spend: var(--red);
+  --spend-ink: #bf1d1b;
+  --spend-soft: #f7e0d6;
+  --warning: var(--orange);
+  --warning-ink: #9a4d00; /* 5.7:1 */
+  --warning-soft: #f6e3c6;
+  --accent-2: var(--blue);
+  --accent-2-ink: var(--navy-500);
+  --accent-2-soft: #dcecef;
+
+  --toast-bg: #3a2e22;
+  --toast-fg: #fbf6ec;
+  --toast-error-bg: #bf1d1b;
+  --toast-error-fg: #ffffff;
+
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2365543f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  --mood-1: #9a4b3f;
+  --mood-2: #b8776a;
+  --mood-3: #94938d;
+  --mood-4: #5b9282;
+  --mood-5: #2f6f5e;
+
+  --ink-red: #b83a30;
+  --ink-blue: #2a6cb8;
 }
 
 /* Thicker focus rings and underlined links: in high contrast, what you can press should not
@@ -393,6 +455,85 @@
   --on-primary: #ffffff; /* 16.5:1 */
   --primary-soft: #e8e8e8;
   --link: #1f1f1f;
+}
+
+/* Epic 33.6. Green, rose and amber were proposed and dropped: their hues sit 12°, 14° and
+   4° from money in, money out and the warning. What is left of the wheel is between the
+   presets above, so cobalt and plum differ from indigo and magenta by lightness as much as
+   by hue, and slate is a blue with most of the colour taken out. */
+:root[data-accent="slate"] {
+  --primary: #475569;
+  --primary-hover: #334155;
+  --on-primary: #ffffff; /* 7.6:1 */
+  --primary-soft: #e6eaf0;
+  --link: #334155;
+  --focus: #334155;
+}
+:root[data-theme="dark"][data-accent="slate"],
+:root[data-theme="oled"][data-accent="slate"] {
+  --primary: #b4c2d6;
+  --primary-hover: #d0dae8;
+  --on-primary: var(--navy-900);
+  --primary-soft: #2c3b50;
+  --link: #b4c2d6;
+  --focus: #b4c2d6;
+}
+:root[data-theme="hc"][data-accent="slate"] {
+  --primary: #1e293b;
+  --primary-hover: #0f172a;
+  --on-primary: #ffffff;
+  --primary-soft: #e6eaf0;
+  --link: #1e293b;
+}
+
+:root[data-accent="cobalt"] {
+  --primary: #1d4ed8;
+  --primary-hover: #1e40af;
+  --on-primary: #ffffff; /* 6.7:1 */
+  --primary-soft: #e3eaff;
+  --link: #1e40af;
+  --focus: #1e40af;
+}
+:root[data-theme="dark"][data-accent="cobalt"],
+:root[data-theme="oled"][data-accent="cobalt"] {
+  --primary: #8fb0ff;
+  --primary-hover: #b3caff;
+  --on-primary: var(--navy-900);
+  --primary-soft: #1e3470;
+  --link: #8fb0ff;
+  --focus: #8fb0ff;
+}
+:root[data-theme="hc"][data-accent="cobalt"] {
+  --primary: #1e3a8a;
+  --primary-hover: #172e6e;
+  --on-primary: #ffffff;
+  --primary-soft: #e3eaff;
+  --link: #1e3a8a;
+}
+
+:root[data-accent="plum"] {
+  --primary: #86198f;
+  --primary-hover: #701a75;
+  --on-primary: #ffffff; /* 8.2:1 */
+  --primary-soft: #f6e6f7;
+  --link: #701a75;
+  --focus: #701a75;
+}
+:root[data-theme="dark"][data-accent="plum"],
+:root[data-theme="oled"][data-accent="plum"] {
+  --primary: #dda6f0;
+  --primary-hover: #eac4f6;
+  --on-primary: var(--navy-900);
+  --primary-soft: #4a2152;
+  --link: #dda6f0;
+  --focus: #dda6f0;
+}
+:root[data-theme="hc"][data-accent="plum"] {
+  --primary: #6b1373;
+  --primary-hover: #560f5c;
+  --on-primary: #ffffff;
+  --primary-soft: #f6e6f7;
+  --link: #6b1373;
 }
 
 * {

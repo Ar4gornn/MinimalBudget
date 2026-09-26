@@ -18,11 +18,21 @@ import { PREFIX } from "./storage";
  * and the CSP forbids inline script. `theme.test.ts` runs it and checks the two agree.
  */
 
-export const MODES = ["system", "light", "dark", "oled", "hc"] as const;
+export const MODES = ["system", "light", "dark", "oled", "hc", "sepia"] as const;
 export type Mode = (typeof MODES)[number];
 export type Resolved = Exclude<Mode, "system">;
 
-export const ACCENTS = ["blue", "indigo", "violet", "magenta", "teal", "graphite"] as const;
+export const ACCENTS = [
+  "blue",
+  "indigo",
+  "violet",
+  "magenta",
+  "teal",
+  "graphite",
+  "slate",
+  "cobalt",
+  "plum",
+] as const;
 export type Accent = (typeof ACCENTS)[number];
 
 export const MODE_KEY = `${PREFIX}theme`;
@@ -34,6 +44,7 @@ export const THEME_COLOR: Record<Resolved, string> = {
   dark: "#001f2b",
   oled: "#000000",
   hc: "#ffffff",
+  sepia: "#f1e7d3",
 };
 
 /**
@@ -49,6 +60,9 @@ export const ACCENT_SWATCH: Record<"light" | "dark", Record<Accent, string>> = {
     magenta: "#b5179e",
     teal: "#0f766e",
     graphite: "#404040",
+    slate: "#475569",
+    cobalt: "#1d4ed8",
+    plum: "#86198f",
   },
   dark: {
     blue: "#4dc3ff",
@@ -57,6 +71,9 @@ export const ACCENT_SWATCH: Record<"light" | "dark", Record<Accent, string>> = {
     magenta: "#f59ae6",
     teal: "#5fe0cc",
     graphite: "#d6d6d6",
+    slate: "#b4c2d6",
+    cobalt: "#8fb0ff",
+    plum: "#dda6f0",
   },
 };
 

@@ -60,7 +60,8 @@ describe("preferences", () => {
   });
 
   it("ignores a stored value it does not know", () => {
-    window.localStorage.setItem(MODE_KEY, "sepia");
+    window.localStorage.setItem(MODE_KEY, "solarized");
+    // Green is refused on purpose: it means money in (Epic 33.6).
     window.localStorage.setItem(ACCENT_KEY, "green");
     expect(readPrefs()).toEqual({ mode: "system", accent: "blue" });
   });
@@ -77,6 +78,7 @@ describe("preferences", () => {
     expect(toggled("oled")).toBe("light");
     expect(toggled("light")).toBe("dark");
     expect(toggled("hc")).toBe("dark");
+    expect(toggled("sepia")).toBe("dark");
   });
 });
 
@@ -90,6 +92,9 @@ describe("public/theme.js, the pre-paint copy", () => {
     ["light", "teal", true, "light", "teal"],
     ["oled", "graphite", false, "oled", "graphite"],
     ["hc", "magenta", true, "hc", "magenta"],
+    ["sepia", "plum", true, "sepia", "plum"],
+    ["dark", "slate", false, "dark", "slate"],
+    ["system", "cobalt", false, "light", "cobalt"],
     ["junk", "junk", true, "dark", "blue"],
   ];
 
@@ -311,12 +316,12 @@ const GRAPHIC_PAIRS: [string, string][] = [
   ["ink-blue", "surface"],
 ];
 
-const THEMES: Resolved[] = ["light", "dark", "oled", "hc"];
+const THEMES = MODES.filter((m): m is Resolved => m !== "system");
 
 describe("contrast, every theme × accent", () => {
   it("found the theme blocks", () => {
     // A selector rewrite that the parser silently skips would pass every check below.
-    for (const theme of ["dark", "oled", "hc"]) {
+    for (const theme of THEMES.filter((t) => t !== "light")) {
       expect(rules.some((r) => r.conditions.some(([k, v]) => k === "theme" && v === theme))).toBe(true);
     }
     for (const accent of ACCENTS.filter((a) => a !== "blue")) {
@@ -342,6 +347,18 @@ describe("contrast, every theme × accent", () => {
       });
     }
   }
+
+  it("gives sepia every colour token dark has, rather than inheriting light's", () => {
+    // Dark is the full block: whatever it has to restate is what a theme must set.
+    const declared = (theme: string) =>
+      new Set(
+        rules
+          .filter((r) => r.conditions.length === 1 && r.conditions[0]?.[1] === theme)
+          .flatMap((r) => r.decls.map(([name]) => name)),
+      );
+    const missing = [...declared("dark")].filter((name) => !declared("sepia").has(name));
+    expect(missing).toEqual([]);
+  });
 
   it("previews each accent in Settings with the fill the CSS actually uses", () => {
     for (const accent of ACCENTS) {

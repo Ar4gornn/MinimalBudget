@@ -8,9 +8,15 @@
  * `/theme.js?v=N`. Bump N whenever this file changes.
  */
 (function () {
-  var MODES = ["light", "dark", "oled", "hc"];
-  var ACCENTS = ["blue", "indigo", "violet", "magenta", "teal", "graphite"];
-  var COLORS = { light: "#f2f2f2", dark: "#001f2b", oled: "#000000", hc: "#ffffff" };
+  var MODES = ["light", "dark", "oled", "hc", "sepia"];
+  var ACCENTS = ["blue", "indigo", "violet", "magenta", "teal", "graphite", "slate", "cobalt", "plum"];
+  var COLORS = {
+    light: "#f2f2f2",
+    dark: "#001f2b",
+    oled: "#000000",
+    hc: "#ffffff",
+    sepia: "#f1e7d3",
+  };
   var mode = null;
   var accent = null;
   try {

@@ -61,6 +61,7 @@ export const account = {
   "settings.themeDark": { en: "Dark", fr: "Sombre" },
   "settings.themeOled": { en: "Black (OLED)", fr: "Noir (OLED)" },
   "settings.themeHc": { en: "High contrast", fr: "Contraste élevé" },
+  "settings.themeSepia": { en: "Sepia (evening reading)", fr: "Sépia (lecture du soir)" },
   "settings.accent": { en: "Accent colour", fr: "Couleur d’accent" },
   "settings.accentBlue": { en: "Blue", fr: "Bleu" },
   "settings.accentIndigo": { en: "Indigo", fr: "Indigo" },
@@ -68,6 +69,9 @@ export const account = {
   "settings.accentMagenta": { en: "Magenta", fr: "Magenta" },
   "settings.accentTeal": { en: "Teal", fr: "Sarcelle" },
   "settings.accentGraphite": { en: "Graphite", fr: "Graphite" },
+  "settings.accentSlate": { en: "Slate", fr: "Ardoise" },
+  "settings.accentCobalt": { en: "Cobalt", fr: "Cobalt" },
+  "settings.accentPlum": { en: "Plum", fr: "Prune" },
   "settings.appearanceHint": {
     en: "Picking one shows it straight away; Save keeps it. Saved on this device only, unlike the language: your phone can be dark while your laptop stays light. Green, red and orange are not offered as accents because they already mean money in, money out and a warning.",
     fr: "Un choix s’affiche aussitôt ; Enregistrer le conserve. Enregistré sur cet appareil seulement, contrairement à la langue : votre téléphone peut rester sombre et votre ordinateur clair. Le vert, le rouge et l’orange ne sont pas proposés comme accents, car ils signifient déjà une rentrée, une dépense et un avertissement.",

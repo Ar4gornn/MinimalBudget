@@ -225,9 +225,22 @@ steps that will run.
 
 ### 2.9 More looks (per device, unchanged storage)
 
-- **Four more accents:** `green`, `amber`, `rose`, `slate`. Before any code, check each
-  one's hue distance from the `in`/`out` tones: an accent that reads as "income" or
-  "expense" is dropped and replaced, and the doc is updated.
+- **Three more accents: `slate`, `cobalt`, `plum`** (built 2026-09-26). The brief asked for
+  `green`, `amber`, `rose`, `slate`, with a hue check first. Rule applied: an accent's hue
+  must sit at least 45° from money in (green, 130°), money out (red, 1°) and the warning
+  (orange, 30°) — the three meanings `styles.css` already refuses as accents.
+
+  | Proposed | Hue | Nearest meaning | Verdict |
+  |---|---|---|---|
+  | green | 142° | in, 12° | dropped |
+  | rose | 347° | out, 14° | dropped |
+  | amber | 26° | warning 4°, out 25° | dropped |
+  | slate | 215° | in, 84° | kept |
+
+  What passes the rule lies between the existing presets: cobalt (224°, 94° from in) and
+  plum (295°, 66° from out) were taken; cyan (7° from blue) and olive (44° from in) were
+  not. Four was not reachable without an accent that reads as a meaning or as another
+  preset, so Alex chose three.
 - **One more theme: `sepia`** (warm light, for evening reading). It is a full `data-theme`
   block, so every colour token needs a value, and every `TEXT_PAIRS` entry must pass AA.
 - `ACCENTS` in `theme.tsx` and in `public/theme.js` change together. Bump `?v=` in
@@ -304,7 +317,7 @@ assertion in the test). Mutation: always fetch, and the test goes red.
 ### Story 33.6: More accents and a sepia theme
 
 **Given** Settings → Appearance
-**Then** four more accents and a sepia mode are offered, previewed and saved as today
+**Then** three more accents (slate, cobalt, plum — §2.9) and a sepia mode are offered, previewed and saved as today
 (per device, Save/Cancel)
 **And** every `TEXT_PAIRS` pair passes AA in sepia, and every accent passes the accent
 contrast check in every theme

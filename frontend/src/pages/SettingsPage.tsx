@@ -21,6 +21,7 @@ const MODE_LABELS = {
   dark: "settings.themeDark",
   oled: "settings.themeOled",
   hc: "settings.themeHc",
+  sepia: "settings.themeSepia",
 } as const satisfies Record<Mode, string>;
 
 const ACCENT_LABELS = {
@@ -30,6 +31,9 @@ const ACCENT_LABELS = {
   magenta: "settings.accentMagenta",
   teal: "settings.accentTeal",
   graphite: "settings.accentGraphite",
+  slate: "settings.accentSlate",
+  cobalt: "settings.accentCobalt",
+  plum: "settings.accentPlum",
 } as const satisfies Record<Accent, string>;
 
 /**
