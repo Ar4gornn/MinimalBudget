@@ -1,11 +1,12 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import { AuthProvider } from "./auth/AuthContext";
 import { ToastProvider } from "./components/Toast";
 import { ThemeProvider } from "./theme";
+import { PRELOAD_TIMEOUT, preloadPages } from "./test/preloadPages";
 
 /**
  * The navigation answer (Epics 22 and 23).
@@ -60,6 +61,8 @@ const bottomBar = () => screen.getByRole("navigation", { name: "Sections" });
 const topExtra = () => screen.getByRole("navigation", { name: "More" });
 
 describe("navigation", () => {
+  beforeAll(preloadPages, PRELOAD_TIMEOUT);
+
   beforeEach(() => {
     window.localStorage.clear();
     vi.restoreAllMocks();
