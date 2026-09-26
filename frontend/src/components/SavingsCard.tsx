@@ -281,7 +281,7 @@ export function SavingsCard() {
                       <td
                         className="num"
                         data-label={t("entries.colAmountShort")}
-                        style={out ? { color: "var(--spend)" } : undefined}
+                        style={out ? { color: "var(--spend-ink)" } : undefined}
                       >
                         {out ? "−" : ""}
                         {money.plain(contribution.amount)}

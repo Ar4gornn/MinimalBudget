@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
@@ -291,6 +291,13 @@ function ratio(a: string, b: string): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
+/** Every component's source, for the inline `style={{ color: ... }}` a stylesheet scan misses. */
+function tsxSources(): string[] {
+  return readdirSync(__dirname, { recursive: true, encoding: "utf-8" })
+    .filter((file) => file.endsWith(".tsx") && !file.includes(".test."))
+    .map((file) => readFileSync(join(__dirname, file), "utf-8"));
+}
+
 const TEXT_PAIRS: [string, string][] = [
   ["text", "bg"],
   ["text", "surface"],
@@ -308,6 +315,11 @@ const TEXT_PAIRS: [string, string][] = [
   ["accent-2-ink", "surface"],
   ["toast-fg", "toast-bg"],
   ["toast-error-fg", "toast-error-bg"],
+  // The tinted boxes: an error banner, a badge, and a disabled control.
+  ["spend-ink", "spend-soft"],
+  ["warning-ink", "warning-soft"],
+  ["disabled-fg", "disabled-bg"],
+  ["disabled-fg", "field-disabled-bg"],
 ];
 
 const GRAPHIC_PAIRS: [string, string][] = [
@@ -347,6 +359,22 @@ describe("contrast, every theme × accent", () => {
       });
     }
   }
+
+  it("draws text only in a text token, never in a fill", () => {
+    // A fill (--secondary, --primary, --accent, a border) is only held to 3:1 against what it
+    // sits on, or to nothing at all, so text drawn in one can vanish: the app name was
+    // --secondary, #262626 on OLED black. Every `color:` must name a token checked above.
+    const allowed = new Set(TEXT_PAIRS.map(([fg]) => fg));
+    // In a component only an inline style counts; a chart series' `color` is a fill.
+    const used = [
+      ...css.matchAll(/(?<![\w-])color:\s*var\(--([\w-]+)\)/g),
+      ...tsxSources().flatMap((source) => [
+        ...source.matchAll(/style=\{[^}]*?\{[^}]*?(?<![\w-])color:\s*"var\(--([\w-]+)\)"/g),
+      ]),
+    ].map((m) => m[1] ?? "");
+    expect(used.length).toBeGreaterThan(50);
+    expect([...new Set(used.filter((name) => !allowed.has(name)))]).toEqual([]);
+  });
 
   it("gives sepia every colour token dark has, rather than inheriting light's", () => {
     // Dark is the full block: whatever it has to restate is what a theme must set.

@@ -49,7 +49,7 @@
   --link: var(--navy-500); /* 8.4:1 */
   --focus: var(--navy-500);
   --disabled-bg: var(--gray-200);
-  --disabled-fg: #767676;
+  --disabled-fg: #5c5c5c; /* 4.9:1 on the disabled fill */
   --field-disabled-bg: var(--gray-100);
 
   /* ---- meaning. Fill, then the ink that text uses. */
@@ -60,7 +60,7 @@
   --spend-ink: #d11f1d; /* 5.35:1 */
   --spend-soft: #ffe9e8;
   --warning: var(--orange);
-  --warning-ink: #b35a00; /* 4.8:1 */
+  --warning-ink: #a35200; /* 5.6:1; 5:1 on its soft tint */
   --warning-soft: #fff1e3;
   --accent-2: var(--blue); /* the second series: scenario B, stock */
   --accent-2-ink: var(--navy-500);
@@ -147,7 +147,7 @@
   --link: #4dc3ff;
   --focus: #4dc3ff;
   --disabled-bg: #0b4a63;
-  --disabled-fg: #8fa3ad;
+  --disabled-fg: #b8c7cf; /* 5.6:1 on the disabled fill */
   --field-disabled-bg: var(--navy-700);
 
   --accent: #5ccb6d; /* 6.5:1 */
@@ -233,11 +233,11 @@
   --link: #004260; /* 9.5:1 on primary-soft */
   --focus: #000000;
   --disabled-bg: var(--gray-200);
-  --disabled-fg: #4a4a4a;
+  --disabled-fg: #3a3a3a; /* 8.3:1 on the disabled fill */
   --field-disabled-bg: var(--gray-100);
 
   --accent-ink: #155a22; /* 8.3:1 */
-  --spend-ink: #a3120f; /* 7.9:1 */
+  --spend-ink: #95100d; /* 8.9:1; 7.7:1 on its soft tint */
   --warning-ink: #7a3d00; /* 8.4:1 */
   --accent-2-ink: #004260;
 
@@ -279,7 +279,7 @@
   --link: var(--navy-500);
   --focus: var(--navy-500);
   --disabled-bg: #e2d4ba;
-  --disabled-fg: #6e5d48;
+  --disabled-fg: #5c4c3a; /* 5.6:1 on the disabled fill */
   --field-disabled-bg: #f1e7d3;
 
   --accent: var(--green);
@@ -587,7 +587,7 @@ h1 {
 .brand {
   font-size: var(--fs-h3);
   font-weight: 700;
-  color: var(--secondary);
+  color: var(--text);
   margin: 0;
 }
 
@@ -1280,7 +1280,7 @@ tr.history td {
 
 .signin h1 {
   font-size: var(--fs-h2);
-  color: var(--secondary);
+  color: var(--text);
   margin: 0 0 var(--space-1);
 }
 
