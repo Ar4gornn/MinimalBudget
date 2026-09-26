@@ -1,10 +1,13 @@
 import { type ComponentType, lazy, Suspense, useEffect } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
+import type { ModuleId } from "./api/types";
 import { useAuth } from "./auth/AuthContext";
+import { ModuleGate } from "./components/ModuleOff";
 import { TutorialModal } from "./components/Tutorial/TutorialModal";
 import { TutorialProvider } from "./components/Tutorial/useTutorial";
 import { useT } from "./i18n";
+import { useModules } from "./layout/modules";
 import { flushDrafts } from "./notes/drafts";
 import { SignInPage } from "./pages/SignInPage";
 import { useTheme } from "./theme";
@@ -107,14 +110,14 @@ const NotePage = page(() => import("./pages/NotePage"), "NotePage");
  * `label` is a message key rather than a word: the bar is drawn on every page, so a word
  * baked in here would be the one English string a French reader could never get away from.
  */
-const TOP_ONLY = [
+const TOP_ONLY: { to: string; label: "nav.plan" | "nav.grow" | "nav.recipes"; module?: ModuleId }[] = [
   { to: "/plan", label: "nav.plan" },
   { to: "/projections", label: "nav.grow" },
   // Epic 27; the measurement and the rejected alternatives are in the block above.
-  { to: "/recipes", label: "nav.recipes" },
-] as const;
+  { to: "/recipes", label: "nav.recipes", module: "recipes" },
+];
 
-const SECTIONS = [
+const ALL_SECTIONS = [
   // The Dashboard tab covers both of its views, so the calendar does not look like a place
   // outside the app while you are standing in it.
   // Notes (Epic 32) are reached from the Dashboard's note button, so the tab stays lit there.
@@ -128,6 +131,41 @@ const SECTIONS = [
   { to: "/gym", label: "nav.gym", glyph: "◈", end: false, also: [] as string[] },
 ] as const;
 
+type Section = {
+  to: string;
+  label: (typeof ALL_SECTIONS)[number]["label"] | "view.books";
+  glyph: string;
+  end: boolean;
+  also: readonly string[];
+};
+
+/**
+ * The sections an account with these modules sees (Epic 33). A section with two views —
+ * Habits and Books — stays while either is on, and becomes the one that is: with Habits
+ * off it is a Books tab pointing at `/books`. A section whose every view is off is gone.
+ */
+export function visibleSections(modules: Record<ModuleId, boolean>): Section[] {
+  const sections: Section[] = [];
+  for (const section of ALL_SECTIONS) {
+    if (section.to === "/") {
+      sections.push({ ...section, also: modules.notes ? section.also : ["/calendar"] });
+    } else if (section.to === "/habits") {
+      if (modules.habits) {
+        sections.push({ ...section, also: modules.books ? section.also : [] });
+      } else if (modules.books) {
+        sections.push({ to: "/books", label: "view.books", glyph: "▥", end: false, also: [] });
+      }
+    } else if (section.to === "/inventory") {
+      if (modules.stock) sections.push(section);
+    } else if (section.to === "/gym") {
+      if (modules.gym) sections.push(section);
+    } else {
+      sections.push(section);
+    }
+  }
+  return sections;
+}
+
 export function App() {
   const { user, loading } = useAuth();
   const t = useT();
@@ -135,6 +173,10 @@ export function App() {
   const dark = theme.resolved === "dark" || theme.resolved === "oled";
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  // Read before the early returns below: a hook must run on every render.
+  const modules = useModules();
+  const SECTIONS = visibleSections(modules);
+  const topLinks = TOP_ONLY.filter((link) => !link.module || modules[link.module]);
 
   // Quick add belongs where entries do — and on the calendar, where a day is exactly the
   // thing you would want to record against. On the projections page there is nothing to
@@ -143,7 +185,7 @@ export function App() {
     pathname.startsWith("/categories") || pathname.startsWith("/calendar");
 
   /** A section owns more than its own path when it has two views (Dashboard / Calendar). */
-  const extra = (section: (typeof SECTIONS)[number]) =>
+  const extra = (section: Section) =>
     section.also.some((path) => pathname.startsWith(path)) ? "on" : "";
 
   // Notes written with no network are sent when it comes back, and when the app opens —
@@ -181,7 +223,7 @@ export function App() {
             five things you open at the moment you need them. Its own element, not part of
             .nav, because .nav is hidden on a phone — which would strand both. */}
         <nav className="nav-extra" aria-label={t("nav.more")}>
-          {TOP_ONLY.map((section) => (
+          {topLinks.map((section) => (
             <NavLink key={section.to} to={section.to}>
               {t(section.label)}
             </NavLink>
@@ -222,17 +264,17 @@ export function App() {
           <Route path="/categories/:categoryId" element={<CategoryPage />} />
           <Route path="/plan" element={<PlanPage />} />
           <Route path="/projections" element={<ProjectionsPage />} />
-          <Route path="/habits" element={<HabitsPage />} />
-          <Route path="/books" element={<BooksPage />} />
-          <Route path="/gym" element={<GymPage />} />
-          <Route path="/inventory" element={<InventoryPage />} />
-          <Route path="/recipes" element={<RecipesPage />} />
-          <Route path="/recipes/:recipeId" element={<RecipePage />} />
+          <Route path="/habits" element={<ModuleGate module="habits"><HabitsPage /></ModuleGate>} />
+          <Route path="/books" element={<ModuleGate module="books"><BooksPage /></ModuleGate>} />
+          <Route path="/gym" element={<ModuleGate module="gym"><GymPage /></ModuleGate>} />
+          <Route path="/inventory" element={<ModuleGate module="stock"><InventoryPage /></ModuleGate>} />
+          <Route path="/recipes" element={<ModuleGate module="recipes"><RecipesPage /></ModuleGate>} />
+          <Route path="/recipes/:recipeId" element={<ModuleGate module="recipes"><RecipePage /></ModuleGate>} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/notes" element={<NotesPage />} />
+          <Route path="/notes" element={<ModuleGate module="notes"><NotesPage /></ModuleGate>} />
           {/* One route for new and existing: `/notes/new` becomes `/notes/<id>` in place
               once there is something to keep, and the editor must not remount when it does. */}
-          <Route path="/notes/:noteId" element={<NotePage />} />
+          <Route path="/notes/:noteId" element={<ModuleGate module="notes"><NotePage /></ModuleGate>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
@@ -256,7 +298,7 @@ export function App() {
           entry one rather than a menu behind it. A speed dial was the alternative, and it
           would have put a tap in front of recording an expense — the loop people repeat
           most — to make room for one that is used less. Phone only, like the other. */}
-      {pathname === "/" && (
+      {pathname === "/" && modules.notes && (
         <button
           type="button"
           className="fab fab-note"

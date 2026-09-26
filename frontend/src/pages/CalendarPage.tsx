@@ -12,6 +12,7 @@ import type {
   Meal,
   PendingEntry,
   SavingsType,
+  ModuleId,
   MoodDay,
   StockChange,
   Workout,
@@ -21,6 +22,7 @@ import { QuoteCard } from "../components/QuoteCard";
 import { Card, Empty, ErrorBanner } from "../components/ui";
 import { timeLabel } from "../schedule";
 import { DASHBOARD_VIEWS, ViewSwitch } from "../components/ViewSwitch";
+import { useModules } from "../layout/modules";
 import { fromCents, toCents } from "../money";
 import { formatEnergy, sumEnergy, trim } from "../nutrition";
 import { useMoney } from "../useMoney";
@@ -73,6 +75,15 @@ const LAYERS: { key: LayerKey; label: string; glyph: string; literal?: boolean }
   { key: "meals", label: "cal.layerMeals", glyph: "◍" },
   { key: "due", label: "cal.layerDue", glyph: "◷" },
 ];
+
+/** Epic 33: the module a layer belongs to. A layer with none is the budget's own. */
+const LAYER_MODULE: Partial<Record<LayerKey, ModuleId>> = {
+  stock: "stock",
+  gym: "gym",
+  habits: "habits",
+  mood: "mood",
+  meals: "recipes",
+};
 
 /** A layer's name, in words. Mood's label is already a word, not a key. */
 function layerName(layer: (typeof LAYERS)[number], t: Translate): string {
@@ -194,6 +205,15 @@ export function CalendarPage() {
 
   const [month, setMonth] = useState(() => budgetMonth(startDay));
   const [active, setActive] = useState<LayerKey[]>(readLayers);
+  // A module that is off loses its chip, its dots and its request (Epic 33). The stored
+  // choice of layers is left alone, so switching the module back on restores it.
+  const modules = useModules();
+  const layerOn = (key: LayerKey) => {
+    const module = LAYER_MODULE[key];
+    return !module || modules[module];
+  };
+  const available = LAYERS.filter((layer) => layerOn(layer.key));
+  const shownActive = active.filter(layerOn);
   const [selected, setSelected] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [savingsTypes, setSavingsTypes] = useState<SavingsType[]>([]);
@@ -225,11 +245,11 @@ export function CalendarPage() {
       const results = await Promise.allSettled([
         api.listEntries({ month }),
         api.listContributions({ month }),
-        api.listWorkouts({ month, limit: 200 }),
-        api.stockChanges(month),
-        api.listCheckins({ month }),
-        api.moodDays(month),
-        api.listMeals({ month }),
+        modules.gym ? api.listWorkouts({ month, limit: 200 }) : Promise.resolve([]),
+        modules.stock ? api.stockChanges(month) : Promise.resolve([]),
+        modules.habits ? api.listCheckins({ month }) : Promise.resolve([]),
+        modules.mood ? api.moodDays(month) : Promise.resolve([]),
+        modules.recipes ? api.listMeals({ month }) : Promise.resolve([]),
         api.listPending(),
         api.expectedEntries(month),
       ]);
@@ -269,7 +289,7 @@ export function CalendarPage() {
       };
     },
     UNLOADED,
-    [month],
+    [month, modules.gym, modules.stock, modules.habits, modules.mood, modules.recipes],
     "cal.couldNotLoad",
   );
   // Nothing above throws (allSettled), so `failure` is only ever a bug's; the page's own
@@ -324,13 +344,14 @@ export function CalendarPage() {
     return map;
   }, [data]);
 
-  const on = (key: LayerKey) => active.includes(key);
+  const on = (key: LayerKey) => shownActive.includes(key);
 
   function toggle(key: LayerKey) {
     setActive((was) => {
       const next = was.includes(key) ? was.filter((k) => k !== key) : [...was, key];
-      // Turning the last layer off would leave an empty grid that reads as "no data".
-      const kept = next.length ? next : was;
+      // Turning the last layer off would leave an empty grid that reads as "no data" —
+      // counting only the layers on screen, since a module that is off hides its own.
+      const kept = next.some(layerOn) ? next : was;
       writeLayers(kept);
       return kept;
     });
@@ -446,7 +467,7 @@ export function CalendarPage() {
         aria-label={t("cal.layers")}
         style={{ marginBottom: 12 }}
       >
-        {LAYERS.map((layer) => (
+        {available.map((layer) => (
           <button
             key={layer.key}
             type="button"
@@ -605,7 +626,7 @@ export function CalendarPage() {
         >
           <DayDetail
             bucket={selectedBucket}
-            active={active}
+            active={shownActive}
             categoryName={categoryName}
             savingsName={savingsName}
             t={t}
@@ -614,7 +635,7 @@ export function CalendarPage() {
       )}
 
       {/* A line from a book, when one is kept (Epic 31). Absent otherwise. */}
-      <QuoteCard collapseKey="calendar.quote" />
+      {modules.books && <QuoteCard collapseKey="calendar.quote" />}
 
       {loading && <p className="hint">{t("state.loading")}</p>}
     </>

@@ -8,6 +8,7 @@ import type { Currency, Language } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { LANGUAGES, useLanguage } from "../i18n";
 import { errorMessage } from "../i18n/errors";
+import { LayoutCard } from "../components/LayoutCard";
 import { SecurityCard } from "../components/SecurityCard";
 import { useTutorial } from "../components/Tutorial/useTutorial";
 import { Card, ErrorBanner } from "../components/ui";
@@ -256,6 +257,8 @@ export function SettingsPage() {
           {t("settings.appearanceHint")}
         </p>
       </Card>
+
+      <LayoutCard />
 
       <Card title={t("settings.budgetMonth")}>
         <div className="row">

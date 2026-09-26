@@ -143,13 +143,15 @@ once (§2.7). "Reset to default" sits at the bottom, behind a confirmation.
 | `habits` | Habits view | Calendar habits layer; habit reminders in the push digest |
 | `books` | Books view | Dashboard "Reading now" and quote cards; calendar quote card |
 | `mood` | Mood card on Habits | Dashboard mood popover trigger; calendar mood layer; `?mood=1` shortcut |
-| `stock` | Stock section | Dashboard "Restock" card; shopping list; entry form's purchase link; calendar stock layer; restock push digest |
+| `stock` | Stock section (the shopping list lives inside it) | Dashboard "Restock" card; calendar stock layer; restock push digest |
 | `gym` | Gym section | Calendar gym layer |
 | `recipes` | Recipes section | Calendar meals layer |
-| `notes` | `/notes*` | Dashboard floating note button; Note/Sketch shortcuts land on the off page |
+| `notes` | `/notes*` | Dashboard Notes link and floating note button; Note/Sketch shortcuts land on the off page. Drafts already written still sync: that is data, not UI |
 
-The table is authoritative. Story 33.3 greps for every import of each module's API client,
-and any caller that is not in this table is a bug in the table.
+The table is authoritative, and it is enforced: `layout/modules.test.tsx` derives each
+module's API functions from `api/client.ts` and fails if any file outside the listed callers
+uses one. (Built 2026-09-26: the grep found no entry-form purchase link. The spec's first
+draft had listed one that does not exist.)
 
 **A route to a module that is off** renders a short page: "Gym is turned off", with a link
 to Settings → Layout. It does not silently redirect, because a bookmark or a home-screen

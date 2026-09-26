@@ -19,6 +19,7 @@ import { MoodCheckin } from "../components/MoodCheckin";
 import { QuoteCard } from "../components/QuoteCard";
 import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
 import { DASHBOARD_VIEWS, ViewSwitch } from "../components/ViewSwitch";
+import { useModules } from "../layout/modules";
 import { progress, subtractMoney, toChartNumber, toCents } from "../money";
 import { useMoney } from "../useMoney";
 import { useT } from "../i18n";
@@ -65,6 +66,8 @@ export function DashboardPage() {
   // Optional, like useMoney: a month boundary has an obvious default, and crashing a
   // whole page for want of context is worse than falling back to the calendar month.
   const startDay = useOptionalAuth()?.user?.budget_start_day ?? 1;
+  // Epic 33: a module that is off draws nothing here and is not asked for anything.
+  const modules = useModules();
   const [month, setMonth] = useState(() => budgetMonth(startDay));
   // The home-screen "Mood" shortcut (Epic 32) lands here as `?mood=1`: the popover opens on
   // arrival, and the flag leaves the address so a reload or a shared link does not reopen it.
@@ -121,6 +124,10 @@ export function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
+    if (!modules.stock) {
+      setLowItems(null);
+      return;
+    }
     // Spaces only decorate the names; their request failing must not hide the count.
     void Promise.all([
       api.listItems({ needs_restock: true }),
@@ -140,10 +147,14 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [modules.stock]);
 
   useEffect(() => {
     let cancelled = false;
+    if (!modules.books) {
+      setReading(null);
+      return;
+    }
     void api.listBooks({ status: "reading" }).then(
       (rows) => {
         if (!cancelled) setReading(rows);
@@ -155,7 +166,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [modules.books]);
 
   const spaceName = (id: string) => spaces.find((space) => space.id === id)?.name ?? "";
 
@@ -212,7 +223,7 @@ export function DashboardPage() {
                 edge of a 375px screen and put a horizontal scrollbar on the page. First in
                 the row, the anchor is at the shell's left padding whatever the month is
                 called. */}
-            <MoodCheckin startOpen={moodShortcut} />
+            {modules.mood && <MoodCheckin startOpen={moodShortcut} />}
             <h1 style={{ fontSize: 18, margin: 0 }}>
               {periodLabel()}
             </h1>
@@ -220,9 +231,11 @@ export function DashboardPage() {
                 was missed twice on a desktop: it sits below the fold of a screenshot and,
                 in dark mode, close to the page colour. After the heading is safe here,
                 unlike the mood trigger — a link anchors no panel. */}
-            <Link to="/notes" className="chip notes-link">
-              <span aria-hidden="true">✎</span> {t("notes.title")}
-            </Link>
+            {modules.notes && (
+              <Link to="/notes" className="chip notes-link">
+                <span aria-hidden="true">✎</span> {t("notes.title")}
+              </Link>
+            )}
           </div>
           {/* Spelled out, because "September" meaning 26 Aug - 25 Sep is exactly the sort
               of thing a person should never have to infer from a total. The server sends
@@ -372,7 +385,7 @@ export function DashboardPage() {
           )}
 
           {/* A line from a book, when one is kept (Epic 31). Absent otherwise. */}
-          <QuoteCard collapseKey="dashboard.quote" />
+          {modules.books && <QuoteCard collapseKey="dashboard.quote" />}
 
           {lowItems && lowItems.length > 0 && (
             <div style={{ marginTop: 16 }}>

@@ -18,6 +18,7 @@ import { useToast } from "../components/Toast";
 import { useT, type Translate } from "../i18n";
 import type { MessageKey } from "../i18n/catalogue";
 import { errorMessage } from "../i18n/errors";
+import { useModule } from "../layout/modules";
 import { useLoad } from "../useLoad";
 import { useDates } from "../useDates";
 import {
@@ -334,10 +335,12 @@ export function HabitsPage() {
   // the thing this page exists for.
   // A fixed path, so a 404 can only mean the route is absent — an API older than this
   // page — never "no moods recorded"; `useLoad` says so.
+  // Epic 33: with the mood module off the card is gone and its history is not asked for.
+  const moodOn = useModule("mood");
   const { data: mood, failure: moodError } = useLoad(
-    () => api.moodHistory(MOOD_DAYS),
+    () => (moodOn ? api.moodHistory(MOOD_DAYS) : Promise.resolve(null)),
     null as MoodHistory | null,
-    [],
+    [moodOn],
     "error.generic",
   );
 
@@ -765,6 +768,7 @@ export function HabitsPage() {
 
           English on purpose: Epic 24 is not committed, and the French pass deliberately
           stops at its edge rather than translating strings that may still move. */}
+      {moodOn && (
       <Card title="Mood" collapseKey="habits.mood" summary={mood ? `${mood.days_answered}` : ""}>
         <p className="hint" style={{ marginTop: 0 }}>
           Not a habit: there is no target here, nothing to be enough of, and nothing to keep
@@ -802,6 +806,7 @@ export function HabitsPage() {
           </>
         )}
       </Card>
+      )}
     </>
   );
 }

@@ -293,3 +293,54 @@ def test_the_column_holds_only_an_object(owner_engine):
             )
         ).scalar_one()
     assert "jsonb_typeof(preferences)" in clause
+
+
+# --- the push digest (story 33.3) -------------------------------------------------------
+
+
+def _digest(user):
+    from app.core.db import tenant_session
+    from app.services import push
+
+    with tenant_session(user["id"]) as session:
+        return push.digest(session, user["id"])
+
+
+def _low_milk_and_a_run(client, user):
+    client.post("/api/inventory/spaces", json={"name": "Fridge"}, headers=user["headers"])
+    client.post(
+        "/api/inventory/items",
+        json={"name": "Milk", "quantity": 0, "restock_below": 1, "space_name": "Fridge"},
+        headers=user["headers"],
+    )
+    client.post(
+        "/api/habits",
+        json={"name": "Run", "schedule_kind": "daily", "target_count": 1, "remind": True},
+        headers=user["headers"],
+    )
+
+
+def test_the_digest_leaves_out_a_module_that_is_off(client, user_a):
+    """Off hides the UI and the notification that points at it; the rows stay."""
+    _low_milk_and_a_run(client, user_a)
+    before = _digest(user_a)
+    assert before.low_items == 1
+    assert before.habit_names == ["Run"]
+
+    _patch(client, user_a, {"modules": {"stock": False}})
+    stock_off = _digest(user_a)
+    assert stock_off.low_items == 0
+    assert "restock" not in stock_off.body
+    assert stock_off.habit_names == ["Run"]
+
+    _patch(client, user_a, {"modules": {"stock": True, "habits": False}})
+    habits_off = _digest(user_a)
+    assert habits_off.low_items == 1
+    assert habits_off.habit_names == []
+    assert "habit" not in habits_off.body
+
+
+def test_both_off_and_nothing_pending_is_an_empty_digest(client, user_a):
+    _low_milk_and_a_run(client, user_a)
+    _patch(client, user_a, {"modules": {"stock": False, "habits": False}})
+    assert _digest(user_a).empty
