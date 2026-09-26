@@ -1,7 +1,7 @@
-import { render as rtlRender, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CalendarPage } from "./CalendarPage";
 import { AuthProvider } from "../auth/AuthContext";
@@ -193,17 +193,35 @@ function mockApi(options: Options = {}) {
   return { fetchMock, seen };
 }
 
-/** The month input is the one control that names the period being shown. */
+/**
+ * The month input is the one control that names the period being shown.
+ *
+ * One change event carrying the whole value, which is what a real month picker emits.
+ * Typing it character by character does not work here: the control falls back to the
+ * account's current month for any value the input reports as invalid, and every prefix of
+ * "2026-09" is invalid — so clear-then-type left the page on today's month, and these
+ * tests only ever passed because that happened to be the month they asked for.
+ */
 async function setMonth(value: string) {
   const input = await screen.findByLabelText("Month");
-  await userEvent.clear(input);
-  await userEvent.type(input, value);
+  fireEvent.change(input, { target: { value } });
+  await waitFor(() => expect((input as HTMLInputElement).value).toBe(value));
 }
 
 describe("CalendarPage", () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.restoreAllMocks();
+    // Every test here names a month of 2026 and asserts which days fall inside the account's
+    // period, so "now" is part of the fixture. Left to the real clock these assertions were
+    // decoration: they passed while today happened to sit in the period they describe and
+    // went red on the day it moved on (26 September 2026, in CI). Only Date is faked —
+    // userEvent needs real timers.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-08-10T12:00:00Z") });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("draws the account's period, not the calendar month", async () => {
