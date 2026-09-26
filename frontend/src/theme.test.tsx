@@ -126,22 +126,28 @@ function Probe() {
   const theme = useTheme();
   return (
     <>
-      <output>{`${theme.mode}/${theme.resolved}/${theme.accent}`}</output>
+      <output>{`${theme.shown.mode}/${theme.resolved}/${theme.shown.accent}`}</output>
       <button type="button" onClick={theme.toggle}>
         toggle
       </button>
-      <button type="button" onClick={() => theme.setMode("hc")}>
+      <button type="button" onClick={() => theme.preview({ mode: "hc" })}>
         hc
       </button>
-      <button type="button" onClick={() => theme.setAccent("indigo")}>
+      <button type="button" onClick={() => theme.preview({ accent: "indigo" })}>
         indigo
+      </button>
+      <button type="button" onClick={theme.save}>
+        save
+      </button>
+      <button type="button" onClick={theme.discard}>
+        discard
       </button>
     </>
   );
 }
 
 describe("ThemeProvider", () => {
-  it("applies and remembers a chosen mode and accent", () => {
+  it("shows a preview without storing it, and stores it on save", () => {
     stubSystem(false);
     const meta = withThemeColorMeta();
     render(
@@ -157,8 +163,45 @@ describe("ThemeProvider", () => {
     expect(root.dataset.theme).toBe("hc");
     expect(root.dataset.accent).toBe("indigo");
     expect(meta.content).toBe(THEME_COLOR.hc);
+    expect(window.localStorage.getItem(MODE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(ACCENT_KEY)).toBeNull();
+
+    fireEvent.click(screen.getByText("save"));
     expect(window.localStorage.getItem(MODE_KEY)).toBe("hc");
     expect(window.localStorage.getItem(ACCENT_KEY)).toBe("indigo");
+    expect(root.dataset.theme).toBe("hc");
+  });
+
+  it("puts the saved theme back when a preview is discarded", () => {
+    stubSystem(false);
+    window.localStorage.setItem(ACCENT_KEY, "teal");
+    render(
+      <ThemeProvider>
+        <Probe />
+      </ThemeProvider>,
+    );
+    fireEvent.click(screen.getByText("hc"));
+    fireEvent.click(screen.getByText("indigo"));
+    fireEvent.click(screen.getByText("discard"));
+
+    expect(root.dataset.theme).toBe("light");
+    expect(root.dataset.accent).toBe("teal");
+    expect(window.localStorage.getItem(ACCENT_KEY)).toBe("teal");
+  });
+
+  it("toggles from what is showing, stores at once, and drops a preview", () => {
+    stubSystem(false);
+    render(
+      <ThemeProvider>
+        <Probe />
+      </ThemeProvider>,
+    );
+    fireEvent.click(screen.getByText("indigo"));
+    fireEvent.click(screen.getByText("toggle"));
+
+    expect(screen.getByRole("status")).toHaveTextContent("dark/dark/blue");
+    expect(window.localStorage.getItem(MODE_KEY)).toBe("dark");
+    expect(window.localStorage.getItem(ACCENT_KEY)).toBe("blue");
   });
 
   it("follows the OS live while on system, and stops once a mode is chosen", () => {

@@ -3012,3 +3012,31 @@ button.pin:not(.on) span {
   outline: 2px solid var(--focus);
   outline-offset: 6px;
 }
+
+/* ---------------------------------------------------------------- card links */
+
+/* A dashboard card's "N things → that page" line: To confirm, Reading now, Restock. A row
+   rather than an underlined link — bold in the text colour, a chevron at the far edge, the
+   whole width a 44px target — so it reads as a way in, not as a word in a sentence, and it
+   stops being the one accent-coloured, underlined thing in a card of plain text. The
+   underline comes back on hover as the pointer's confirmation. */
+.card-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 44px;
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.card-link:hover span:first-child {
+  text-decoration: underline;
+}
+
+.card-link .chevron {
+  color: var(--muted);
+  font-size: var(--fs-h3);
+  line-height: 1;
+}

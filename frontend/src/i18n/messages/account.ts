@@ -69,8 +69,8 @@ export const account = {
   "settings.accentTeal": { en: "Teal", fr: "Sarcelle" },
   "settings.accentGraphite": { en: "Graphite", fr: "Graphite" },
   "settings.appearanceHint": {
-    en: "Saved on this device only, unlike the language: your phone can be dark while your laptop stays light. Green, red and orange are not offered as accents because they already mean money in, money out and a warning.",
-    fr: "Enregistré sur cet appareil seulement, contrairement à la langue : votre téléphone peut rester sombre et votre ordinateur clair. Le vert, le rouge et l’orange ne sont pas proposés comme accents, car ils signifient déjà une rentrée, une dépense et un avertissement.",
+    en: "Picking one shows it straight away; Save keeps it. Saved on this device only, unlike the language: your phone can be dark while your laptop stays light. Green, red and orange are not offered as accents because they already mean money in, money out and a warning.",
+    fr: "Un choix s’affiche aussitôt ; Enregistrer le conserve. Enregistré sur cet appareil seulement, contrairement à la langue : votre téléphone peut rester sombre et votre ordinateur clair. Le vert, le rouge et l’orange ne sont pas proposés comme accents, car ils signifient déjà une rentrée, une dépense et un avertissement.",
   },
   "settings.budgetMonth": { en: "Budget month", fr: "Mois budgétaire" },
   "settings.startsOnDay": { en: "Starts on day", fr: "Commence le jour" },

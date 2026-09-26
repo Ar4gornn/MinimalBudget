@@ -9,14 +9,18 @@ import { ToastProvider } from "../components/Toast";
 import { ThemeProvider } from "../theme";
 
 function render(ui: React.ReactElement) {
-  return rtlRender(
+  return rtlRender(wrap(ui));
+}
+
+function wrap(ui: React.ReactElement) {
+  return (
     <ThemeProvider>
       <AuthProvider>
         <LanguageProvider>
           <ToastProvider>{ui}</ToastProvider>
         </LanguageProvider>
       </AuthProvider>
-    </ThemeProvider>,
+    </ThemeProvider>
   );
 }
 
@@ -83,12 +87,14 @@ describe("SettingsPage", () => {
     expect(await screen.findByText(/3 of 8 unused/)).toBeInTheDocument();
   });
 
-  it("changes the theme and accent on this device, without calling the API", async () => {
+  it("previews a theme and accent, and keeps them on this device only on Save", async () => {
     const fetchMock = mockApi();
     const user = userEvent.setup();
     render(<SettingsPage />);
     await screen.findByText("sam@example.com");
     const calls = fetchMock.mock.calls.length;
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
 
     await user.selectOptions(screen.getByLabelText("Theme"), "oled");
     await user.click(screen.getByRole("radio", { name: "Teal" }));
@@ -96,8 +102,28 @@ describe("SettingsPage", () => {
     expect(document.documentElement.dataset.theme).toBe("oled");
     expect(document.documentElement.dataset.accent).toBe("teal");
     expect(screen.getByRole("radio", { name: "Teal" })).toBeChecked();
+    expect(window.localStorage.getItem("everything-everywhere.theme")).toBeNull();
+
+    await user.click(save);
     expect(window.localStorage.getItem("everything-everywhere.theme")).toBe("oled");
+    expect(window.localStorage.getItem("everything-everywhere.accent")).toBe("teal");
+    expect(save).toBeDisabled();
     expect(fetchMock.mock.calls.length).toBe(calls);
+  });
+
+  it("drops an unsaved preview when Settings is left", async () => {
+    mockApi();
+    const user = userEvent.setup();
+    const { rerender } = render(<SettingsPage />);
+    await screen.findByText("sam@example.com");
+
+    await user.click(screen.getByRole("radio", { name: "Violet" }));
+    expect(document.documentElement.dataset.accent).toBe("violet");
+    // Navigate away: Settings goes, the provider stays.
+    rerender(wrap(<p>elsewhere</p>));
+
+    expect(document.documentElement.dataset.accent).toBe("blue");
+    expect(window.localStorage.getItem("everything-everywhere.accent")).toBeNull();
   });
 
   it("changes the currency with a PATCH and re-reads the profile", async () => {

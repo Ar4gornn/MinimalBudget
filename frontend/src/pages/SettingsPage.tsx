@@ -47,6 +47,9 @@ export function SettingsPage() {
   const { user, signOut, refreshUser: refreshProfile } = useAuth();
   const { t, lang, setLanguage } = useLanguage();
   const theme = useTheme();
+  const { discard } = theme;
+  // A preview is only a preview: leaving Settings without saving puts the saved theme back.
+  useEffect(() => discard, [discard]);
   const swatches = theme.resolved === "dark" || theme.resolved === "oled" ? "dark" : "light";
   const dates = useDates();
   const money = useMoney();
@@ -204,8 +207,8 @@ export function SettingsPage() {
             {t("settings.theme")}
             <select
               aria-label={t("settings.theme")}
-              value={theme.mode}
-              onChange={(event) => theme.setMode(event.target.value as Mode)}
+              value={theme.shown.mode}
+              onChange={(event) => theme.preview({ mode: event.target.value as Mode })}
             >
               {MODES.map((mode) => (
                 <option key={mode} value={mode}>
@@ -226,14 +229,29 @@ export function SettingsPage() {
                 type="radio"
                 name="accent"
                 value={accent}
-                checked={theme.accent === accent}
-                onChange={() => theme.setAccent(accent)}
+                checked={theme.shown.accent === accent}
+                onChange={() => theme.preview({ accent })}
                 aria-label={t(ACCENT_LABELS[accent])}
               />
               <span className="dot" aria-hidden="true" style={{ background: ACCENT_SWATCH[swatches][accent] }} />
             </label>
           ))}
         </fieldset>
+        {/* Shown whatever the state, disabled until there is something to save, so the
+            buttons do not jump into place under the finger that just picked a swatch. */}
+        <div className="row" style={{ marginTop: 12 }}>
+          <button type="button" onClick={theme.save} disabled={!theme.previewing}>
+            {t("action.save")}
+          </button>
+          <button
+            type="button"
+            className="quiet"
+            onClick={theme.discard}
+            disabled={!theme.previewing}
+          >
+            {t("action.cancel")}
+          </button>
+        </div>
         <p className="hint" style={{ marginTop: 8 }}>
           {t("settings.appearanceHint")}
         </p>

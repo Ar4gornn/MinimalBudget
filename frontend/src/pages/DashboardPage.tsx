@@ -320,7 +320,12 @@ export function DashboardPage() {
                 summary={t.n("dash.pendingCount", pending.length)}
               >
                 <p style={{ margin: "0 0 6px" }} data-stat="To confirm">
-                  <Link to="/plan">{t.n("dash.pendingWaiting", pending.length)}</Link>
+                  <Link to="/plan" className="card-link">
+                    <span>{t.n("dash.pendingWaiting", pending.length)}</span>
+                    <span className="chevron" aria-hidden="true">
+                      ›
+                    </span>
+                  </Link>
                 </p>
                 <p className="hint" style={{ margin: 0 }}>
                   {pending
@@ -341,8 +346,11 @@ export function DashboardPage() {
                 summary={t.n("dash.readingCount", reading.length)}
               >
                 <p style={{ margin: "0 0 6px" }} data-stat="Reading">
-                  <Link to="/books?status=reading">
-                    {t.n("dash.readingCount", reading.length)}
+                  <Link to="/books?status=reading" className="card-link">
+                    <span>{t.n("dash.readingCount", reading.length)}</span>
+                    <span className="chevron" aria-hidden="true">
+                      ›
+                    </span>
                   </Link>
                 </p>
                 <p className="hint" style={{ margin: 0 }}>
@@ -374,8 +382,11 @@ export function DashboardPage() {
                 summary={t.n("dash.restockCount", lowItems.length)}
               >
                 <p style={{ margin: "0 0 6px" }} data-stat="Restock">
-                  <Link to="/inventory?filter=restock">
-                    {t.n("dash.restockNeed", lowItems.length)}
+                  <Link to="/inventory?filter=restock" className="card-link">
+                    <span>{t.n("dash.restockNeed", lowItems.length)}</span>
+                    <span className="chevron" aria-hidden="true">
+                      ›
+                    </span>
                   </Link>
                 </p>
                 <p className="hint" style={{ margin: 0 }}>

@@ -114,21 +114,37 @@ export function toggled(resolved: Resolved): Mode {
   return resolved === "dark" || resolved === "oled" ? "light" : "dark";
 }
 
+export type Prefs = { mode: Mode; accent: Accent };
+
 type ThemeState = {
-  mode: Mode;
-  accent: Accent;
+  /** What is stored on this device. */
+  saved: Prefs;
+  /** What is on screen: the saved choice with any unsaved preview laid over it. */
+  shown: Prefs;
   resolved: Resolved;
-  setMode: (mode: Mode) => void;
-  setAccent: (accent: Accent) => void;
+  /** True while something on screen has not been saved. */
+  previewing: boolean;
+  /** Show a mode or accent without storing it. */
+  preview: (next: Partial<Prefs>) => void;
+  /** Store what is on screen. */
+  save: () => void;
+  /** Go back to what is stored. */
+  discard: () => void;
+  /** The top bar: store the opposite of what is showing at once, dropping any preview. */
   toggle: () => void;
 };
 
 const ThemeContext = createContext<ThemeState | null>(null);
 
+/**
+ * Settings previews and the person decides: a swatch or a mode is shown the moment it is
+ * picked, and only Save writes it. Leaving Settings without saving discards the preview
+ * (the page calls `discard` on unmount), so a colour tried and not liked cannot stick by
+ * accident. The top-bar toggle is the exception — one tap is the whole point of it.
+ */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [prefs] = useState(readPrefs);
-  const [mode, setModeState] = useState<Mode>(prefs.mode);
-  const [accent, setAccentState] = useState<Accent>(prefs.accent);
+  const [saved, setSaved] = useState<Prefs>(readPrefs);
+  const [draft, setDraft] = useState<Partial<Prefs>>({});
   const [prefersDark, setPrefersDark] = useState(systemPrefersDark);
 
   useEffect(() => {
@@ -139,27 +155,35 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => query.removeEventListener("change", follow);
   }, []);
 
-  const resolved = resolve(mode, prefersDark);
+  const shown = useMemo<Prefs>(
+    () => ({ mode: draft.mode ?? saved.mode, accent: draft.accent ?? saved.accent }),
+    [draft, saved],
+  );
+  const resolved = resolve(shown.mode, prefersDark);
+  const previewing = shown.mode !== saved.mode || shown.accent !== saved.accent;
 
   useEffect(() => {
-    applyTheme(resolved, accent);
-  }, [resolved, accent]);
+    applyTheme(resolved, shown.accent);
+  }, [resolved, shown.accent]);
 
-  const setMode = useCallback((next: Mode) => {
-    setModeState(next);
-    write(MODE_KEY, next);
+  const store = useCallback((next: Prefs) => {
+    setSaved(next);
+    setDraft({});
+    write(MODE_KEY, next.mode);
+    write(ACCENT_KEY, next.accent);
   }, []);
 
-  const setAccent = useCallback((next: Accent) => {
-    setAccentState(next);
-    write(ACCENT_KEY, next);
-  }, []);
-
-  const toggle = useCallback(() => setMode(toggled(resolved)), [resolved, setMode]);
+  const preview = useCallback((next: Partial<Prefs>) => setDraft((d) => ({ ...d, ...next })), []);
+  const save = useCallback(() => store(shown), [store, shown]);
+  const discard = useCallback(() => setDraft({}), []);
+  const toggle = useCallback(
+    () => store({ mode: toggled(resolved), accent: saved.accent }),
+    [store, resolved, saved.accent],
+  );
 
   const value = useMemo(
-    () => ({ mode, accent, resolved, setMode, setAccent, toggle }),
-    [mode, accent, resolved, setMode, setAccent, toggle],
+    () => ({ saved, shown, resolved, previewing, preview, save, discard, toggle }),
+    [saved, shown, resolved, previewing, preview, save, discard, toggle],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
