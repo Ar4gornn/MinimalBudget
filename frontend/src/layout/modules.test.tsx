@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { App, visibleSections } from "../App";
+import { App, navFor } from "../App";
 import type { ModuleId, Preferences } from "../api/types";
 import { AuthProvider } from "../auth/AuthContext";
 import { ToastProvider } from "../components/Toast";
@@ -37,6 +37,7 @@ function renderAt(
   path: string,
   modules: Record<ModuleId, boolean>,
   patch: (body: unknown) => Response = () => json({}),
+  prefs: Preferences = withModules(modules),
 ) {
   window.localStorage.setItem("everything-everywhere.token", "test-token");
   requests = [];
@@ -47,7 +48,7 @@ function renderAt(
     weight_unit: "kg",
     budget_start_day: 1,
     created_at: "",
-    preferences: withModules(modules),
+    preferences: prefs,
   };
   vi.stubGlobal(
     "fetch",
@@ -86,7 +87,9 @@ const tabs = () =>
     .getAllByRole("link")
     .map((link) => link.textContent?.replace(/^\W+/u, "").trim());
 
-describe("visibleSections", () => {
+describe("navFor (modules)", () => {
+  const visibleSections = (modules: Record<ModuleId, boolean>) =>
+    navFor(DEFAULT_PREFERENCES.phone, modules).bar;
   const paths = (modules: Record<ModuleId, boolean>) => visibleSections(modules).map((s) => s.to);
 
   it("is today's five with everything on", () => {
@@ -282,4 +285,115 @@ describe("the module table is complete", () => {
       expect(found).toEqual(CALLERS[id]);
     });
   }
+});
+
+describe("Settings → Layout → tabs (story 33.4)", () => {
+  /** A phone-sized screen: jsdom has no matchMedia, so the layout would be desktop. */
+  function onAPhone() {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+  }
+  const echo = (body: unknown) =>
+    json({
+      id: "u1",
+      email: "sam@example.com",
+      currency: "USD",
+      created_at: "",
+      preferences: { ...DEFAULT_PREFERENCES, ...(body as object) },
+    });
+  const firstPatch = () => requests.find((r) => r.method === "PATCH")?.body as Record<string, unknown>;
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    onAPhone();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("opens on the layout this screen uses", async () => {
+    renderAt("/settings", ALL_ON, echo);
+    expect(await screen.findByRole("button", { name: "Phone" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Computer" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
+  it("swaps a tab into the top bar on a phone, and the bars follow at once", async () => {
+    renderAt("/settings", ALL_ON, echo);
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "Move Gym to the top bar, and Recipes to the tab bar",
+      }),
+    );
+    expect(tabs()).toEqual(["Dashboard", "Entries", "Habits", "Stock", "Recipes"]);
+    expect(within(topExtra()).getByRole("link", { name: "Gym" })).toBeInTheDocument();
+
+    await waitFor(() => expect(firstPatch()).toBeDefined());
+    expect(Object.keys(firstPatch())).toEqual(["phone"]);
+    expect((firstPatch().phone as { tabs: unknown }).tabs).toEqual([
+      ...DEFAULT_PREFERENCES.phone.tabs.slice(0, 4),
+      { id: "recipes", slot: "bar" },
+      { id: "plan", slot: "top" },
+      { id: "grow", slot: "top" },
+      { id: "gym", slot: "top" },
+    ]);
+  });
+
+  it("reorders with up and down, and cannot move past either end", async () => {
+    renderAt("/settings", ALL_ON, echo);
+    expect(await screen.findByRole("button", { name: "Move Dashboard up" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Move Gym down" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Move Habits up" }));
+    expect(tabs()).toEqual(["Dashboard", "Habits", "Entries", "Stock", "Gym"]);
+  });
+
+  it("edits the computer layout from a phone without touching what the phone shows", async () => {
+    // The two layouts differ, so the editor must show — and change — the one chosen.
+    const desktopTabs = [
+      { id: "plan", slot: "bar" },
+      ...DEFAULT_PREFERENCES.desktop.tabs.filter((tab) => tab.id !== "plan"),
+    ] as Preferences["desktop"]["tabs"];
+    const prefs = { ...DEFAULT_PREFERENCES, desktop: { ...DEFAULT_PREFERENCES.desktop, tabs: desktopTabs } };
+    renderAt("/settings", ALL_ON, echo, prefs);
+    await userEvent.click(await screen.findByRole("button", { name: "Computer" }));
+    const bar = screen.getByRole("list", { name: "Tab bar" });
+    expect(within(bar).getAllByRole("listitem")[0]).toHaveTextContent("Plan");
+    // A desktop has room: no swap is offered, the move is a move.
+    await userEvent.click(screen.getByRole("button", { name: "Move Gym to the top bar" }));
+    expect(tabs()).toEqual(["Dashboard", "Entries", "Habits", "Stock", "Gym"]);
+    await waitFor(() => expect(firstPatch()).toBeDefined());
+    expect(Object.keys(firstPatch())).toEqual(["desktop"]);
+    expect((firstPatch().desktop as { tabs: { id: string }[] }).tabs.map((tab) => tab.id)).toEqual([
+      "plan", "dashboard", "entries", "habits", "stock", "grow", "recipes", "gym",
+    ]);
+  });
+
+  it("marks a section whose module is off, and still lets it be placed", async () => {
+    renderAt("/settings", off("gym"), echo);
+    const bar = await screen.findByRole("list", { name: "Tab bar" });
+    expect(within(bar).getByText(/turned off/)).toBeInTheDocument();
+    expect(within(bar).getByRole("button", { name: /Move Gym to the top bar/ })).toBeEnabled();
+  });
+
+  it("resets a layout only after asking", async () => {
+    const reversed = [...DEFAULT_PREFERENCES.phone.tabs]
+      .reverse()
+      .map((tab, i) => ({ id: tab.id, slot: i < 5 ? ("bar" as const) : ("top" as const) }));
+    const moved = { ...DEFAULT_PREFERENCES, phone: { ...DEFAULT_PREFERENCES.phone, tabs: reversed } };
+    renderAt("/settings", ALL_ON, echo, moved);
+    await waitFor(() => expect(tabs()[0]).toBe("Recipes"));
+    await userEvent.click(screen.getByRole("button", { name: "Reset these tabs" }));
+    expect(
+      screen.getByText("Put the phone tabs back in their original order?"),
+    ).toBeInTheDocument();
+    expect(firstPatch()).toBeUndefined();
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+    expect(tabs()).toEqual(["Dashboard", "Entries", "Habits", "Stock", "Gym"]);
+  });
 });

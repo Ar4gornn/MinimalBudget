@@ -18,6 +18,35 @@ export const layout = {
     fr: "Enregistrement impossible, la modification a été annulée.",
   },
 
+  "layout.tabs": { en: "Tabs", fr: "Onglets" },
+  "layout.phone": { en: "Phone", fr: "Téléphone" },
+  "layout.desktop": { en: "Computer", fr: "Ordinateur" },
+  "layout.tabsHint": {
+    en: "A phone fits five tabs and three links at the top, so moving one across swaps it with the last of the other row.",
+    fr: "Un téléphone affiche cinq onglets et trois liens en haut : déplacer un élément d'une rangée à l'autre l'échange avec le dernier de l'autre rangée.",
+  },
+  "layout.bar": { en: "Tab bar", fr: "Barre d'onglets" },
+  "layout.top": { en: "Top bar", fr: "Barre du haut" },
+  "layout.up": { en: "Move {name} up", fr: "Monter {name}" },
+  "layout.down": { en: "Move {name} down", fr: "Descendre {name}" },
+  "layout.toTop": { en: "Move {name} to the top bar", fr: "Placer {name} dans la barre du haut" },
+  "layout.toBar": { en: "Move {name} to the tab bar", fr: "Placer {name} dans la barre d'onglets" },
+  "layout.toTopSwap": {
+    en: "Move {name} to the top bar, and {other} to the tab bar",
+    fr: "Placer {name} dans la barre du haut, et {other} dans la barre d'onglets",
+  },
+  "layout.toBarSwap": {
+    en: "Move {name} to the tab bar, and {other} to the top bar",
+    fr: "Placer {name} dans la barre d'onglets, et {other} dans la barre du haut",
+  },
+  "layout.hidden": { en: "turned off", fr: "rubrique désactivée" },
+  "layout.reset": { en: "Reset these tabs", fr: "Rétablir ces onglets" },
+  "layout.resetConfirm": {
+    en: "Put the {layout} tabs back in their original order?",
+    fr: "Remettre les onglets ({layout}) dans leur ordre d'origine ?",
+  },
+  "layout.resetYes": { en: "Reset", fr: "Rétablir" },
+
   "module.habits": { en: "Habits", fr: "Habitudes" },
   "module.books": { en: "Books", fr: "Livres" },
   "module.mood": { en: "Mood", fr: "Humeur" },

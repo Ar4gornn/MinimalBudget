@@ -1,7 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { Preferences, PreferencesPatch } from "../api/types";
-import { DEFAULT_PREFERENCES, PreferenceSaver, applyPatch, preferencesOf } from "./preferences";
+import {
+  DEFAULT_PREFERENCES,
+  PHONE_CAPS,
+  PreferenceSaver,
+  applyPatch,
+  moveTab,
+  normalizeTabs,
+  preferencesOf,
+  swapPartner,
+  switchSlot,
+} from "./preferences";
 
 /** A send whose answers the test releases by hand, in whatever order it likes. */
 function controlledSend() {
@@ -160,5 +170,57 @@ describe("PreferenceSaver", () => {
     saver.confirm(applyPatch(DEFAULT_PREFERENCES, gymOff));
     expect(saver.shown.modules.gym).toBe(false);
     expect(saver.shown.phone).toEqual(phoneStatsHidden.phone);
+  });
+});
+
+describe("moving tabs", () => {
+  const tabs = DEFAULT_PREFERENCES.phone.tabs;
+  const ids = (list: { id: string }[]) => list.map((t) => t.id);
+  const count = (list: { slot: string }[], slot: string) =>
+    list.filter((t) => t.slot === slot).length;
+
+  it("moves one place within its own row, and not past either end", () => {
+    expect(ids(moveTab(tabs, "entries", -1)).slice(0, 2)).toEqual(["entries", "dashboard"]);
+    expect(moveTab(tabs, "dashboard", -1)).toEqual(tabs);
+    // Gym is last in the tab bar; down would cross into the top bar, so it stays.
+    expect(moveTab(tabs, "gym", 1)).toEqual(tabs);
+    expect(moveTab(tabs, "plan", -1)).toEqual(tabs);
+    expect(ids(moveTab(tabs, "grow", -1)).slice(5)).toEqual(["grow", "plan", "recipes"]);
+  });
+
+  it("swaps across on a phone, where both rows are full, and names who comes back", () => {
+    expect(swapPartner(tabs, "gym", "phone")).toBe("recipes");
+    expect(swapPartner(tabs, "plan", "phone")).toBe("gym");
+    expect(switchSlot(tabs, "entries", "phone")).toEqual([
+      { id: "dashboard", slot: "bar" },
+      { id: "recipes", slot: "bar" },
+      { id: "habits", slot: "bar" },
+      { id: "stock", slot: "bar" },
+      { id: "gym", slot: "bar" },
+      { id: "plan", slot: "top" },
+      { id: "grow", slot: "top" },
+      { id: "entries", slot: "top" },
+    ]);
+  });
+
+  it("keeps a phone within five and three whatever is moved, and every section once", () => {
+    for (const tab of tabs) {
+      const next = switchSlot(tabs, tab.id, "phone");
+      expect(count(next, "bar")).toBeLessThanOrEqual(PHONE_CAPS.bar);
+      expect(count(next, "top")).toBeLessThanOrEqual(PHONE_CAPS.top);
+      expect(new Set(ids(next)).size).toBe(tabs.length);
+    }
+  });
+
+  it("just moves across on a desktop, with no swap", () => {
+    expect(swapPartner(tabs, "gym", "desktop")).toBeNull();
+    const next = switchSlot(tabs, "gym", "desktop");
+    expect(count(next, "bar")).toBe(4);
+    expect(ids(next).at(-1)).toBe("gym");
+  });
+
+  it("writes tab bar first, then top bar", () => {
+    const mixed = [tabs[5], tabs[0], tabs[6], tabs[1]].filter((t) => t !== undefined);
+    expect(ids(normalizeTabs(mixed))).toEqual(["dashboard", "entries", "plan", "grow"]);
   });
 });

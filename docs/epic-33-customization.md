@@ -118,11 +118,14 @@ routes it also lights (`also`), its label and glyph, and the module it belongs t
 `.nav-extra`. The defaults reproduce today's app exactly.
 
 **Caps, phone only: `bar` holds at most 5 and `top` at most 3.** With all eight sections
-on, those caps are also minimums, so moving a section between slots is a swap. They come
+on, those caps are also minimums, so moving a section between slots is a swap: it goes last in
+the other row, and that row's last section takes its place (`switchSlot`, built 2026-09-26). They come
 from measurement, not taste: the phone top bar's content box is 335px at 375 and French is
 the wide language (Epic 27 lab note). Story 33.4 re-measures the worst case: the three
-longest French labels in `top` at 320 and 375. If that fails, the cap drops to 2 and the doc
-is updated before the story is closed. On a desktop there are no caps; order and slot are
+longest French labels in `top` at 320 and 375. **Measured 2026-09-26 on a production build:**
+Opérations/Habitudes/Recettes at 375 stays one row, with a 56px pill (floor 44) and no clipping
+or sideways scroll; at 320 it wraps the pill to a second row, 79px tall, exactly as today's
+default does at 320. English (Dashboard/Entries/Recipes) behaves the same. The cap stays 3. On a desktop there are no caps; order and slot are
 free.
 
 **A section with more than one view.** The Habits section is Habits plus Books. If `habits`
@@ -268,7 +271,10 @@ fixed or added to the table.
 **Given** Settings → Layout → Phone
 **When** I move sections with ↑/↓ and between slots
 **Then** the bottom bar and top bar follow at once, and after a reload
-**And** the caps hold, and a blocked move says why in its accessible name
+**And** the caps hold. On a phone both rows are full, so moving a section across swaps it
+with the last of the other row, and the button's accessible name says who comes back ("Move
+Gym to the top bar, and Recipes to the tab bar"). Nothing is ever blocked except ↑ at the
+top and ↓ at the bottom of a row
 **And** the Desktop tab edits the desktop layout while I am on a phone, without changing
 what I see
 **And** "Reset to default" restores today's layout after a confirmation

@@ -1,13 +1,14 @@
 import { type ComponentType, lazy, Suspense, useEffect } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
-import type { ModuleId } from "./api/types";
+import type { Layout, ModuleId, SectionId } from "./api/types";
 import { useAuth } from "./auth/AuthContext";
 import { ModuleGate } from "./components/ModuleOff";
 import { TutorialModal } from "./components/Tutorial/TutorialModal";
 import { TutorialProvider } from "./components/Tutorial/useTutorial";
-import { useT } from "./i18n";
-import { useModules } from "./layout/modules";
+import { type MessageKey, useT } from "./i18n";
+import { SECTION_LABEL, useModules } from "./layout/modules";
+import { usePreferences } from "./layout/useLayout";
 import { flushDrafts } from "./notes/drafts";
 import { SignInPage } from "./pages/SignInPage";
 import { useTheme } from "./theme";
@@ -105,65 +106,67 @@ const NotePage = page(() => import("./pages/NotePage"), "NotePage");
  */
 
 /**
- * Reachable from the top bar only. The bottom bar holds the five thumb-reachable ones.
+ * Every section, by id (Epic 33). Which slot each sits in, and in what order, is the
+ * account's per layout (AD-49); the defaults are the arrangement argued above — five
+ * thumb-reachable tabs, Plan, Grow and Recipes in the top bar.
  *
  * `label` is a message key rather than a word: the bar is drawn on every page, so a word
  * baked in here would be the one English string a French reader could never get away from.
  */
-const TOP_ONLY: { to: string; label: "nav.plan" | "nav.grow" | "nav.recipes"; module?: ModuleId }[] = [
-  { to: "/plan", label: "nav.plan" },
-  { to: "/projections", label: "nav.grow" },
-  // Epic 27; the measurement and the rejected alternatives are in the block above.
-  { to: "/recipes", label: "nav.recipes", module: "recipes" },
-];
-
-const ALL_SECTIONS = [
+export const SECTION_DEFS: Record<SectionId, Section & { module?: ModuleId }> = {
   // The Dashboard tab covers both of its views, so the calendar does not look like a place
   // outside the app while you are standing in it.
   // Notes (Epic 32) are reached from the Dashboard's note button, so the tab stays lit there.
-  { to: "/", label: "nav.dashboard", glyph: "◪", end: true, also: ["/calendar", "/notes"] },
-  { to: "/entries", label: "nav.entries", glyph: "≡", end: false, also: [] as string[] },
+  dashboard: { to: "/", label: SECTION_LABEL.dashboard, glyph: "◪", end: true, also: ["/calendar", "/notes"] },
+  entries: { to: "/entries", label: SECTION_LABEL.entries, glyph: "≡", end: false, also: [] },
   // The Habits tab covers the books too (Epic 28): a second view of the same section, the
   // way the calendar is the Dashboard's.
-  { to: "/habits", label: "nav.habits", glyph: "✓", end: false, also: ["/books"] },
-  { to: "/inventory", label: "nav.stock", glyph: "▤", end: false, also: [] as string[] },
-  // Gym is a thing you open at the gym, so it keeps its thumb-reachable tab.
-  { to: "/gym", label: "nav.gym", glyph: "◈", end: false, also: [] as string[] },
-] as const;
+  habits: { to: "/habits", label: SECTION_LABEL.habits, glyph: "✓", end: false, also: ["/books"] },
+  stock: { to: "/inventory", label: SECTION_LABEL.stock, glyph: "▤", end: false, also: [], module: "stock" },
+  // Gym is a thing you open at the gym, so by default it keeps a thumb-reachable tab.
+  gym: { to: "/gym", label: SECTION_LABEL.gym, glyph: "◈", end: false, also: [], module: "gym" },
+  plan: { to: "/plan", label: SECTION_LABEL.plan, glyph: "▦", end: false, also: [] },
+  grow: { to: "/projections", label: SECTION_LABEL.grow, glyph: "↗", end: false, also: [] },
+  // Epic 27; the measurement and the rejected alternatives are in the block above.
+  recipes: { to: "/recipes", label: SECTION_LABEL.recipes, glyph: "◍", end: false, also: [], module: "recipes" },
+};
 
 type Section = {
   to: string;
-  label: (typeof ALL_SECTIONS)[number]["label"] | "view.books";
+  label: MessageKey;
   glyph: string;
   end: boolean;
   also: readonly string[];
 };
 
 /**
- * The sections an account with these modules sees (Epic 33). A section with two views —
- * Habits and Books — stays while either is on, and becomes the one that is: with Habits
- * off it is a Books tab pointing at `/books`. A section whose every view is off is gone.
+ * One section as an account with these modules sees it, or null when it is gone. A section
+ * with two views — Habits and Books — stays while either is on, and becomes the one that
+ * is: with Habits off it is a Books tab pointing at `/books`.
  */
-export function visibleSections(modules: Record<ModuleId, boolean>): Section[] {
-  const sections: Section[] = [];
-  for (const section of ALL_SECTIONS) {
-    if (section.to === "/") {
-      sections.push({ ...section, also: modules.notes ? section.also : ["/calendar"] });
-    } else if (section.to === "/habits") {
-      if (modules.habits) {
-        sections.push({ ...section, also: modules.books ? section.also : [] });
-      } else if (modules.books) {
-        sections.push({ to: "/books", label: "view.books", glyph: "▥", end: false, also: [] });
-      }
-    } else if (section.to === "/inventory") {
-      if (modules.stock) sections.push(section);
-    } else if (section.to === "/gym") {
-      if (modules.gym) sections.push(section);
-    } else {
-      sections.push(section);
-    }
+function visibleSection(id: SectionId, modules: Record<ModuleId, boolean>): Section | null {
+  const section = SECTION_DEFS[id];
+  if (id === "dashboard") return { ...section, also: modules.notes ? section.also : ["/calendar"] };
+  if (id === "habits") {
+    if (modules.habits) return { ...section, also: modules.books ? section.also : [] };
+    return modules.books
+      ? { to: "/books", label: "view.books", glyph: "▥", end: false, also: [] }
+      : null;
   }
-  return sections;
+  return section.module && !modules[section.module] ? null : section;
+}
+
+/** The two bars for one layout: its tab order and slots, less what the modules hide. */
+export function navFor(
+  layout: Layout,
+  modules: Record<ModuleId, boolean>,
+): { bar: Section[]; top: Section[] } {
+  const pick = (slot: "bar" | "top") =>
+    layout.tabs
+      .filter((tab) => tab.slot === slot)
+      .map((tab) => visibleSection(tab.id, modules))
+      .filter((section): section is Section => section !== null);
+  return { bar: pick("bar"), top: pick("top") };
 }
 
 export function App() {
@@ -175,8 +178,9 @@ export function App() {
   const { pathname } = useLocation();
   // Read before the early returns below: a hook must run on every render.
   const modules = useModules();
-  const SECTIONS = visibleSections(modules);
-  const topLinks = TOP_ONLY.filter((link) => !link.module || modules[link.module]);
+  // The tabs are the account's, per layout (Epic 33): a phone and a laptop may differ.
+  const { current } = usePreferences();
+  const { bar: SECTIONS, top: topLinks } = navFor(current, modules);
 
   // Quick add belongs where entries do — and on the calendar, where a day is exactly the
   // thing you would want to record against. On the projections page there is nothing to
@@ -224,7 +228,7 @@ export function App() {
             .nav, because .nav is hidden on a phone — which would strand both. */}
         <nav className="nav-extra" aria-label={t("nav.more")}>
           {topLinks.map((section) => (
-            <NavLink key={section.to} to={section.to}>
+            <NavLink key={section.to} to={section.to} end={section.end} className={extra(section)}>
               {t(section.label)}
             </NavLink>
           ))}
