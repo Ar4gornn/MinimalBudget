@@ -17,9 +17,10 @@ export const MAX_POINTS = 20_000;
 
 /**
  * Ink 0 is `currentColor` — the page's own text colour — so a sketch drawn on a light phone
- * is still visible on a dark one. The other two are fixed and chosen to read on both.
+ * is still visible on a dark one. The other two are theme tokens rather than literals: the
+ * red that reads on white was 2.9:1 on the dark card, so each theme sets its own.
  */
-export const INKS = ["currentColor", "#d0453a", "#2f7bd1"] as const;
+export const INKS = ["currentColor", "var(--ink-red)", "var(--ink-blue)"] as const;
 
 /** Logical units on the 750-wide canvas: about 2px and 6px on a 375px phone. */
 export const NIBS = [4, 12] as const;

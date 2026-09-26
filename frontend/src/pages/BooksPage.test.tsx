@@ -207,11 +207,18 @@ describe("BooksPage", () => {
     render();
     await screen.findByText("Guards! Guards!");
 
-    await user.type(screen.getByLabelText("Title"), "  Mort ");
-    await user.type(screen.getByLabelText("Author"), "Terry Pratchett");
-    await user.type(screen.getByLabelText("Series (optional)"), "Discworld");
-    await user.type(screen.getByLabelText("No. in series"), "4");
-    await user.type(screen.getByLabelText("Tags, comma-separated"), "fantasy");
+    // Pasted, not typed: what is under test is the body sent, not the keystrokes, and each
+    // keystroke re-renders the whole shelf. Forty-odd of them took two seconds alone and
+    // ran past the five-second test timeout in a full parallel run.
+    const fill = async (label: string, text: string) => {
+      await user.click(screen.getByLabelText(label));
+      await user.paste(text);
+    };
+    await fill("Title", "  Mort ");
+    await fill("Author", "Terry Pratchett");
+    await fill("Series (optional)", "Discworld");
+    await fill("No. in series", "4");
+    await fill("Tags, comma-separated", "fantasy");
     await user.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => expect(bodies(calls, "POST")).toHaveLength(1));

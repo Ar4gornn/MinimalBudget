@@ -32,6 +32,7 @@ import { plan } from "./messages/plan";
 import { recipes } from "./messages/recipes";
 import { books } from "./messages/books";
 import { notes } from "./messages/notes";
+import { layout } from "./messages/layout";
 import { tour } from "./messages/tour";
 
 export const LANGUAGES = ["en", "fr"] as const;
@@ -53,6 +54,7 @@ export const messages = {
   ...recipes,
   ...books,
   ...notes,
+  ...layout,
   ...tour,
   ...errors,
 };

@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import Boolean, DateTime, Integer, String, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,4 +38,10 @@ class User(TimestampedMixin, Base):
     )
     tutorial_skipped_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    # Epic 33 (AD-49): layout preferences, sparse — a missing key is the default, filled in
+    # by `services/preferences.resolve` on every read. NOT NULL, so `none_as_null` only
+    # guards against a Python None ever reaching it as JSON `null`.
+    preferences: Mapped[dict] = mapped_column(
+        JSONB(none_as_null=True), nullable=False, server_default=text("'{}'::jsonb")
     )

@@ -12,6 +12,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { api } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
+import { useCurrentLayout } from "../../layout/useLayout";
 
 /**
  * The guided tour on first sign-in (Epic 30).
@@ -68,13 +69,23 @@ export const STEPS: Record<TourStep, StepSpec> = {
 /** The numbered ones, in order. The closing screen is not a step. */
 export const NUMBERED: readonly TourStep[] = ["welcome", "entry", "history", "budget", "progress"];
 
-const ORDER: readonly TourStep[] = [...NUMBERED, "done"];
+/**
+ * The steps this account will actually see (Epic 33). The progress step points at the
+ * Dashboard's budget card; with that card hidden in the current layout there is nothing to
+ * point at, so the step is skipped — and counted out of "2 of 5", which must not promise a
+ * step that will not come.
+ */
+function numberedFor(budgetsShown: boolean): readonly TourStep[] {
+  return budgetsShown ? NUMBERED : NUMBERED.filter((step) => step !== "progress");
+}
 
 export type TourEvent = "entry-created";
 
 export interface TutorialApi {
   /** The current step, or null while the tour is not running. */
   step: TourStep | null;
+  /** The numbered steps this account will see, in order — what "n of N" counts. */
+  numbered: readonly TourStep[];
   /** Open the tour from the start — the auto-open on first sign-in, and Settings' replay. */
   start: () => void;
   next: () => void;
@@ -95,6 +106,7 @@ const noop = () => undefined;
  */
 const INERT: TutorialApi = {
   step: null,
+  numbered: NUMBERED,
   start: noop,
   next: noop,
   skip: noop,
@@ -109,6 +121,9 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [step, setStep] = useState<TourStep | null>(null);
+  const budgetsShown =
+    useCurrentLayout().cards.find((card) => card.id === "budgets")?.on ?? true;
+  const numbered = useMemo(() => numberedFor(budgetsShown), [budgetsShown]);
   // Which account has already been offered the tour this session. The guard is a ref and
   // not the server flags, because the flags in `user` are not re-read after the PATCH —
   // and a later profile refresh (changing the currency, say) must not reopen it.
@@ -174,12 +189,13 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const start = useCallback(() => setStep("welcome"), []);
 
   const next = useCallback(() => {
+    const order: readonly TourStep[] = [...numbered, "done"];
     setStep((current) => {
       if (current === null) return null;
-      const index = ORDER.indexOf(current);
-      return ORDER[Math.min(index + 1, ORDER.length - 1)] ?? null;
+      const index = order.indexOf(current);
+      return order[Math.min(index + 1, order.length - 1)] ?? null;
     });
-  }, []);
+  }, [numbered]);
 
   // The worst a failed write can do is offer the tour once more next sign-in, and this
   // session's `offered` guard already holds. Not worth an error banner on a screen that
@@ -201,8 +217,8 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ step, start, next, skip, finish, notify }),
-    [step, start, next, skip, finish, notify],
+    () => ({ step, numbered, start, next, skip, finish, notify }),
+    [step, numbered, start, next, skip, finish, notify],
   );
 
   return <TutorialContext.Provider value={value}>{children}</TutorialContext.Provider>;

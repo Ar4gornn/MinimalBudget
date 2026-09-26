@@ -6,14 +6,21 @@ import { SettingsPage } from "./SettingsPage";
 import { AuthProvider } from "../auth/AuthContext";
 import { LanguageProvider } from "../i18n";
 import { ToastProvider } from "../components/Toast";
+import { ACCENTS, MODES, ThemeProvider } from "../theme";
 
 function render(ui: React.ReactElement) {
-  return rtlRender(
-    <AuthProvider>
-      <LanguageProvider>
-        <ToastProvider>{ui}</ToastProvider>
-      </LanguageProvider>
-    </AuthProvider>,
+  return rtlRender(wrap(ui));
+}
+
+function wrap(ui: React.ReactElement) {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <LanguageProvider>
+          <ToastProvider>{ui}</ToastProvider>
+        </LanguageProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
@@ -78,6 +85,68 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
     expect(await screen.findByText("sam@example.com")).toBeInTheDocument();
     expect(await screen.findByText(/3 of 8 unused/)).toBeInTheDocument();
+  });
+
+  it("previews a theme and accent, and keeps them on this device only on Save", async () => {
+    const fetchMock = mockApi();
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+    await screen.findByText("sam@example.com");
+    const calls = fetchMock.mock.calls.length;
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText("Theme"), "oled");
+    await user.click(screen.getByRole("radio", { name: "Teal" }));
+
+    expect(document.documentElement.dataset.theme).toBe("oled");
+    expect(document.documentElement.dataset.accent).toBe("teal");
+    expect(screen.getByRole("radio", { name: "Teal" })).toBeChecked();
+    expect(window.localStorage.getItem("everything-everywhere.theme")).toBeNull();
+
+    await user.click(save);
+    expect(window.localStorage.getItem("everything-everywhere.theme")).toBe("oled");
+    expect(window.localStorage.getItem("everything-everywhere.accent")).toBe("teal");
+    expect(save).toBeDisabled();
+    expect(fetchMock.mock.calls.length).toBe(calls);
+  });
+
+  it("offers sepia and every accent, and saves them like the others", async () => {
+    mockApi();
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+    await screen.findByText("sam@example.com");
+
+    const modes = [...(screen.getByLabelText("Theme") as HTMLSelectElement).options].map((o) => o.value);
+    expect(modes).toEqual([...MODES]);
+    for (const name of ["Blue", "Indigo", "Violet", "Magenta", "Teal", "Graphite", "Slate", "Cobalt", "Plum"]) {
+      expect(screen.getByRole("radio", { name })).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole("radio")).toHaveLength(ACCENTS.length);
+
+    await user.selectOptions(screen.getByLabelText("Theme"), "sepia");
+    await user.click(screen.getByRole("radio", { name: "Plum" }));
+    expect(document.documentElement.dataset.theme).toBe("sepia");
+    expect(document.documentElement.dataset.accent).toBe("plum");
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(window.localStorage.getItem("everything-everywhere.theme")).toBe("sepia");
+    expect(window.localStorage.getItem("everything-everywhere.accent")).toBe("plum");
+  });
+
+  it("drops an unsaved preview when Settings is left", async () => {
+    mockApi();
+    const user = userEvent.setup();
+    const { rerender } = render(<SettingsPage />);
+    await screen.findByText("sam@example.com");
+
+    await user.click(screen.getByRole("radio", { name: "Violet" }));
+    expect(document.documentElement.dataset.accent).toBe("violet");
+    // Navigate away: Settings goes, the provider stays.
+    rerender(wrap(<p>elsewhere</p>));
+
+    expect(document.documentElement.dataset.accent).toBe("blue");
+    expect(window.localStorage.getItem("everything-everywhere.accent")).toBeNull();
   });
 
   it("changes the currency with a PATCH and re-reads the profile", async () => {

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
 import { useOptionalAuth } from "../auth/AuthContext";
 import type {
   Book,
+  CardId,
   InventoryItem,
   PendingEntry,
   Period,
@@ -19,6 +20,8 @@ import { MoodCheckin } from "../components/MoodCheckin";
 import { QuoteCard } from "../components/QuoteCard";
 import { Card, Empty, ErrorBanner, Stat, TableWrap } from "../components/ui";
 import { DASHBOARD_VIEWS, ViewSwitch } from "../components/ViewSwitch";
+import { CARD_MODULE, useModules } from "../layout/modules";
+import { useCurrentLayout } from "../layout/useLayout";
 import { progress, subtractMoney, toChartNumber, toCents } from "../money";
 import { useMoney } from "../useMoney";
 import { useT } from "../i18n";
@@ -57,6 +60,26 @@ function readTrendMonths(): number {
   }
 }
 
+/** The monthly comparisons, drawn side by side when they are next to each other. */
+const MONTHLY = new Set<CardId>(["budgets", "savings"]);
+/** The two trend cards, stacked in one block when they are next to each other. */
+const TRENDS = new Set<CardId>(["trends", "categories"]);
+
+/**
+ * Consecutive cards of the same family, grouped: budgets beside savings, trends above
+ * categories. Anything else stands alone. Order within and between groups is the layout's.
+ */
+function groups(order: CardId[]): CardId[][] {
+  const result: CardId[][] = [];
+  for (const id of order) {
+    const last = result.at(-1);
+    const family = MONTHLY.has(id) ? MONTHLY : TRENDS.has(id) ? TRENDS : null;
+    if (last && family?.has(last[0] as CardId)) last.push(id);
+    else result.push([id]);
+  }
+  return result;
+}
+
 export function DashboardPage() {
   const money = useMoney();
   const t = useT();
@@ -65,6 +88,26 @@ export function DashboardPage() {
   // Optional, like useMoney: a month boundary has an obvious default, and crashing a
   // whole page for want of context is worse than falling back to the calendar month.
   const startDay = useOptionalAuth()?.user?.budget_start_day ?? 1;
+  // Epic 33: a module that is off draws nothing here and is not asked for anything.
+  const modules = useModules();
+  // The cards this layout shows, in its order (AD-49). A hidden card is not drawn, and a
+  // card whose data is its own request does not make it.
+  const layout = useCurrentLayout();
+  const order = layout.cards
+    .filter((card) => card.on)
+    .map((card) => card.id)
+    .filter((id) => {
+      const module = CARD_MODULE[id];
+      return !module || modules[module];
+    });
+  const shown = (id: CardId) => order.includes(id);
+  // The totals, both tables of the month and the two trend cards share two responses.
+  // Hiding some of them saves nothing; hiding all of one pair skips its request.
+  const needSummary = shown("stats") || shown("budgets") || shown("savings");
+  const needTrends = shown("trends") || shown("categories");
+  const pendingOn = shown("pending");
+  const restockOn = shown("restock");
+  const readingOn = shown("reading");
   const [month, setMonth] = useState(() => budgetMonth(startDay));
   // The home-screen "Mood" shortcut (Epic 32) lands here as `?mood=1`: the popover opens on
   // arrival, and the flag leaves the address so a reload or a shared link does not reopen it.
@@ -94,11 +137,12 @@ export function DashboardPage() {
     failure: error,
   } = useLoad(
     () =>
-      Promise.all([api.summary(month, period), api.trends(trendMonths, month)]).then(
-        ([summary, trends]) => ({ summary, trends }),
-      ),
+      Promise.all([
+        needSummary ? api.summary(month, period) : null,
+        needTrends ? api.trends(trendMonths, month) : null,
+      ]).then(([summary, trends]) => ({ summary, trends })),
     NOTHING,
-    [month, period, trendMonths],
+    [month, period, trendMonths, needSummary, needTrends],
     "dash.couldNotLoad",
   );
 
@@ -106,6 +150,10 @@ export function DashboardPage() {
   // dashboard is where a family member finds out there is something to confirm.
   useEffect(() => {
     let cancelled = false;
+    if (!pendingOn) {
+      setPending(null);
+      return;
+    }
     void api.listPending().then(
       (rows) => {
         if (!cancelled) setPending(rows);
@@ -117,10 +165,14 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [pendingOn]);
 
   useEffect(() => {
     let cancelled = false;
+    if (!restockOn) {
+      setLowItems(null);
+      return;
+    }
     // Spaces only decorate the names; their request failing must not hide the count.
     void Promise.all([
       api.listItems({ needs_restock: true }),
@@ -140,10 +192,14 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [restockOn]);
 
   useEffect(() => {
     let cancelled = false;
+    if (!readingOn) {
+      setReading(null);
+      return;
+    }
     void api.listBooks({ status: "reading" }).then(
       (rows) => {
         if (!cancelled) setReading(rows);
@@ -155,7 +211,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [readingOn]);
 
   const spaceName = (id: string) => spaces.find((space) => space.id === id)?.name ?? "";
 
@@ -193,6 +249,320 @@ export function DashboardPage() {
     );
   }, [trends]);
 
+  /**
+   * Every card, by id (Epic 33). Each draws itself or nothing — nothing when its data is
+   * missing or empty, exactly as each did when the page was one long expression.
+   */
+  const CARDS: Record<CardId, () => ReactNode> = {
+    stats: () =>
+      summary && (
+        <div className="grid">
+          <Stat label={t("dash.income")} value={summary.income} tone="in" />
+          <Stat label={t("dash.expense")} value={summary.expense} tone="out" />
+          <Stat label={t("dash.net")} value={summary.net} />
+          <Stat label={t("dash.saved")} value={summary.saved} />
+        </div>
+      ),
+    pending: () =>
+      pending &&
+      pending.length > 0 && (
+        <Card
+          title={t("dash.toConfirm")}
+          collapseKey="dashboard.pending"
+          summary={t.n("dash.pendingCount", pending.length)}
+        >
+          <p style={{ margin: "0 0 6px" }} data-stat="To confirm">
+            <Link to="/plan" className="card-link">
+              <span>{t.n("dash.pendingWaiting", pending.length)}</span>
+              <span className="chevron" aria-hidden="true">
+                ›
+              </span>
+            </Link>
+          </p>
+          <p className="hint" style={{ margin: 0 }}>
+            {pending
+              .slice(0, 3)
+              .map((row) => `${row.category_name} · ${row.due_on}`)
+              .join(", ")}
+            {pending.length > 3 ? t("dash.andMore") : ""}
+          </p>
+        </Card>
+      ),
+    reading: () =>
+      reading &&
+      reading.length > 0 && (
+        <Card
+          title={t("dash.readingNow")}
+          collapseKey="dashboard.reading"
+          summary={t.n("dash.readingCount", reading.length)}
+        >
+          <p style={{ margin: "0 0 6px" }} data-stat="Reading">
+            <Link to="/books?status=reading" className="card-link">
+              <span>{t.n("dash.readingCount", reading.length)}</span>
+              <span className="chevron" aria-hidden="true">
+                ›
+              </span>
+            </Link>
+          </p>
+          <p className="hint" style={{ margin: 0 }}>
+            {reading
+              .slice(0, 3)
+              .map((book) => {
+                // The page as a fraction, only when both halves are known.
+                const pct =
+                  book.page_count && book.current_page !== null
+                    ? ` · ${Math.round((100 * book.current_page) / book.page_count)}%`
+                    : "";
+                return `${book.title}${pct}`;
+              })
+              .join(", ")}
+            {reading.length > 3 ? t("dash.andMore") : ""}
+          </p>
+        </Card>
+      ),
+    quote: () => <QuoteCard collapseKey="dashboard.quote" />,
+    restock: () =>
+      lowItems &&
+      lowItems.length > 0 && (
+        <Card
+          title={t("dash.restock")}
+          collapseKey="dashboard.restock"
+          summary={t.n("dash.restockCount", lowItems.length)}
+        >
+          <p style={{ margin: "0 0 6px" }} data-stat="Restock">
+            <Link to="/inventory?filter=restock" className="card-link">
+              <span>{t.n("dash.restockNeed", lowItems.length)}</span>
+              <span className="chevron" aria-hidden="true">
+                ›
+              </span>
+            </Link>
+          </p>
+          <p className="hint" style={{ margin: 0 }}>
+            {lowItems
+              .slice(0, 3)
+              .map((item) => {
+                const space = spaceName(item.space_id);
+                return space ? `${item.name} · ${space}` : item.name;
+              })
+              .join(", ")}
+            {lowItems.length > 3 ? t("dash.andMore") : ""}
+          </p>
+        </Card>
+      ),
+    budgets: () =>
+      summary && (
+        <Card
+          title={t("dash.budgetVsActual")}
+          collapseKey="dashboard.budgets"
+          tour="budget-progress"
+          summary={
+            summary.budgets.length === 0
+              ? t("dash.summaryNone")
+              : t("dash.categoriesCount", { count: summary.budgets.length }) +
+                (overspent > 0 ? t("dash.overCount", { count: overspent }) : "")
+          }
+        >
+          {summary.budgets.length === 0 ? (
+            <Empty>{t("dash.noBudgets")}</Empty>
+          ) : (
+            <TableWrap>
+              <table className="stacked" aria-label={t("dash.budgetVsActual")}>
+                <thead>
+                  <tr>
+                    <th>{t("dash.colCategory")}</th>
+                    <th className="num">{t("dash.colSpent", { symbol: money.symbol })}</th>
+                    <th className="num">{t("dash.colBudget", { symbol: money.symbol })}</th>
+                    <th className="num">{t("dash.colLeft", { symbol: money.symbol })}</th>
+                    <th style={{ width: 110 }}>{t("dash.colProgress")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.budgets.map((row) => {
+                    const percent = progress(row.actual, row.budget);
+                    const over =
+                      row.budget !== null && toCents(row.actual) > toCents(row.budget);
+                    return (
+                      <tr key={row.category_id}>
+                        <td data-label={t("dash.colCategory")}>
+                          <Link to={`/categories/${row.category_id}`}>
+                            {row.category_name}
+                          </Link>
+                        </td>
+                        <td className="num" data-label={t("dash.colSpentShort")}>
+                          {money.plain(row.actual)}
+                        </td>
+                        <td className="num" data-label={t("dash.colBudgetShort")}>
+                          {row.budget === null ? (
+                            <span className="hint">{t("dash.notSet")}</span>
+                          ) : (
+                            money.plain(row.budget)
+                          )}
+                        </td>
+                        <td
+                          className="num"
+                          data-label={t("dash.colLeftShort")}
+                          style={over ? { color: "var(--spend-ink)" } : undefined}
+                        >
+                          {row.budget === null
+                            ? "—"
+                            : money.plain(subtractMoney(row.budget, row.actual))}
+                        </td>
+                        <td>
+                          <ProgressBar
+                            percent={percent}
+                            over={over}
+                            label={t("dash.budgetUsed", { name: row.category_name })}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </TableWrap>
+          )}
+        </Card>
+      ),
+    savings: () =>
+      summary && (
+        <Card
+          title={t("dash.savingsProgress")}
+          collapseKey="dashboard.savings"
+          summary={
+            summary.savings.length === 0
+              ? t("dash.summaryNone")
+              : t.n("dash.savingsCount", summary.savings.length)
+          }
+        >
+          {summary.savings.length === 0 ? (
+            <Empty>{t("dash.noSavings")}</Empty>
+          ) : (
+            <TableWrap>
+              <table className="stacked" aria-label={t("dash.savingsProgress")}>
+                <thead>
+                  <tr>
+                    <th>{t("dash.colType")}</th>
+                    <th className="num">{t("dash.colSaved", { symbol: money.symbol })}</th>
+                    <th className="num">{t("dash.colTarget", { symbol: money.symbol })}</th>
+                    <th style={{ width: 110 }}>{t("dash.colProgress")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.savings.map((row) => (
+                    <tr key={row.savings_type_id}>
+                      <td data-label={t("dash.colType")}>{row.savings_type_name}</td>
+                      <td className="num" data-label={t("dash.colSavedShort")}>
+                        {money.plain(row.actual)}
+                      </td>
+                      <td className="num" data-label={t("dash.colTargetShort")}>
+                        {row.target === null ? (
+                          <span className="hint">{t("dash.notSet")}</span>
+                        ) : (
+                          money.plain(row.target)
+                        )}
+                      </td>
+                      <td>
+                        <ProgressBar
+                          percent={progress(row.actual, row.target)}
+                          over={false}
+                          label={t("dash.targetReached", { name: row.savings_type_name })}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableWrap>
+          )}
+        </Card>
+      ),
+    trends: () =>
+      trends && (
+        <Card
+          title={t("dash.lastMonths", { count: trendMonths })}
+          actions={
+            <div className="chips" role="group" aria-label={t("dash.trendWindow")}>
+              {TREND_WINDOWS.map((months) => (
+                <button
+                  key={months}
+                  type="button"
+                  className={`chip ${trendMonths === months ? "on" : ""}`}
+                  aria-pressed={trendMonths === months}
+                  onClick={() => {
+                    setTrendMonths(months);
+                    try {
+                      window.localStorage.setItem(TREND_KEY, String(months));
+                    } catch {
+                      /* a forgotten preference is not worth a crash */
+                    }
+                  }}
+                >
+                  {t("dash.monthsChip", { count: months })}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          <TrendChart
+            months={trends.months}
+            income={trends.income}
+            expense={trends.expense}
+            saved={trends.saved}
+          />
+        </Card>
+      ),
+    categories: () =>
+      trends && (
+        <Card
+          title={t("dash.expenseByCategory")}
+          collapseKey="dashboard.categories"
+          summary={t("dash.categoriesCount", {
+            count: trends.expense_by_category.length,
+          })}
+        >
+          {trends.expense_by_category.length === 0 ? (
+            <Empty>{t("dash.nothingSpent")}</Empty>
+          ) : (
+            <TableWrap>
+              <table className="stacked" aria-label={t("dash.expenseByCategory")}>
+                <thead>
+                  <tr>
+                    <th>{t("dash.colCategory")}</th>
+                    <th>{t("dash.colTrend")}</th>
+                    <th className="num">
+                      {t("dash.colThisMonth", { symbol: money.symbol })}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trends.expense_by_category.map((series) => (
+                    <tr key={series.category_id}>
+                      <td data-label={t("dash.colCategory")}>
+                        <Link to={`/categories/${series.category_id}`}>
+                          {series.category_name}
+                        </Link>
+                      </td>
+                      <td>
+                        <Sparkline
+                          values={series.values}
+                          months={trends.months}
+                          label={series.category_name}
+                          peak={seriesPeak}
+                        />
+                      </td>
+                      <td className="num">
+                        {money.plain(series.values[series.values.length - 1] ?? "0.00")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableWrap>
+          )}
+        </Card>
+      ),
+  };
+
   return (
     <>
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 16 }}>
@@ -212,7 +582,7 @@ export function DashboardPage() {
                 edge of a 375px screen and put a horizontal scrollbar on the page. First in
                 the row, the anchor is at the shell's left padding whatever the month is
                 called. */}
-            <MoodCheckin startOpen={moodShortcut} />
+            {modules.mood && <MoodCheckin startOpen={moodShortcut} />}
             <h1 style={{ fontSize: 18, margin: 0 }}>
               {periodLabel()}
             </h1>
@@ -220,9 +590,11 @@ export function DashboardPage() {
                 was missed twice on a desktop: it sits below the fold of a screenshot and,
                 in dark mode, close to the page colour. After the heading is safe here,
                 unlike the mood trigger — a link anchors no panel. */}
-            <Link to="/notes" className="chip notes-link">
-              <span aria-hidden="true">✎</span> {t("notes.title")}
-            </Link>
+            {modules.notes && (
+              <Link to="/notes" className="chip notes-link">
+                <span aria-hidden="true">✎</span> {t("notes.title")}
+              </Link>
+            )}
           </div>
           {/* Spelled out, because "September" meaning 26 Aug - 25 Sep is exactly the sort
               of thing a person should never have to infer from a total. The server sends
@@ -301,314 +673,46 @@ export function DashboardPage() {
 
       <ErrorBanner message={error} />
 
-      {loading && !summary ? (
+      {loading && summary === null && trends === null && (needSummary || needTrends) ? (
         <p className="empty">{t("state.loading")}</p>
-      ) : summary ? (
-        <>
-          <div className="grid">
-            <Stat label={t("dash.income")} value={summary.income} tone="in" />
-            <Stat label={t("dash.expense")} value={summary.expense} tone="out" />
-            <Stat label={t("dash.net")} value={summary.net} />
-            <Stat label={t("dash.saved")} value={summary.saved} />
-          </div>
-
-          {pending && pending.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <Card
-                title={t("dash.toConfirm")}
-                collapseKey="dashboard.pending"
-                summary={t.n("dash.pendingCount", pending.length)}
-              >
-                <p style={{ margin: "0 0 6px" }} data-stat="To confirm">
-                  <Link to="/plan">{t.n("dash.pendingWaiting", pending.length)}</Link>
-                </p>
-                <p className="hint" style={{ margin: 0 }}>
-                  {pending
-                    .slice(0, 3)
-                    .map((row) => `${row.category_name} · ${row.due_on}`)
-                    .join(", ")}
-                  {pending.length > 3 ? t("dash.andMore") : ""}
-                </p>
-              </Card>
-            </div>
-          )}
-
-          {reading && reading.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <Card
-                title={t("dash.readingNow")}
-                collapseKey="dashboard.reading"
-                summary={t.n("dash.readingCount", reading.length)}
-              >
-                <p style={{ margin: "0 0 6px" }} data-stat="Reading">
-                  <Link to="/books?status=reading">
-                    {t.n("dash.readingCount", reading.length)}
-                  </Link>
-                </p>
-                <p className="hint" style={{ margin: 0 }}>
-                  {reading
-                    .slice(0, 3)
-                    .map((book) => {
-                      // The page as a fraction, only when both halves are known.
-                      const pct =
-                        book.page_count && book.current_page !== null
-                          ? ` · ${Math.round((100 * book.current_page) / book.page_count)}%`
-                          : "";
-                      return `${book.title}${pct}`;
-                    })
-                    .join(", ")}
-                  {reading.length > 3 ? t("dash.andMore") : ""}
-                </p>
-              </Card>
-            </div>
-          )}
-
-          {/* A line from a book, when one is kept (Epic 31). Absent otherwise. */}
-          <QuoteCard collapseKey="dashboard.quote" />
-
-          {lowItems && lowItems.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <Card
-                title={t("dash.restock")}
-                collapseKey="dashboard.restock"
-                summary={t.n("dash.restockCount", lowItems.length)}
-              >
-                <p style={{ margin: "0 0 6px" }} data-stat="Restock">
-                  <Link to="/inventory?filter=restock">
-                    {t.n("dash.restockNeed", lowItems.length)}
-                  </Link>
-                </p>
-                <p className="hint" style={{ margin: 0 }}>
-                  {lowItems
-                    .slice(0, 3)
-                    .map((item) => {
-                      const space = spaceName(item.space_id);
-                      return space ? `${item.name} · ${space}` : item.name;
-                    })
-                    .join(", ")}
-                  {lowItems.length > 3 ? t("dash.andMore") : ""}
-                </p>
-              </Card>
-            </div>
-          )}
-
-          {period !== "month" && (
-            <p className="hint" style={{ marginTop: 16 }}>
-              {t("dash.periodNote", { label: periodLabel().toLowerCase() })}
-            </p>
-          )}
-
-          <div className="columns" style={{ marginTop: 16, display: period === "month" ? undefined : "none" }}>
-            <Card
-              title={t("dash.budgetVsActual")}
-              collapseKey="dashboard.budgets"
-              tour="budget-progress"
-              summary={
-                summary.budgets.length === 0
-                  ? t("dash.summaryNone")
-                  : t("dash.categoriesCount", { count: summary.budgets.length }) +
-                    (overspent > 0 ? t("dash.overCount", { count: overspent }) : "")
-              }
-            >
-              {summary.budgets.length === 0 ? (
-                <Empty>{t("dash.noBudgets")}</Empty>
-              ) : (
-                <TableWrap>
-                  <table className="stacked" aria-label={t("dash.budgetVsActual")}>
-                    <thead>
-                      <tr>
-                        <th>{t("dash.colCategory")}</th>
-                        <th className="num">{t("dash.colSpent", { symbol: money.symbol })}</th>
-                        <th className="num">{t("dash.colBudget", { symbol: money.symbol })}</th>
-                        <th className="num">{t("dash.colLeft", { symbol: money.symbol })}</th>
-                        <th style={{ width: 110 }}>{t("dash.colProgress")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summary.budgets.map((row) => {
-                        const percent = progress(row.actual, row.budget);
-                        const over =
-                          row.budget !== null && toCents(row.actual) > toCents(row.budget);
-                        return (
-                          <tr key={row.category_id}>
-                            <td data-label={t("dash.colCategory")}>
-                              <Link to={`/categories/${row.category_id}`}>
-                                {row.category_name}
-                              </Link>
-                            </td>
-                            <td className="num" data-label={t("dash.colSpentShort")}>
-                              {money.plain(row.actual)}
-                            </td>
-                            <td className="num" data-label={t("dash.colBudgetShort")}>
-                              {row.budget === null ? (
-                                <span className="hint">{t("dash.notSet")}</span>
-                              ) : (
-                                money.plain(row.budget)
-                              )}
-                            </td>
-                            <td
-                              className="num"
-                              data-label={t("dash.colLeftShort")}
-                              style={over ? { color: "var(--spend-ink)" } : undefined}
-                            >
-                              {row.budget === null
-                                ? "—"
-                                : money.plain(subtractMoney(row.budget, row.actual))}
-                            </td>
-                            <td>
-                              <ProgressBar
-                                percent={percent}
-                                over={over}
-                                label={t("dash.budgetUsed", { name: row.category_name })}
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </TableWrap>
-              )}
-            </Card>
-
-            <Card
-              title={t("dash.savingsProgress")}
-              collapseKey="dashboard.savings"
-              summary={
-                summary.savings.length === 0
-                  ? t("dash.summaryNone")
-                  : t.n("dash.savingsCount", summary.savings.length)
-              }
-            >
-              {summary.savings.length === 0 ? (
-                <Empty>{t("dash.noSavings")}</Empty>
-              ) : (
-                <TableWrap>
-                  <table className="stacked" aria-label={t("dash.savingsProgress")}>
-                    <thead>
-                      <tr>
-                        <th>{t("dash.colType")}</th>
-                        <th className="num">{t("dash.colSaved", { symbol: money.symbol })}</th>
-                        <th className="num">{t("dash.colTarget", { symbol: money.symbol })}</th>
-                        <th style={{ width: 110 }}>{t("dash.colProgress")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summary.savings.map((row) => (
-                        <tr key={row.savings_type_id}>
-                          <td data-label={t("dash.colType")}>{row.savings_type_name}</td>
-                          <td className="num" data-label={t("dash.colSavedShort")}>
-                            {money.plain(row.actual)}
-                          </td>
-                          <td className="num" data-label={t("dash.colTargetShort")}>
-                            {row.target === null ? (
-                              <span className="hint">{t("dash.notSet")}</span>
-                            ) : (
-                              money.plain(row.target)
-                            )}
-                          </td>
-                          <td>
-                            <ProgressBar
-                              percent={progress(row.actual, row.target)}
-                              over={false}
-                              label={t("dash.targetReached", { name: row.savings_type_name })}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TableWrap>
-              )}
-            </Card>
-          </div>
-
-          {trends && (
-            <div style={{ marginTop: 16 }}>
-              <Card
-                title={t("dash.lastMonths", { count: trendMonths })}
-                actions={
-                  <div className="chips" role="group" aria-label={t("dash.trendWindow")}>
-                    {TREND_WINDOWS.map((months) => (
-                      <button
-                        key={months}
-                        type="button"
-                        className={`chip ${trendMonths === months ? "on" : ""}`}
-                        aria-pressed={trendMonths === months}
-                        onClick={() => {
-                          setTrendMonths(months);
-                          try {
-                            window.localStorage.setItem(TREND_KEY, String(months));
-                          } catch {
-                            /* a forgotten preference is not worth a crash */
-                          }
-                        }}
-                      >
-                        {t("dash.monthsChip", { count: months })}
-                      </button>
-                    ))}
-                  </div>
-                }
-              >
-                <TrendChart
-                  months={trends.months}
-                  income={trends.income}
-                  expense={trends.expense}
-                  saved={trends.saved}
-                />
-              </Card>
-
-              <Card
-                title={t("dash.expenseByCategory")}
-                collapseKey="dashboard.categories"
-                summary={t("dash.categoriesCount", {
-                  count: trends.expense_by_category.length,
-                })}
-              >
-                {trends.expense_by_category.length === 0 ? (
-                  <Empty>{t("dash.nothingSpent")}</Empty>
-                ) : (
-                  <TableWrap>
-                    <table className="stacked" aria-label={t("dash.expenseByCategory")}>
-                      <thead>
-                        <tr>
-                          <th>{t("dash.colCategory")}</th>
-                          <th>{t("dash.colTrend")}</th>
-                          <th className="num">
-                            {t("dash.colThisMonth", { symbol: money.symbol })}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {trends.expense_by_category.map((series) => (
-                          <tr key={series.category_id}>
-                            <td data-label={t("dash.colCategory")}>
-                              <Link to={`/categories/${series.category_id}`}>
-                                {series.category_name}
-                              </Link>
-                            </td>
-                            <td>
-                              <Sparkline
-                                values={series.values}
-                                months={trends.months}
-                                label={series.category_name}
-                                peak={seriesPeak}
-                              />
-                            </td>
-                            <td className="num">
-                              {money.plain(series.values[series.values.length - 1] ?? "0.00")}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </TableWrap>
+      ) : (
+        groups(order).map((group, index) => {
+          const first = index === 0;
+          const drawn = group.map((id) => [id, CARDS[id]()] as const).filter(([, node]) => node);
+          if (drawn.length === 0) return null;
+          const key = group.join("+");
+          // Budgets and savings are monthly comparisons: side by side when both are shown,
+          // and hidden for a wider period with one line saying why.
+          if (MONTHLY.has(group[0] as CardId)) {
+            return (
+              <div key={key}>
+                {period !== "month" && (
+                  <p className="hint" style={{ marginTop: 16 }}>
+                    {t("dash.periodNote", { label: periodLabel().toLowerCase() })}
+                  </p>
                 )}
-              </Card>
+                <div
+                  className={drawn.length > 1 ? "columns" : undefined}
+                  style={{ marginTop: 16, display: period === "month" ? undefined : "none" }}
+                >
+                  {drawn.map(([id, node]) => (
+                    <Fragment key={id}>{node}</Fragment>
+                  ))}
+                </div>
+              </div>
+            );
+          }
+          // The quote card keeps its own spacing, as it always has.
+          if (group[0] === "quote") return <Fragment key={key}>{drawn[0]?.[1]}</Fragment>;
+          return (
+            <div key={key} style={first ? undefined : { marginTop: 16 }}>
+              {drawn.map(([id, node]) => (
+                <Fragment key={id}>{node}</Fragment>
+              ))}
             </div>
-          )}
-        </>
-      ) : null}
+          );
+        })
+      )}
     </>
   );
 }

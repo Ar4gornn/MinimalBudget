@@ -2448,6 +2448,14 @@ synced yet"
 **And** the Mood shortcut (`/?mood=1`) opens the day's mood popover on the Dashboard and
 leaves the address clean
 
+## Epic 33: Make it yours — modules, tab order, dashboard cards, more looks
+
+Scoped 2026-09-26; the full spec is `docs/epic-33-customization.md` (AD-49, migration `0025`).
+Account-stored preferences, one JSONB column with a `phone` and a `desktop` slot: modules on
+or off (UI only, data kept), section order and bar/top placement with caps of 5/3 on a phone,
+dashboard cards shown/hidden and reordered. Up/down buttons, not drag. Four more accents and
+a sepia theme, still per device. Seven stories, 33.1–33.7, in the spec.
+
 ## Epic 34: Savings pots — withdrawals, balances, goals, and what is due
 
 Started from a bug report on 2026-09-26: "I can't add savings in new months". The API took

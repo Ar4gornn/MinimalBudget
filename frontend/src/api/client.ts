@@ -46,6 +46,7 @@ import type {
   Page,
   PendingEntry,
   Period,
+  PreferencesPatch,
   PushStatus,
   Purchase,
   PurchaseResult,
@@ -490,6 +491,13 @@ export const api = {
     request<User>("/api/auth/me/budget-start-day", {
       method: "PATCH",
       body: JSON.stringify({ budget_start_day: day }),
+    }),
+
+  /** Epic 33. Replaces only the top-level keys sent; answers the whole resolved user. */
+  setPreferences: (patch: PreferencesPatch) =>
+    request<User>("/api/auth/me/preferences", {
+      method: "PATCH",
+      body: JSON.stringify(patch),
     }),
 
   /** Idempotent: the tour can be replayed from Settings, so a second Done is fine. */

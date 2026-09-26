@@ -195,18 +195,30 @@ def digest(session: Session, user_id: uuid.UUID) -> Digest:
     write to the ledger. It reports what is already pending, and the next visit to the app
     brings the rest into being.
     """
-    low = (
-        session.execute(
-            text(
-                "SELECT name FROM inventory_items "
-                "WHERE user_id = :uid AND restock_below IS NOT NULL AND quantity <= restock_below "
-                "ORDER BY lower(name)"
-            ),
-            {"uid": str(user_id)},
+    from app.services import auth as auth_service
+    from app.services import habits as habits_service
+
+    # The language is read here rather than passed in, so every caller of `digest` gets a
+    # correctly-worded one without having to remember to look it up (AD-30's shape: one
+    # definition, no second copy). The same read carries the modules (Epic 33, AD-49): a
+    # module switched off says nothing here either, and its data is left alone.
+    profile = auth_service.read_profile(session, user_id)
+    modules = profile.preferences["modules"] if profile else {}
+
+    low: list[str] = []
+    if modules.get("stock", True):
+        low = list(
+            session.execute(
+                text(
+                    "SELECT name FROM inventory_items "
+                    "WHERE user_id = :uid AND restock_below IS NOT NULL "
+                    "AND quantity <= restock_below ORDER BY lower(name)"
+                ),
+                {"uid": str(user_id)},
+            )
+            .scalars()
+            .all()
         )
-        .scalars()
-        .all()
-    )
     pending = session.execute(
         text(
             "SELECT count(*) FROM recurring_occurrences WHERE user_id = :uid AND status = 'pending'"
@@ -219,18 +231,12 @@ def digest(session: Session, user_id: uuid.UUID) -> Digest:
     # from the Habits page the first time either changed, which is exactly what AD-30
     # forbids. Reading another module's service (never its models) is what the notification
     # side is allowed to do, being a composer rather than a module (AD-37).
-    from app.services import auth as auth_service
-    from app.services import habits as habits_service
-
-    # The language is read here rather than passed in, so every caller of `digest` gets a
-    # correctly-worded one without having to remember to look it up (AD-30's shape: one
-    # definition, no second copy).
-    profile = auth_service.read_profile(session, user_id)
+    habits = habits_service.outstanding(session, user_id) if modules.get("habits", True) else []
 
     return Digest(
         len(low),
         int(pending),
-        list(low),
-        habits_service.outstanding(session, user_id),
+        low,
+        habits,
         language=profile.language if profile else "en",
     )

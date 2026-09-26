@@ -8,10 +8,33 @@ import type { Currency, Language } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { LANGUAGES, useLanguage } from "../i18n";
 import { errorMessage } from "../i18n/errors";
+import { LayoutCard } from "../components/LayoutCard";
 import { SecurityCard } from "../components/SecurityCard";
 import { useTutorial } from "../components/Tutorial/useTutorial";
 import { Card, ErrorBanner } from "../components/ui";
 import { useMoney } from "../useMoney";
+import { ACCENTS, ACCENT_SWATCH, MODES, useTheme, type Accent, type Mode } from "../theme";
+
+const MODE_LABELS = {
+  system: "settings.themeSystem",
+  light: "settings.themeLight",
+  dark: "settings.themeDark",
+  oled: "settings.themeOled",
+  hc: "settings.themeHc",
+  sepia: "settings.themeSepia",
+} as const satisfies Record<Mode, string>;
+
+const ACCENT_LABELS = {
+  blue: "settings.accentBlue",
+  indigo: "settings.accentIndigo",
+  violet: "settings.accentViolet",
+  magenta: "settings.accentMagenta",
+  teal: "settings.accentTeal",
+  graphite: "settings.accentGraphite",
+  slate: "settings.accentSlate",
+  cobalt: "settings.accentCobalt",
+  plum: "settings.accentPlum",
+} as const satisfies Record<Accent, string>;
 
 /**
  * Everything about the account rather than the money: currency, language, password,
@@ -28,6 +51,11 @@ const EXPORTS = [
 export function SettingsPage() {
   const { user, signOut, refreshUser: refreshProfile } = useAuth();
   const { t, lang, setLanguage } = useLanguage();
+  const theme = useTheme();
+  const { discard } = theme;
+  // A preview is only a preview: leaving Settings without saving puts the saved theme back.
+  useEffect(() => discard, [discard]);
+  const swatches = theme.resolved === "dark" || theme.resolved === "oled" ? "dark" : "light";
   const dates = useDates();
   const money = useMoney();
   const tour = useTutorial();
@@ -177,6 +205,64 @@ export function SettingsPage() {
           {t("settings.languageHint")}
         </p>
       </Card>
+
+      <Card title={t("settings.appearance")}>
+        <div className="row">
+          <label style={{ flex: "0 0 200px" }}>
+            {t("settings.theme")}
+            <select
+              aria-label={t("settings.theme")}
+              value={theme.shown.mode}
+              onChange={(event) => theme.preview({ mode: event.target.value as Mode })}
+            >
+              {MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {t(MODE_LABELS[mode])}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {/* A radio group of swatches rather than a select: the colour is the choice, and a
+            list of colour names makes you imagine it. Each carries its name for a screen
+            reader and as a tooltip. */}
+        <fieldset className="accents">
+          <legend>{t("settings.accent")}</legend>
+          {ACCENTS.map((accent) => (
+            <label key={accent} className="accent-choice" data-tip={t(ACCENT_LABELS[accent])}>
+              <input
+                type="radio"
+                name="accent"
+                value={accent}
+                checked={theme.shown.accent === accent}
+                onChange={() => theme.preview({ accent })}
+                aria-label={t(ACCENT_LABELS[accent])}
+              />
+              <span className="dot" aria-hidden="true" style={{ background: ACCENT_SWATCH[swatches][accent] }} />
+            </label>
+          ))}
+        </fieldset>
+        {/* Shown whatever the state, disabled until there is something to save, so the
+            buttons do not jump into place under the finger that just picked a swatch. */}
+        <div className="row" style={{ marginTop: 12 }}>
+          <button type="button" onClick={theme.save} disabled={!theme.previewing}>
+            {t("action.save")}
+          </button>
+          <button
+            type="button"
+            className="quiet"
+            onClick={theme.discard}
+            disabled={!theme.previewing}
+          >
+            {t("action.cancel")}
+          </button>
+        </div>
+        <p className="hint" style={{ marginTop: 8 }}>
+          {t("settings.appearanceHint")}
+        </p>
+      </Card>
+
+      <LayoutCard />
 
       <Card title={t("settings.budgetMonth")}>
         <div className="row">

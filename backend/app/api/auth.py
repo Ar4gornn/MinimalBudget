@@ -16,6 +16,7 @@ from app.schemas.auth import (
     LanguageUpdate,
     PasswordChange,
     PasswordConfirm,
+    PreferencesUpdate,
     RecoverRequest,
     RecoveryCodesOut,
     RecoveryStatusOut,
@@ -326,6 +327,16 @@ def set_tutorial(
 ) -> auth_service.UserRow:
     """Epic 30. Idempotent, so the tour can be replayed from Settings without a 409."""
     return auth_service.set_tutorial(session, user_id, payload.outcome)
+
+
+@router.patch("/me/preferences", response_model=UserOut)
+def set_preferences(
+    payload: PreferencesUpdate, user_id: CurrentUserId, session: DbSession
+) -> auth_service.UserRow:
+    """Epic 33 (AD-49). Only the top-level keys sent are replaced, so a phone saving its
+    layout cannot undo a module switched off from a laptop a moment before."""
+    patch = payload.model_dump(exclude_none=True)
+    return auth_service.set_preferences(session, user_id, patch)
 
 
 @router.get("/me", response_model=UserOut)

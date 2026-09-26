@@ -1,12 +1,14 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../../App";
 import { AuthProvider } from "../../auth/AuthContext";
 import { LanguageProvider } from "../../i18n";
 import { ToastProvider } from "../Toast";
+import { ThemeProvider } from "../../theme";
+import { PRELOAD_TIMEOUT, preloadPages } from "../../test/preloadPages";
 
 /**
  * The guided tour (Epic 30), driven through the real App: the real router, the real
@@ -115,9 +117,11 @@ function renderApp(me: Profile, path = "/", tutorialWrites: "ok" | "fail" = "ok"
     <AuthProvider>
       <LanguageProvider>
         <ToastProvider>
+          <ThemeProvider>
           <MemoryRouter initialEntries={[path]}>
             <App />
           </MemoryRouter>
+          </ThemeProvider>
         </ToastProvider>
       </LanguageProvider>
     </AuthProvider>,
@@ -146,6 +150,8 @@ function outcomes(fetchMock: ReturnType<typeof vi.fn>): string[] {
 }
 
 describe("the guided tour", () => {
+  beforeAll(preloadPages, PRELOAD_TIMEOUT);
+
   beforeEach(() => {
     window.localStorage.clear();
     vi.restoreAllMocks();
@@ -158,7 +164,10 @@ describe("the guided tour", () => {
     expect(within(dialog()).getByText("Welcome to Everything Everywhere")).toBeInTheDocument();
     expect(within(dialog()).getByText("Step 1 of 5")).toBeInTheDocument();
     expect(dialog()).toHaveAttribute("aria-modal", "true");
-    expect(within(dialog()).getByRole("button", { name: "Let’s go" })).toHaveFocus();
+    // Focus is given in an effect, after the commit that drew the dialog — and `findBy`
+    // resolves on that commit, so on a busy machine the effect had not run yet.
+    const begin = within(dialog()).getByRole("button", { name: "Let’s go" });
+    await waitFor(() => expect(begin).toHaveFocus());
     // Nothing is ringed on the welcome screen: it points at nothing.
     expect(document.body.dataset.tourStep).toBeUndefined();
   });
@@ -205,6 +214,9 @@ describe("the guided tour", () => {
     await waitFor(() => expect(outcomes(fetchMock)).toEqual(["skipped"]));
   });
 
+  // A whole journey through three lazily mounted pages: about 2.5s of render work alone,
+  // spread evenly over its steps, with no single wait that could be the slow one. That
+  // outgrew the 5s default in a full run on a loaded machine, so it gets its own budget.
   it("walks the five steps through the real pages and records completion", async () => {
     const user = userEvent.setup();
     const fetchMock = renderApp(profile());
@@ -215,7 +227,8 @@ describe("the guided tour", () => {
     await screen.findByText("Step 2 of 5");
     const form = await screen.findByRole("form", { name: "Record an entry" });
     expect(dialog()).not.toHaveAttribute("aria-modal");
-    expect(document.body.dataset.tourStep).toBe("entry");
+    // The ring is set in an effect too; see the focus check in the first test.
+    await waitFor(() => expect(document.body.dataset.tourStep).toBe("entry"));
     expect(form.closest("[data-tour]")).toHaveAttribute("data-tour", "record-form");
     // The panel names the form's own button, so the instruction and the control agree.
     expect(within(dialog()).getByText(/press Add\./)).toBeInTheDocument();
@@ -225,7 +238,7 @@ describe("the guided tour", () => {
     await user.type(within(form).getByLabelText("Category"), "Coffee");
     await user.click(within(form).getByRole("button", { name: "Add" }));
     await screen.findByText("Step 3 of 5");
-    expect(document.body.dataset.tourStep).toBe("history");
+    await waitFor(() => expect(document.body.dataset.tourStep).toBe("history"));
     // The saved entry is in the ringed list — the category cell links to its page.
     const list = document.querySelector('[data-tour="entries-list"]') as HTMLElement;
     expect(await within(list).findByRole("link", { name: "Coffee" })).toBeInTheDocument();
@@ -234,13 +247,13 @@ describe("the guided tour", () => {
     await user.click(within(dialog()).getByRole("button", { name: "Next" }));
     await screen.findByText("Step 4 of 5");
     await screen.findByRole("heading", { name: "Monthly budgets" });
-    expect(document.body.dataset.tourStep).toBe("budget");
+    await waitFor(() => expect(document.body.dataset.tourStep).toBe("budget"));
 
     // 4 → 5: back to the dashboard, the budget card ringed.
     await user.click(within(dialog()).getByRole("button", { name: "Next" }));
     await screen.findByText("Step 5 of 5");
     await screen.findByRole("heading", { name: "Budget vs actual" });
-    expect(document.body.dataset.tourStep).toBe("progress");
+    await waitFor(() => expect(document.body.dataset.tourStep).toBe("progress"));
 
     // 5 → done: dimmed again, no step counter, and Done records it.
     await user.click(within(dialog()).getByRole("button", { name: "Next" }));
@@ -252,7 +265,7 @@ describe("the guided tour", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.body.dataset.tourStep).toBeUndefined();
     await waitFor(() => expect(outcomes(fetchMock)).toEqual(["completed"]));
-  });
+  }, 15_000);
 
   it("ignores a saved entry when it is not on that step", async () => {
     // The Entries page reports every save; only the entry step listens. Otherwise
