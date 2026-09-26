@@ -16,7 +16,7 @@ epic that adds a card; a CHECK that duplicated it would have to change with it. 
 CHECK here is the shape the resolver relies on: an object.
 
 Revision ID: 0025
-Revises: 0024
+Revises: 0026
 """
 
 from collections.abc import Sequence
@@ -28,7 +28,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from migrations.rls import APP_ROLE
 
 revision: str = "0025"
-down_revision: str | None = "0024"
+down_revision: str | None = "0026"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
