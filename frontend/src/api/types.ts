@@ -51,7 +51,53 @@ export interface User {
    */
   tutorial_completed?: boolean;
   tutorial_skipped_at?: string | null;
+  /**
+   * Epic 33, always resolved by the server. Absent from a server older than migration
+   * 0025; read it through `preferencesOf`, which falls back to the app as it was.
+   */
+  preferences?: Preferences;
 }
+
+/** Epic 33 (AD-49): what can be switched off. Off hides the UI; the data stays. */
+export type ModuleId = "habits" | "books" | "mood" | "stock" | "gym" | "recipes" | "notes";
+/** The eight navigation sections. Dashboard, Entries, Plan and Grow are never hidden. */
+export type SectionId =
+  | "dashboard"
+  | "entries"
+  | "habits"
+  | "stock"
+  | "gym"
+  | "plan"
+  | "grow"
+  | "recipes";
+export type CardId =
+  | "stats"
+  | "pending"
+  | "reading"
+  | "quote"
+  | "restock"
+  | "budgets"
+  | "savings"
+  | "trends"
+  | "categories";
+/** Chosen by the 720px breakpoint every phone rule in styles.css already uses. */
+export type LayoutName = "phone" | "desktop";
+
+export interface Layout {
+  /** Every section once, in order. "bar": the bottom tabs on a phone, the main nav on a
+   *  desktop; "top": the smaller row beside it. A phone holds at most 5 and 3. */
+  tabs: { id: SectionId; slot: "bar" | "top" }[];
+  cards: { id: CardId; on: boolean }[];
+}
+
+export interface Preferences {
+  modules: Record<ModuleId, boolean>;
+  phone: Layout;
+  desktop: Layout;
+}
+
+/** Each key present replaces that subtree on the server; absent keys are untouched. */
+export type PreferencesPatch = Partial<Preferences>;
 
 /** How the guided tour ended. The server keeps the time; the client only says which. */
 export type TutorialOutcome = "completed" | "skipped";

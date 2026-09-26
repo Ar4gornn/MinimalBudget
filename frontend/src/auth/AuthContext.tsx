@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -16,7 +17,8 @@ import {
   setUnauthorizedHandler,
   storeTokens,
 } from "../api/client";
-import type { Currency, Language, User } from "../api/types";
+import type { Currency, Language, PreferencesPatch, User } from "../api/types";
+import { PreferenceSaver, preferencesOf } from "../layout/preferences";
 import { clearAllDrafts } from "../notes/drafts";
 
 interface AuthState {
@@ -33,6 +35,11 @@ interface AuthState {
   signOut: () => void;
   /** Re-read the profile after something server-side changes it. */
   refreshUser: () => Promise<void>;
+  /**
+   * Epic 33: change the account's layout preferences. Shown at once, saved one request at
+   * a time, reverted if the save fails — and the promise rejects, so the control can say so.
+   */
+  updatePreferences: (patch: PreferencesPatch) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -40,6 +47,31 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  // One saver per account. A save still in flight when its owner signs out, or another
+  // account signs in, lands on nobody: `onChange` only touches the user it was made for.
+  const saver = useRef<{ owner: string; saver: PreferenceSaver } | null>(null);
+
+  /** Every user that comes from the server goes through here, so the saver hears it too. */
+  const adopt = useCallback((found: User) => {
+    setUser(found);
+    const prefs = preferencesOf(found);
+    if (saver.current?.owner === found.id) {
+      saver.current.saver.confirm(prefs);
+      return;
+    }
+    const owner = found.id;
+    saver.current = {
+      owner,
+      saver: new PreferenceSaver(
+        prefs,
+        async (patch) => preferencesOf(await api.setPreferences(patch)),
+        (shown) =>
+          setUser((current) =>
+            current && current.id === owner ? { ...current, preferences: shown } : current,
+          ),
+      ),
+    };
+  }, []);
 
   const signOut = useCallback(() => {
     // Tell the server first so the refresh token is revoked rather than merely forgotten,
@@ -50,13 +82,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Notes not yet synced are removed with the session (Epic 32): a note left in a browser
     // after its owner signed out is the leak signing out is for. See `notes/drafts.ts`.
     clearAllDrafts();
+    saver.current = null;
     setUser(null);
   }, []);
 
   // AD-16: the 401 path is registered once. Expiry is the only way a session ends in v1,
   // since there is no refresh flow (AD-13).
   useEffect(() => {
-    setUnauthorizedHandler(() => setUser(null));
+    setUnauthorizedHandler(() => {
+      saver.current = null;
+      setUser(null);
+    });
     return () => setUnauthorizedHandler(null);
   }, []);
 
@@ -69,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     api
       .me()
       .then((found) => {
-        if (!cancelled) setUser(found);
+        if (!cancelled) adopt(found);
       })
       .catch(() => {
         if (!cancelled) clearTokens();
@@ -80,12 +116,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [adopt]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     storeTokens(await api.login(email, password));
-    setUser(await api.me());
-  }, []);
+    adopt(await api.me());
+  }, [adopt]);
 
   const register = useCallback(
     async (
@@ -102,12 +138,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const refreshUser = useCallback(async () => {
-    setUser(await api.me());
+    adopt(await api.me());
+  }, [adopt]);
+
+  const updatePreferences = useCallback((patch: PreferencesPatch) => {
+    if (saver.current === null) return Promise.reject(new Error("signed out"));
+    return saver.current.saver.update(patch);
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, signIn, register, signOut, refreshUser }),
-    [user, loading, signIn, register, signOut, refreshUser],
+    () => ({ user, loading, signIn, register, signOut, refreshUser, updatePreferences }),
+    [user, loading, signIn, register, signOut, refreshUser, updatePreferences],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
